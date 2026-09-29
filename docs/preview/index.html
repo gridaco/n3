@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>N3 guide</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/docs/preview/vendor/docsify/core.min.css" />
+    <style>
+      :root {
+        --theme-color: #2563eb;
+        --content-max-width: 1080px;
+      }
+      .markdown-section img { display: block; height: auto; margin: 1.5rem auto; }
+      .markdown-section kbd {
+        display: inline-block;
+        padding: 0.05em 0.4em;
+        border: 1px solid #d4d4d8;
+        border-radius: 4px;
+        background: #fafafa;
+        color: #27272a;
+        box-shadow: 0 1px 0 #d4d4d8;
+        font: 0.85em ui-monospace, SFMono-Regular, Consolas, monospace;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">Loading N3 guide…</div>
+    <noscript
+      >This Markdown preview requires JavaScript. The guide is also in
+      docs/guide/README.md.</noscript
+    >
+    <script>
+      if (!location.hash) location.replace('#/docs/guide/README');
+      window.$docsify = {
+        name: 'N3 guide',
+        nameLink: '#/docs/guide/README',
+        homepage: 'README.md',
+        basePath: '/',
+        relativePath: true,
+        loadSidebar: true,
+        alias: { '/.*/_sidebar.md': '/_sidebar.md' },
+        subMaxLevel: 2,
+        auto2top: true,
+        noEmoji: true,
+        executeScript: false,
+        markdown(marked, renderer) {
+          const renderLink = renderer.link;
+          renderer.link = function (token) {
+            // Source/fixture links are files, not Markdown routes. Resolve them
+            // against the displayed document before delegating to Docsify.
+            if (/^(?![a-z][a-z0-9+.-]*:|\/\/|#)(?:.*\.(?:rs|obj|txt|json)|LICENSE)(?:[?#].*)?$/i.test(token.href)) {
+              const page = location.hash.slice(1).split('?')[0] || '/docs/guide/README';
+              token = { ...token, href: new URL(token.href, new URL(page, location.origin)).href };
+            }
+            return renderLink.call(this, token);
+          };
+          marked.setOptions({ renderer });
+          return marked;
+        },
+      };
+    </script>
+    <script src="/docs/preview/vendor/docsify/docsify.min.js"></script>
+  </body>
+</html>
