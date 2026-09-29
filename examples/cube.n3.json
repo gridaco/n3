@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "length_unit": "cm",
+  "objects": [
+    {
+      "id": 1,
+      "name": "Cube",
+      "transform": {
+        "translation": [0.0, 0.0, 0.0],
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "scale": [1.0, 1.0, 1.0]
+      },
+      "geometry": {
+        "type": "primitive",
+        "data": {
+          "kind": "cube",
+          "size": [2.0, 2.0, 2.0],
+          "segments": 32,
+          "minor_segments": 16,
+          "minor_radius": 0.25
+        }
+      }
+    }
+  ]
+}

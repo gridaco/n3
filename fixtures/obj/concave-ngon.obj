@@ -1,0 +1,9 @@
+# Original n3 fixture: one planar L-shaped face, counter-clockwise from +Z.
+o ConcaveL
+v 0 0 0
+v 2 0 0
+v 2 1 0
+v 1 1 0
+v 1 2 0
+v 0 2 0
+f 1 2 3 4 5 6

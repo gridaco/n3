@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="N3 dithered sphere">
+  <defs><clipPath id="orb"><circle cx="8" cy="8" r="7"/></clipPath></defs>
+  <circle cx="8" cy="8" r="7" fill="#fff"/>
+  <path clip-path="url(#orb)" fill="#181818" d="M4 0h1v1h-1zM6 0h1v1h-1zM8 0h1v1h-1zM10 0h6v1h-6zM9 1h1v1h-1zM11 1h5v1h-5zM2 2h1v1h-1zM10 2h1v1h-1zM12 2h4v1h-4zM11 3h5v1h-5zM0 4h1v1h-1zM10 4h1v1h-1zM12 4h4v1h-4zM11 5h1v1h-1zM13 5h3v1h-3zM0 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h4v1h-4zM1 7h1v1h-1zM11 7h5v1h-5zM0 8h3v1h-3zM4 8h1v1h-1zM6 8h1v1h-1zM8 8h1v1h-1zM10 8h6v1h-6zM1 9h1v1h-1zM9 9h1v1h-1zM11 9h5v1h-5zM0 10h5v1h-5zM6 10h10v1h-10zM0 11h2v1h-2zM3 11h1v1h-1zM5 11h1v1h-1zM7 11h1v1h-1zM9 11h7v1h-7zM0 12h16v1h-16zM0 13h16v1h-16zM0 14h16v1h-16zM0 15h16v1h-16z"/>
+  <circle cx="8" cy="8" r="7" fill="none" stroke="#181818" stroke-width=".75"/>
+</svg>
