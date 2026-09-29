@@ -1,0 +1,40 @@
+[package]
+name = "n3"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[[bin]]
+name = "n3"
+path = "src/main.rs"
+
+[dependencies]
+bytemuck = { version = "1.25.2", features = ["derive"] }
+earcutr = "0.5.0"
+egui = "=0.36.2"
+egui-wgpu = "=0.36.2"
+egui-winit = { version = "=0.36.2", default-features = false, features = [
+  "clipboard",
+  "links",
+] }
+glam = "0.33.11"
+image = { version = "=0.25.10", default-features = false, features = [
+  "png",
+  "webp",
+] }
+pollster = "1.0.1"
+rfd = "0.17.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+wgpu = "30.0.1"
+winit = "=0.30.13"
+
+[dev-dependencies]
+tobj = { version = "4.0.5", features = ["use_f64"] }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

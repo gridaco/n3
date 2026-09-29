@@ -1,0 +1,102 @@
+# Axis gizmo
+
+The {{control:gizmo}} in the viewport's top-right corner shows your viewing direction. X is red, Y is green, and Z is blue. Filled handles mark positive axes; outlined handles mark negative axes.
+
+{{image:gizmo-orbit}}
+
+The {{control:gizmo.planar}} and {{control:gizmo.free}} tabs choose navigation
+mode. **2D (Planar)** snaps to whichever of Front, Back, Right, Left, Top or Bottom
+is closest to your current viewing direction, preserving pan and zoom. It uses
+orthographic projection and the 2D ruler. On entering 2D, N3 remembers your visible
+3D orientation. Changing axes while in 2D keeps that remembered orientation.
+By default, **3D (Free)** returns to it in perspective, keeping any pan and zoom
+you made in 2D and hiding the 2D ruler.
+
+Tap {{shortcut:view.planar}} to switch between the same two navigation modes. Orbit to the angle
+you want, then tap {{shortcut:view.planar}} to align with its nearest axis; tap it again to return
+to 3D using your Gizmo preferences. The action runs when you release the key.
+Typing decimal values in a focused field keeps its normal behavior. With an
+active transform axis, {{key:Period}} enters a decimal point in the
+[numeric transform amount](numeric-transforms.md); finish or cancel that session
+before using the navigation shortcut.
+
+{{image:gizmo-dot-navigation}}
+
+Two-finger trackpad twists leave 2D unchanged, including during alignment. To
+orbit out, use [{{shortcut:navigation.orbit}} + left-drag](orbit-tool.md), right-button drag, or
+drag the gizmo. {{modifier:shift}} with two-finger scrolling always pans. Manual orbit
+continues from the visible axis angle without recalling the earlier view;
+choosing 3D performs the configured return instead. The explicit Perspective
+preset still uses its default viewing angle.
+
+{{image:gizmo-navigation-mode}}
+
+1. Move the pointer over {{control:gizmo.x}}. The handle highlights and the pointer becomes a hand.
+
+{{image:gizmo-hover}}
+
+2. Hold the primary mouse button and drag the handle to orbit. You can continue dragging outside the gizmo; the grabbing pointer follows you.
+
+{{image:gizmo-drag}}
+
+Watch a drag orbit freely, then an axis click animate into alignment.
+
+{{animation:gizmo-orbit-and-align}}
+
+3. Release at the angle you want. Releasing a drag leaves that angle in place. You can also drag the gizmo body.
+
+Click {{control:gizmo.x}}, {{control:gizmo.y}}, or {{control:gizmo.z}} to look straight along that axis and enter 2D. The corresponding negative handles show the opposite sides. Clicking the facing handle again flips to the opposite side. Orbiting switches to 3D; choose 2D to snap to the nearest axis from your new angle.
+
+{{image:gizmo-aligned}}
+
+## Projection
+
+The {{control:projection}} cube button sits beside the 2D/3D tabs below the axis
+disk. Its icon shows the **current projection**; click it to switch to the other
+projection without changing the viewing angle, pan, zoom, geometry, or selection.
+
+A cube with three visible faces means **perspective**. Click it for orthographic
+projection.
+
+{{image:gizmo-projection-perspective}}
+
+A front-facing square with an offset outline means **orthographic**. Click it
+for perspective projection.
+
+{{image:gizmo-projection-orthographic}}
+
+Projection and navigation mode are separate: switching to orthographic while
+in 3D keeps free orbiting. Switching to perspective leaves 2D and hides the 2D ruler.
+The 2D tab still aligns to the nearest axis and chooses orthographic projection.
+
+## Animation
+
+Axis clicks and returning to 3D animate over **{{value:default-duration}} ms** by default. Taking hold of the gizmo interrupts the transition at the visible angle.
+
+Panning or zooming during a pending 2D alignment first completes the alignment,
+then applies your movement. Orbiting starts from the currently visible angle
+and switches to 3D.
+
+Right-click {{control:gizmo}}, then choose {{control:gizmo.preferences}} to open the settings. Opening this menu leaves an in-progress view transition running.
+
+{{image:gizmo-context-menu}}
+
+Under Gizmo, {{control:gizmo.return-3d}} chooses what the 3D tab restores:
+
+| Setting                                 | Result                                                                      |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| {{control:gizmo.return-3d.perspective}} | Keep the current orientation and switch to perspective.                     |
+| {{control:gizmo.return-3d.orientation}} | Restore the previous 3D orientation and keep the current projection.        |
+| {{control:gizmo.return-3d.both}}        | Restore the previous 3D orientation and switch to perspective; the default. |
+
+All three keep your current pan and zoom. The preference is saved globally.
+
+Use {{control:help.animate}} to turn transitions on or off. Adjust {{control:help.duration}} between **0–{{value:max-duration}} ms**; it applies to the next view change, including a return to 3D. Zero makes the change immediate. Turning animation off finishes any current transition and makes subsequent view changes immediate.
+
+{{image:gizmo-settings}}
+
+You can also open the same window with {{control:preferences.open}} under the N3 menu.
+These [global user preferences](settings.md) persist across app launches and can
+also be edited in `settings.json`.
+
+See [navigation](navigation.md) for viewport controls. [Back to guide](README.md).

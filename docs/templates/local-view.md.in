@@ -1,0 +1,35 @@
+# Local View
+
+Select an object in the {{control:viewport}}, then press {{shortcut:view.local}} to isolate it.
+Only the selected object is rendered, and the view fits it so you can work
+without the rest of the scene in the way. The objects remain in your document.
+
+Before isolation:
+
+{{image:local-view-all}}
+
+While isolated:
+
+{{image:local-view-isolated}}
+
+Press {{shortcut:view.local}} again to show every object and return to your previous view.
+You can also use {{control:view.local-view}}.
+With nothing selected, entering Local View does nothing.
+
+The camera smoothly fits the isolated object and returns to your previous view.
+Both transitions use {{control:help.animate}} and {{control:help.duration}},
+the same preferences as other view changes. Turn animation off for an instant
+transition.
+
+{{animation:local-view-transition}}
+
+After leaving Local View:
+
+{{image:local-view-restored}}
+
+Local View keeps the object selected. Toggling it does not edit geometry or
+create an undo step. In vertex edit mode it isolates the entire edited object,
+even if no vertices are selected.
+
+See [selecting objects](object-feedback.md) and [fitting the view](view-keys.md).
+[Back to guide](README.md).

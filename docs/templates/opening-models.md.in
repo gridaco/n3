@@ -1,0 +1,19 @@
+# Opening models
+
+Open {{control:app.menu}} → {{control:app.file}} and choose {{control:open}} to open an N3 document (`.n3.json`) or import an OBJ
+file. Importing an OBJ starts an untitled document with editable mesh objects;
+save it as an N3 document to keep your edits. A successful open fits the model
+into the viewport automatically. The current document remains visible while
+you choose a file; opening a file replaces it and updates the geometry counts.
+
+This example shows **{{value:sample-name}}**, with **{{value:sample-vertices}}
+vertices**, **{{value:sample-faces}} polygon faces**, and
+**{{value:sample-triangles}} display triangles**. Polygon faces may become
+multiple triangles for drawing, so these counts can differ.
+
+If the source model uses Z as its vertical axis, enable {{control:z-up}} in Preferences.
+This changes its displayed orientation without changing the document geometry.
+Turn it off to return to the initial orientation. Continue with
+[moving around](navigation.md) to explore the model from other angles.
+
+{{image:opening-models}}

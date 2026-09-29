@@ -1,0 +1,33 @@
+# Choosing a view with the pie
+
+Move the pointer over {{control:viewport}} and hold {{shortcut:view.pie}} to
+open the view pie. Keep the key held while pointing at a choice, then release
+the key to use it. You do not need to click.
+
+{{image:view-pie-open}}
+
+| Position    | Choice                         |
+| ----------- | ------------------------------ |
+| Top         | {{control:view-pie.top}}       |
+| Upper left  | {{control:view-pie.front}}     |
+| Upper right | {{control:view-pie.back}}      |
+| Left        | {{control:view-pie.left}}      |
+| Right       | {{control:view-pie.right}}     |
+| Lower right | {{control:view-pie.selection}} |
+| Bottom      | {{control:view-pie.bottom}}    |
+
+The six direction choices switch to orthographic views using your current
+view-animation settings. Frame selection centers and fits the selected geometry
+while preserving your viewing direction and projection.
+It works on selected objects in object mode and selected vertices in vertex
+edit mode. The choice is disabled when that context has nothing selected.
+
+Return to the opening point before releasing to cancel, or press {{shortcut:cancel}}.
+The empty lower-left slot also leaves the view unchanged. Hovering choices
+does not preview a camera change. Your geometry, selection and current tool
+stay unchanged, and choosing a view creates no undo step.
+
+Text fields and other open menus keep their own keyboard input.
+
+See [number keys and fitting the view](view-keys.md) or [navigation](navigation.md).
+[Back to guide](README.md).
