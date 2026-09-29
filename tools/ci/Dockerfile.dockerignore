@@ -1,0 +1,7 @@
+# The image contains tools only, never project sources or local/private state.
+**
+!rust-toolchain.toml
+!tools/
+!tools/ci/
+!tools/ci/Dockerfile
+!tools/ci/Dockerfile.dockerignore

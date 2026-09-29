@@ -1,0 +1,12 @@
+{
+  "printWidth": 80,
+  "proseWrap": "preserve",
+  "embeddedLanguageFormatting": "off",
+  "ignorePatterns": [
+    "/TODO.md",
+    "/Cargo.lock",
+    "/docs/guide/**",
+    "/docs/preview/vendor/**",
+    "/examples/**"
+  ]
+}
