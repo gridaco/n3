@@ -335,7 +335,7 @@ pub(super) fn compare(expected: &Artifacts, current: &Artifacts) -> Result<()> {
     }
 }
 
-fn renderer_profile(artifacts: &Artifacts) -> Option<&str> {
+pub(super) fn renderer_profile(artifacts: &Artifacts) -> Option<&str> {
     std::str::from_utf8(artifacts.get("manifest.txt")?)
         .ok()?
         .lines()
@@ -375,9 +375,17 @@ pub(super) fn execute(
     // All UI actions, assertions, rendering, encoding, and template validation
     // complete before any documentation is written. A failing run cannot bless it.
     let artifacts = generate()?;
-    match mode {
-        "update" => publish(dir, &artifacts)?,
-        _ => compare(&artifacts, &read_tree(dir)?)?,
+    let canonical = read_tree(dir)?;
+    if std::env::var("N3_DOCS_RENDERER").as_deref() == Ok("lavapipe")
+        && renderer_profile(&artifacts) == Some(renderer_baseline::PROFILE)
+        && renderer_profile(&canonical) != Some(renderer_baseline::PROFILE)
+    {
+        renderer_baseline::run(mode, &root(), &canonical, &artifacts)?;
+    } else {
+        match mode {
+            "update" => publish(dir, &artifacts)?,
+            _ => compare(&artifacts, &canonical)?,
+        }
     }
     println!(
         "docs {mode}: {} verified features, {} artifacts",

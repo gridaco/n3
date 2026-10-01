@@ -1,4 +1,7 @@
 //! Read-only 2D ruler strips, including animated alignment within 2D navigation.
+#[cfg(test)]
+use super::scalar_ticks::MAX_TICKS;
+use super::scalar_ticks::{self, nice_step};
 use crate::{
     camera::Camera, document::DisplayFrame, object_feedback::SELECTED_COLOR,
     orientation::display_rotation, theme, units::LengthUnit,
@@ -7,7 +10,6 @@ use egui::{Color32, FontId, Pos2, Rect, Stroke, Ui};
 use glam::{DMat4, DVec3, Vec3};
 
 pub const THICKNESS: f32 = theme::size::STEP_5;
-const MAX_TICKS: usize = 4096;
 // Minimum distance between numbered graduations; smaller values allow denser rulers.
 const MIN_MAJOR_TICK_SPACING: f64 = 72.0;
 const FONT_SIZE: f32 = theme::text::RULER_10;
@@ -202,58 +204,23 @@ impl Ruler2DModel {
 }
 
 impl AxisRuler {
-    fn make_ticks(&self, start: f32, end: f32) -> Vec<Tick> {
-        let start = f64::from(start);
-        let end = f64::from(end);
-        let minimum = (start - self.origin) / self.pixels_per_unit;
-        let maximum = (end - self.origin) / self.pixels_per_unit;
-        if !minimum.is_finite() || !maximum.is_finite() || maximum <= minimum {
-            return Vec::new();
-        }
-        let minimum_spacing = MIN_MAJOR_TICK_SPACING.max((end - start) / (MAX_TICKS - 2) as f64);
-        let mut major = nice_step(minimum_spacing / self.pixels_per_unit);
-        for _ in 0..4 {
-            if !major.is_finite() || major <= 0.0 {
-                return Vec::new();
-            }
-            let characters = format_value(minimum, major)
-                .len()
-                .max(format_value(maximum, major).len());
-            let spacing = minimum_spacing.max(characters as f64 * 6.0 + 18.0);
-            if major * self.pixels_per_unit >= spacing {
-                break;
-            }
-            major = nice_step(spacing / self.pixels_per_unit);
-        }
-        let spacing = major * self.pixels_per_unit;
-        let first = (minimum / major).ceil();
-        if !spacing.is_finite()
-            || spacing <= 0.0
-            || !first.is_finite()
-            || first.abs() >= (1_u64 << 52) as f64
-        {
-            return Vec::new();
-        }
-        let count = (((end - start) / spacing).ceil() as usize)
-            .saturating_add(2)
-            .min(MAX_TICKS);
-        let mut ticks = Vec::with_capacity(count);
-        for offset in 0..count {
-            let index = first + offset as f64;
-            let value = if index == 0.0 { 0.0 } else { index * major };
-            // Subtract visible values before multiplying, preserving useful
-            // precision when document zero is far outside the viewport.
-            let position = start + (value - minimum) * self.pixels_per_unit;
-            if !position.is_finite() || !value.is_finite() || position < start || position > end {
-                continue;
-            }
-            ticks.push(Tick {
-                position: position as f32,
-                value,
-                label: Some(format_value(value, major)),
-            });
-        }
-        ticks
+    /// Plan a projected linear axis independently of camera and document state.
+    pub(crate) fn make_ticks(&self, start: f32, end: f32) -> Vec<Tick> {
+        scalar_ticks::plan(
+            f64::from(start),
+            f64::from(end),
+            self.origin,
+            self.pixels_per_unit,
+            MIN_MAJOR_TICK_SPACING,
+            format_value,
+        )
+        .into_iter()
+        .map(|tick| Tick {
+            position: tick.position,
+            value: tick.value,
+            label: Some(tick.label),
+        })
+        .collect()
     }
 }
 
@@ -267,23 +234,6 @@ fn project(matrix: DMat4, viewport: Rect, point: DVec3) -> Option<(f64, f64)> {
     let y =
         f64::from(viewport.top()) + (1.0 - clip.y / clip.w) * 0.5 * f64::from(viewport.height());
     (x.is_finite() && y.is_finite()).then_some((x, y))
-}
-
-fn nice_step(minimum: f64) -> f64 {
-    let power = 10.0_f64.powf(minimum.log10().floor());
-    let fraction = minimum / power;
-    power
-        * if fraction <= 1.0 {
-            1.0
-        } else if fraction <= 1.5 {
-            1.5
-        } else if fraction <= 2.0 {
-            2.0
-        } else if fraction <= 5.0 {
-            5.0
-        } else {
-            10.0
-        }
 }
 
 fn format_value(value: f64, step: f64) -> String {

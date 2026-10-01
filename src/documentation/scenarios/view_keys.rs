@@ -105,7 +105,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.state.editor = Editor::new(document.clone())?;
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
     s.witness(Control::Viewport)?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     let dirty = s.state.is_dirty();
     let before = matrix(s);
@@ -255,7 +255,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         "The context-menu Frame selection command produces the same selected-group fit",
     )?;
 
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     view(s, "numpad.projection")?;
     s.require(

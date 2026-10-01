@@ -20,6 +20,24 @@ fn width(s: &Session<'_>) -> Result<f64> {
 
 fn assert_transform_layout(s: &mut Session<'_>) -> Result<()> {
     let inspector = s.trace.get(Control::Inspector)?.rect;
+    let layers = s.trace.get(Control::ObjectList)?.rect;
+    let viewport = s.trace.get(Control::Viewport)?.rect;
+    let menu = s.trace.get(Control::N3Menu)?.rect;
+    let border = s
+        .ctx
+        .global_style()
+        .visuals
+        .widgets
+        .noninteractive
+        .bg_stroke
+        .width
+        .round();
+    s.require(
+        layers.right() + border == viewport.left()
+            && inspector.left() - border == viewport.right()
+            && menu.left() - layers.left() == theme::space::LG,
+        "Panel roots reach the viewport borders while their section controls retain an inset",
+    )?;
     let mut previous_bottom = f32::NEG_INFINITY;
     for (name, axes) in [
         (
@@ -39,7 +57,11 @@ fn assert_transform_layout(s: &mut Session<'_>) -> Result<()> {
         ];
         s.require(
             rects.iter().all(|rect| {
-                inspector.contains_rect(*rect) && rect.width() >= 40.0 && rect.height() <= 26.0
+                inspector.contains_rect(*rect)
+                    && rect.left() >= inspector.left() + theme::space::LG
+                    && rect.right() <= inspector.right() - theme::space::LG
+                    && rect.width() >= 40.0
+                    && rect.height() <= 26.0
             }) && rects[0].left() < rects[1].left()
                 && rects[1].left() < rects[2].left()
                 && (rects[0].center().y - rects[1].center().y).abs() < 2.0
@@ -95,10 +117,15 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.value("panel-width", saved_layout.hierarchy_width);
     let left = s.trace.get(Control::ObjectList)?.rect;
     let right = s.trace.get(Control::Inspector)?.rect;
-    s.drag_at(
-        egui::pos2(left.right() + 4.0, left.center().y),
-        egui::vec2(65.0, 0.0),
+    // Use the panel side of the native resize band. Panel control rectangles
+    // now describe the full unpadded content, not an inset body.
+    let left_border = egui::pos2(left.right() - 1.0, left.center().y);
+    s.frame(vec![egui::Event::PointerMoved(left_border)], Duration::ZERO)?;
+    s.require(
+        s.cursor == egui::CursorIcon::ResizeHorizontal,
+        "The Layers border exposes native horizontal resizing",
     )?;
+    s.drag_at(left_border, egui::vec2(65.0, 0.0))?;
     let actual_left = s.trace.get(Control::ObjectList)?.rect;
     if actual_left.width() <= left.width() + 30.0 {
         return Err(format!(
@@ -106,14 +133,21 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             s.state.viewport
         ));
     }
-    s.drag_at(
-        egui::pos2(right.left() - 4.0, right.center().y),
-        egui::vec2(-55.0, 0.0),
+    let right_border = egui::pos2(right.left() + 1.0, right.center().y);
+    s.frame(
+        vec![egui::Event::PointerMoved(right_border)],
+        Duration::ZERO,
     )?;
+    s.require(
+        s.cursor == egui::CursorIcon::ResizeHorizontal,
+        "The Properties border exposes native horizontal resizing",
+    )?;
+    s.drag_at(right_border, egui::vec2(-55.0, 0.0))?;
     s.require(
         s.trace.get(Control::Inspector)?.rect.width() > right.width() + 25.0,
         "Dragging the Properties divider makes the right panel wider",
     )?;
+    assert_transform_layout(s)?;
     let document = s.state.editor.document.clone();
     let selection = s.state.editor.selected_objects.clone();
     let camera = s.state.camera.view_projection(1.0);
@@ -126,6 +160,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             && s.state.camera.view_projection(1.0) == camera,
         "Applying a saved layout restores both resized panels without changing the document, selection, or camera",
     )?;
+    assert_transform_layout(s)?;
     s.require(
         s.trace.get(Control::ViewportToolbar)?.rect.min.y > s.state.viewport.min.y
             && s.trace.get(Control::SceneInfo)?.rect.max.y < s.state.viewport.max.y
@@ -215,11 +250,29 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.witness(Control::InsertMenu)?;
     s.witness(Control::ViewportToolbar)?;
     s.witness(Control::SceneInfo)?;
+    s.witness(Control::ToolDockTabBar)?;
+    s.witness(Control::AnimationPanelToggle)?;
     let stats = s.trace.get(Control::SceneInfo)?.rect;
+    let tabs = s.trace.get(Control::ToolDockTabBar)?.rect;
+    let floating_tabs = s
+        .state
+        .tool_dock
+        .floating_tabs_rect
+        .ok_or("Closed workspace is missing its floating Tool Dock tab bar")?;
     s.require(
         (stats.left() - s.state.viewport.left() - theme::space::XL).abs() < 1.0
-            && (s.state.viewport.bottom() - stats.bottom() - theme::space::XL).abs() < 1.0,
-        "Scene stats sit at the viewport's bottom left",
+            && (stats.left() - floating_tabs.left()).abs() < 1.0
+            && (floating_tabs.top() - stats.bottom() - theme::space::LG).abs() < 1.0
+            && s.state.viewport.contains_rect(stats),
+        "Scene stats sit at the viewport's lower left, aligned above the floating Tool Dock tab bar",
+    )?;
+    s.require(
+        floating_tabs.contains_rect(tabs)
+            && s.state.viewport.contains_rect(floating_tabs)
+            && (s.state.viewport.bottom() - floating_tabs.bottom() - theme::space::XL).abs() < 1.0
+            && floating_tabs.bottom() < status.top()
+            && s.trace.get(Control::AnimationPanelToggle)?.parents == [Control::ToolDockTabBar],
+        "The Tool Dock tab bar floats beneath the scene stats and above the Status bar, with Animation inside the shared tab bar",
     )?;
     s.capture_image("workspace-layout")?;
     s.click(Control::N3Menu)?;
@@ -232,16 +285,73 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             && s.trace.get(Control::ViewMenu)?.rect.width() >= theme::size::STEP_52,
         "File and View are full-width submenus of N3",
     )?;
-    s.click(Control::FileMenu)?;
+    let focused_row = |s: &Session<'_>| {
+        s.ctx
+            .memory(|memory| memory.focused())
+            .and_then(|id| s.ctx.read_response(id))
+            .map(|response| response.rect)
+    };
+    s.require(
+        focused_row(s) == Some(s.trace.get(Control::FileMenu)?.rect),
+        "A mouse-opened menu focuses its first available row",
+    )?;
+    s.key(egui::Key::ArrowDown, true, egui::Modifiers::NONE)?;
+    s.key(egui::Key::ArrowDown, false, egui::Modifiers::NONE)?;
+    s.require(
+        focused_row(s) == Some(s.trace.get(Control::ViewMenu)?.rect),
+        "Arrow navigation moves focus to View without changing the document",
+    )?;
+    s.key(egui::Key::ArrowUp, true, egui::Modifiers::NONE)?;
+    s.key(egui::Key::ArrowUp, false, egui::Modifiers::NONE)?;
+    s.key(egui::Key::ArrowRight, true, egui::Modifiers::NONE)?;
+    s.key(egui::Key::ArrowRight, false, egui::Modifiers::NONE)?;
+    s.require(
+        focused_row(s) == Some(s.trace.get(Control::New)?.rect),
+        "Right enters File and focuses its first available command",
+    )?;
     s.require(
         s.trace.get(Control::New)?.rect.width() >= theme::size::STEP_52,
         "File actions use the same minimum menu width",
     )?;
+    let new_row = s.trace.get(Control::New)?.rect;
+    let open_row = s.trace.get(Control::Open)?.rect;
+    s.require(
+        (new_row.bottom() - open_row.top()).abs() < 0.1,
+        "Adjacent menu actions share a boundary without an empty hover gap",
+    )?;
+    s.hover(Control::New)?;
+    s.require(
+        s.trace.get(Control::New)?.rect == new_row,
+        "Menu hover preserves the padded row bounds",
+    )?;
     // Menu controls exist in the trace before their fade-in is visible. Advance
     // the scenario clock so the guide shows the open menu at full opacity.
     s.wait(Duration::from_millis(250))?;
+    s.witness(Control::SaveAs)?;
+    s.shortcut_label("document.save-as")?;
+    let save_as = crate::ui::menu::Shortcut::for_action(crate::input::actions::ActionId::SaveAs)
+        .ok_or("Save as has no shortcut presenter")?;
+    s.value("save-as-menu-hint", save_as.presentation(s.ctx.os()).visual);
+    s.value(
+        "save-as-windows-hint",
+        save_as
+            .presentation(egui::os::OperatingSystem::Windows)
+            .visual,
+    );
     s.capture_image("workspace-menu")?;
-    s.click(Control::N3Menu)?;
+    s.key(egui::Key::ArrowLeft, true, egui::Modifiers::NONE)?;
+    s.key(egui::Key::ArrowLeft, false, egui::Modifiers::NONE)?;
+    s.require(
+        s.trace.get(Control::New).is_err()
+            && focused_row(s) == Some(s.trace.get(Control::FileMenu)?.rect),
+        "Left closes only the submenu and returns focus to File",
+    )?;
+    s.key(egui::Key::Escape, true, egui::Modifiers::NONE)?;
+    s.key(egui::Key::Escape, false, egui::Modifiers::NONE)?;
+    s.require(
+        !egui::Popup::is_any_open(&s.ctx) && s.state.editor.document == document,
+        "Escape dismisses the root menu without editing the document",
+    )?;
 
     assert_transform_layout(s)?;
     s.hover(Control::Viewport)?;
@@ -363,6 +473,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.require(!s.state.show_ui && s.state.viewport.width() > viewport_width
         && s.trace.get(Control::ObjectList).is_err()
         && s.trace.get(Control::ViewportToolbar).is_err()
+        && s.trace.get(Control::ToolDockTabBar).is_err()
         && s.trace.get(Control::Gizmo).is_err()
         && s.state.editor.document == before_hide
         && s.state.editor.selected_objects == selected,
@@ -374,6 +485,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             && s.state.viewport.width() == viewport_width
             && s.trace.get(Control::ObjectList).is_ok()
             && s.trace.get(Control::ViewportToolbar).is_ok()
+            && s.trace.get(Control::ToolDockTabBar).is_ok()
             && s.state.editor.document == before_hide,
         r"Repeating Toggle UI restores the workspace with the same document",
     )?;

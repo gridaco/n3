@@ -1,5 +1,6 @@
 use super::artifacts::*;
 use super::*;
+use crate::document;
 #[test]
 fn generated_documentation_is_current() {
     run("check").unwrap();
@@ -28,6 +29,46 @@ fn guide_session_starts_from_stable_light_layout_pixels() {
         initial.rgba == later.rgba,
         "idle guide pixels changed after startup; an egui overlay may still be fading in"
     );
+}
+
+#[test]
+fn empty_viewport_target_uses_live_overlays_without_changing_input_or_document() {
+    let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT)).unwrap();
+    let mut s = Session::new(&mut capture).unwrap();
+    s.load_fixture("cube-quads.obj").unwrap();
+    let object = s.state.editor.document.objects[0].id;
+    s.state.editor.select_object(object).unwrap();
+    s.settle().unwrap();
+    let document = s.state.editor.document.clone();
+    let selection = s.state.editor.selected_objects.clone();
+    let pointer = s.input.position();
+    let focus = s.ctx.memory(|memory| memory.focused());
+    let clock = s.time;
+    let target = s.empty_viewport_point().unwrap();
+    assert_eq!(s.empty_viewport_point().unwrap(), target);
+    assert!(s.state.viewport.contains(target));
+    assert!(
+        !s.state
+            .tool_dock
+            .floating_tabs_rect
+            .unwrap()
+            .contains(target)
+    );
+    assert_eq!(s.ctx.layer_id_at(target), Some(egui::LayerId::background()));
+    assert_eq!(s.input.position(), pointer);
+    assert_eq!(s.ctx.memory(|memory| memory.focused()), focus);
+    assert_eq!(s.time, clock);
+    assert_eq!(s.state.editor.document, document);
+    assert_eq!(s.state.editor.selected_objects, selection);
+    s.click_at(target).unwrap();
+    assert!(s.state.editor.selected_objects.is_empty());
+    assert!(!s.state.animation_panel_is_open());
+    assert_eq!(
+        s.ctx.memory(|memory| memory.focused()),
+        Some(crate::shortcuts::viewport_focus_id())
+    );
+    assert_eq!(s.state.editor.document, document);
+    assert!(!s.state.editor.undo());
 }
 #[test]
 fn gizmo_context_menu_and_preferences_own_their_input() {
@@ -317,7 +358,7 @@ fn selection_keys_follow_real_viewport_field_and_popup_focus() {
         repeat: false,
         modifiers,
     };
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18., -18.);
+    let empty = s.empty_viewport_point().unwrap();
     s.frame(
         vec![egui::Event::PointerMoved(empty), pointer(empty, true)],
         Duration::ZERO,
@@ -627,7 +668,7 @@ fn shared_mouse_routing_applies_motion_once_and_cancels_click_after_escape() {
     let id = s.state.editor.document.objects[0].id;
     s.state.editor.select_object(id).unwrap();
     s.settle().unwrap();
-    let start = s.state.viewport_ui_rect.left_bottom() + egui::vec2(30.0, -30.0);
+    let start = s.empty_viewport_point().unwrap();
     let end = start + egui::vec2(32.0, -12.0);
     let button = |pos, pressed| egui::Event::PointerButton {
         pos,
@@ -1081,7 +1122,7 @@ fn hand_space_respects_fields_popups_focus_loss_and_gizmo() {
     s.reveal_preferences_control(Control::PreferencesClose)
         .unwrap();
     s.click(Control::PreferencesClose).unwrap();
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(30., -30.);
+    let empty = s.empty_viewport_point().unwrap();
     s.click_at(empty).unwrap();
     // Holding a Space initially consumed by the field cannot activate on focus change.
     s.key(egui::Key::Space, true, egui::Modifiers::NONE)

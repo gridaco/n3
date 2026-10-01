@@ -12,13 +12,18 @@ and document the implemented behavior in the executable user guide.
 | Item | Starting scope |
 | --- | --- |
 | **Highest priority: 2D Pen tool** | Start with a dedicated Pen tool for creating geometry in 2D mode. Define point placement, finishing, and cancellation; reserve P for the tool. Consider 3D behavior later. |
-| Topology editing | Extend the initial [Make Face](docs/guide/make-face.md) operation with edge/face selection, extrusion, inset, and bevel; research the interaction model. |
+| **High priority: Boolean operations** | Must-have union, difference, and intersection operations with a safe, straightforward workflow. Timing depends on the research and engineering groundwork required for the node/modifier system. |
+| Bevel | Must-have feature; interaction paradigm remains open. Compare a traditional Blender-style bevel workflow with an easy-to-use approach inspired by Spline before choosing how N3 should support it. |
+| Topology editing | Extend the initial [Make Face](docs/guide/make-face.md) operation with edge/face selection, extrusion, and inset; research the interaction model. |
 | Paired selection in 2D | **Deferred:** consider verified front/back vertex pairing in aligned views; exact geometry does not prove selection intent. See [RFC 0001](rfcs/0001-paired-selection-in-2d.md). |
 | Grouping and hierarchy entities | Add an explicit document entity for organizing objects; evaluate groups, collections, or folders, including nesting, selection, and shared transform semantics. |
-| 3D format I/O | GLB/glTF import/export, OBJ export, and explicit preservation limits; evaluate other formats as needed. |
-| Materials and PBR | Material model, assignment, textures, and viewport rendering. |
-| UVs and normals | Preserve imported attributes; investigate authoring and shading controls. |
-| Animation | Document animation, keyframes, timeline, and playback. Tutorial animations already exist and are a separate system. |
+| Multiple authored scenes | **Draft; implementation deferred.** Independent N3 scenes in one document/editor. Revisit [RFC 0002](rfcs/0002-authored-scenes.md), starting with a small native-scene proof of switching, history/recovery, and persistence before broader import work. |
+| 3D format I/O | Build on read-only glTF/GLB viewing: scene export/authoring, OBJ export, compression and advanced extensions; evaluate OpenUSD composition/schema support. See the [viewer milestone](docs/milestones/modern-scene-viewer.md). |
+| Materials and PBR | Extend imported PBR viewing into editable material assignment; HDR environment import, shadows, advanced materials and color management. See the [viewer milestone](docs/milestones/modern-scene-viewer.md). |
+| Node Canvas UI Kit | Establish reusable UI primitives for node blocks, ports, connections, selection, dragging, pan, and zoom. Validate interactions in isolated workbench examples so future editors can adopt them confidently when a concrete consumer exists. Scope this as UI foundation work; shader/modifier semantics and evaluation remain separate. |
+| UVs and normals | Imported glTF attributes are preserved for viewing; investigate editable document attributes, authoring and shading controls. |
+| Animation | Build on imported clip playback and the read-only inspection timeline with canonical document animation, keyframe authoring and GPU deformation. See [inspection boundaries](docs/architecture/animation-inspection.md). Tutorial animations remain a separate system. |
+| Video editing | **Exploratory:** consider evolving N3 to support video editing. Scope and timing remain open; media processing, playback synchronization, and export require substantial research and engineering beyond GPU rendering. |
 | Multiple windows/views | Define shared document state and independent views; extend executable docs to compose captures. |
 | Geometry snapping | Vertex, edge, and face targets alongside existing grid snapping. |
 | Further Insert shapes | Evaluate Torus Knot as a distinct procedural recipe and Backdrop as a scene setup tool, with their parameters and rendering behavior defined before adding either. |

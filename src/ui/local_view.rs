@@ -65,10 +65,30 @@ pub(super) fn object_points(
         if !objects.contains(&object.id) {
             continue;
         }
-        let geometry = editor.document.eval_object(object.id)?;
-        let transform = object.transform.matrix();
-        for vertex in &geometry.vertices {
-            let world = transform.transform_point3(DVec3::from_array(vertex.position));
+        let world_points = match &object.geometry {
+            crate::document::Geometry::Asset(asset) => match editor.asset_frames().get(asset) {
+                Some(frame) => {
+                    let points =
+                        crate::model::asset_geometry::AssetGeometry::new(object, frame)?.points;
+                    if points.is_empty() {
+                        vec![DVec3::from_array(object.transform.translation)]
+                    } else {
+                        points
+                    }
+                }
+                None => vec![DVec3::from_array(object.transform.translation)],
+            },
+            _ => {
+                let geometry = editor.document.eval_object(object.id)?;
+                let transform = object.transform.matrix();
+                geometry
+                    .vertices
+                    .iter()
+                    .map(|vertex| transform.transform_point3(DVec3::from_array(vertex.position)))
+                    .collect()
+            }
+        };
+        for world in world_points {
             let display = editor.frame.world_to_display(world).as_vec3();
             let point = rotation.transform_point3(display);
             if !point.is_finite() {

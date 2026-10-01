@@ -7,6 +7,7 @@
     "/Cargo.lock",
     "/docs/guide/**",
     "/docs/preview/vendor/**",
-    "/examples/**"
+    "/examples/**",
+    "/fixtures/gltf/*/**"
   ]
 }

@@ -124,6 +124,16 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         s.state.user_settings().theme == ThemeMode::Dark && s.ctx.theme() == egui::Theme::Dark,
         "Choosing Dark resolves the application UI to dark and saves the preference",
     )?;
+    let style = s.ctx.style_of(s.ctx.theme());
+    let visuals = &style.visuals;
+    let palette = crate::theme::Palette::from_context(&s.ctx, AccentColor::DEFAULT);
+    s.require(
+        [visuals.panel_fill, visuals.window_fill, visuals.widgets.hovered.bg_fill,
+            visuals.window_stroke.color, palette.workbench_viewport,
+            palette.titlebar].into_iter().all(|color| color.r() == color.g() && color.g() == color.b())
+            && palette.titlebar == palette.sidebar,
+        "Dark uses neutral gray surfaces with a matching titlebar while accent colors remain separate",
+    )?;
     s.wait(Duration::from_millis(250))?;
     s.capture_image("settings-dark")?;
 

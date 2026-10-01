@@ -15,7 +15,11 @@ fn open(s: &mut Session<'_>, anchor: egui::Pos2) -> Result<()> {
         s.state.view_pie_active() && s.shortcut_is_down("view.pie")?,
         "Holding the view-pie key over the viewport opens the view pie",
     )?;
-    s.witness(Control::ViewPie)
+    s.witness(Control::ViewPie)?;
+    s.require(
+        s.trace.get(Control::ViewPie)?.label == "View",
+        "The open pie identifies itself as View",
+    )
 }
 
 fn hover_choice(s: &mut Session<'_>, control: Control) -> Result<()> {
@@ -59,7 +63,7 @@ fn disabled_selection(s: &mut Session<'_>, anchor: egui::Pos2) -> Result<()> {
 pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.load_fixture("cube-quads.obj")?;
     s.witness(Control::Viewport)?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.shortcut("selection.next")?;
     s.require(
@@ -103,12 +107,47 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         "Hovering a pie choice while the view-pie key is held does not change the camera",
     )?;
     s.capture_tutorial("view-pie-open")?;
+    let card = s.trace.get(Control::PieFront)?.rect;
+    let sector = anchor + (card.center() - anchor).normalized() * 60.0;
+    s.require(
+        !card.contains(sector),
+        "Sector help is demonstrated away from its button",
+    )?;
+    s.frame(vec![egui::Event::PointerMoved(sector)], Duration::ZERO)?;
+    let delay = s.ctx.global_style().interaction.tooltip_delay;
+    s.wait(Duration::from_secs_f32(delay + 0.25))?;
+    s.require(
+        s.state.view_pie_active() && matrix(s) == before,
+        "Waiting for sector help keeps the held pie open without applying the view",
+    )?;
+    s.capture_tutorial("view-pie-help")?;
     s.frame(vec![egui::Event::PointerMoved(anchor)], Duration::ZERO)?;
     release(s)?;
     s.require(
         matrix(s) == before,
         "Returning to the opening point before release cancels without changing the view",
     )?;
+
+    let edge = s.state.viewport_ui_rect.left_center() + egui::vec2(72.0, 0.0);
+    open(s, edge)?;
+    s.require(
+        s.trace.get(Control::PieLeft)?.rect.right() < s.state.viewport_ui_rect.left(),
+        "A pie opened near the viewport edge extends over the sidebar",
+    )?;
+    hover_choice(s, Control::PieLeft)?;
+    release(s)?;
+    s.wait(Duration::from_millis(s.state.view_duration_ms.into()))?;
+    s.require(
+        s.state
+            .camera
+            .direction_in_view(Vec3::NEG_X)
+            .abs_diff_eq(Vec3::Z, 1e-5),
+        "Releasing over a sidebar choice applies its view",
+    )?;
+    // Continue the remaining cancellation examples from a stable named view.
+    s.shortcut("view.front")?;
+    s.wait(Duration::from_millis(s.state.view_duration_ms.into()))?;
+    let before = matrix(s);
 
     open(s, anchor)?;
     let southwest = egui::pos2(

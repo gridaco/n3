@@ -85,7 +85,14 @@ pub fn accepts(
     focused
         && !state.mouse_navigation_active()
         && !state.pie_owns_input()
+        && !state.terminal_focused(ctx)
         && !pending_pie
+        && !pointer.is_some_and(|pos| {
+            state
+                .tool_dock
+                .floating_tabs_rect
+                .is_some_and(|rect| rect.contains(pos))
+        })
         && pointer.is_some_and(|pos| viewport_accepts_pointer(ctx, state.viewport_ui_rect, pos))
 }
 

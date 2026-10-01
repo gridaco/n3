@@ -371,6 +371,119 @@ fn resolved_appearance_reaches_panels_in_the_same_pass() {
 }
 
 #[test]
+fn side_panel_dividers_reach_edges_while_section_controls_stay_inset() {
+    fn lines(shape: &egui::Shape, into: &mut Vec<[egui::Pos2; 2]>) {
+        match shape {
+            egui::Shape::LineSegment { points, stroke } if stroke.width > 0.0 => {
+                into.push(*points);
+            }
+            egui::Shape::Vec(shapes) => {
+                for shape in shapes {
+                    lines(shape, into);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for mode in [ThemeMode::Light, ThemeMode::Dark] {
+        for layout in [
+            SavedLayout::DEFAULT,
+            SavedLayout {
+                hierarchy_width: 320.0,
+                inspector_width: 400.0,
+            },
+        ] {
+            for selected in [false, true] {
+                let ctx = test_context();
+                controls::enable(&ctx);
+                let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+                state.theme_mode = mode;
+                state.editor.insert(PrimitiveKind::Cube).unwrap();
+                if !selected {
+                    state.editor.deselect();
+                }
+                state.apply_saved_layout(&ctx, layout);
+                for _ in 0..3 {
+                    layout_test_frame(&mut state, &ctx, Vec::new());
+                }
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(1600.0, 900.0),
+                        )),
+                        focused: true,
+                        ..Default::default()
+                    },
+                    |ui| state.ui(ui),
+                );
+                output.textures_delta.clear();
+                let trace = controls::snapshot(&ctx);
+                let viewport = trace.get(Control::Viewport).unwrap().rect;
+                let layers = trace.get(Control::ObjectList).unwrap().rect;
+                let inspector = trace.get(Control::Inspector).unwrap().rect;
+                // Native Panel reserves its resize-edge separator in the
+                // outer margin. Section dividers meet that border; it is not
+                // content padding and must not be painted over.
+                let border = ctx
+                    .global_style()
+                    .visuals
+                    .widgets
+                    .noninteractive
+                    .bg_stroke
+                    .width
+                    .round();
+                assert_eq!(layers.left(), 0.0);
+                assert_eq!(layers.right() + border, viewport.left());
+                assert_eq!(inspector.left() - border, viewport.right());
+                assert_eq!(inspector.right(), 1600.0);
+                for (left, right, count) in [
+                    (layers.left(), layers.right(), 2),
+                    (
+                        inspector.left(),
+                        inspector.right(),
+                        if selected { 3 } else { 1 },
+                    ),
+                ] {
+                    let separators = output
+                        .shapes
+                        .iter()
+                        .flat_map(|shape| {
+                            let mut segments = Vec::new();
+                            lines(&shape.shape, &mut segments);
+                            segments.into_iter().filter(move |points| {
+                                points[0].y == points[1].y
+                                    && (points[0].x.max(shape.clip_rect.left()) - left).abs() < 0.1
+                                    && (points[1].x.min(shape.clip_rect.right()) - right).abs()
+                                        < 0.1
+                            })
+                        })
+                        .count();
+                    assert_eq!(
+                        separators, count,
+                        "{mode:?} {layout:?} selected={selected}: section dividers must span {left}..{right}"
+                    );
+                }
+                let menu = trace.get(Control::N3Menu).unwrap().rect;
+                assert_eq!(menu.left(), theme::space::LG);
+                for row in &state.layer_rows {
+                    assert_eq!(row.rect.left(), theme::space::LG);
+                    assert_eq!(layers.right() - row.rect.right(), theme::space::LG);
+                }
+                if selected {
+                    for control in [Control::PositionX, Control::PositionY, Control::PositionZ] {
+                        let field = trace.get(control).unwrap().rect;
+                        assert!(field.left() >= viewport.right() + theme::space::LG);
+                        assert!(field.right() <= 1600.0 - theme::space::LG);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn saved_layout_restores_resized_panels_without_touching_editor_state() {
     let ctx = test_context();
     let mut state = WorkspaceUi::new(egui::TextureId::User(0));
@@ -841,10 +954,12 @@ fn snap_feedback_reformats_units_and_never_captures_viewport_pointer() {
     let trace = snapping_ui_frame(&mut state, &ctx, Vec::new());
     let feedback = trace.get(Control::SnapFeedback).unwrap();
     let stats = trace.get(Control::SceneInfo).unwrap().rect;
+    let tabs = state.tool_dock.floating_tabs_rect.unwrap();
     assert_eq!(feedback.label, "Snap: 0.02 cm");
     assert!(state.viewport.contains_rect(feedback.rect));
     assert!((stats.left() - state.viewport.left() - theme::space::XL).abs() < 1.0);
-    assert!((state.viewport.bottom() - stats.bottom() - theme::space::XL).abs() < 1.0);
+    assert!((tabs.top() - stats.bottom() - theme::space::LG).abs() < 1.0);
+    assert!((state.viewport.bottom() - tabs.bottom() - theme::space::XL).abs() < 1.0);
     assert!((feedback.rect.left() - stats.left()).abs() < 1.0);
     assert!((stats.top() - feedback.rect.bottom() - theme::space::LG).abs() < 1.0);
     assert!(crate::navigation_events::viewport_accepts_pointer(
@@ -1192,6 +1307,74 @@ fn ruler_gutters_are_outside_viewport_interaction_and_do_not_edit_or_navigate() 
 }
 
 #[test]
+fn held_pies_use_window_bounds_but_only_open_from_the_viewport() {
+    for (binding, group, choice) in [
+        ("view.pie", Control::ViewPie, Control::PieLeft),
+        ("shading.pie", Control::ShadingPie, Control::PieWireframe),
+    ] {
+        let ctx = test_context();
+        controls::enable(&ctx);
+        let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+        state.animate_views = false;
+        state.editor.insert(PrimitiveKind::Cube).unwrap();
+        state.editor.set_tool(Tool::View);
+        layout_test_frame(&mut state, &ctx, vec![]);
+        layout_test_frame(&mut state, &ctx, vec![]);
+        let key = |pressed| egui::Event::Key {
+            key: crate::input::bindings::required(binding).key().unwrap(),
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let anchor = state.viewport_ui_rect.left_center() + egui::vec2(32.0, 0.0);
+        layout_test_frame(
+            &mut state,
+            &ctx,
+            vec![egui::Event::PointerMoved(anchor), key(true)],
+        );
+        layout_test_frame(&mut state, &ctx, vec![]);
+        let trace = controls::snapshot(&ctx);
+        let card = trace.get(choice).unwrap().rect;
+        assert!(ctx.content_rect().contains_rect(card));
+        assert!(card.right() < state.viewport_ui_rect.left());
+        assert!(trace.get(group).unwrap().enabled);
+        assert!(!trace.get(Control::ObjectList).unwrap().enabled);
+        let selected = state.editor.selected_objects.clone();
+        let document = state.editor.document.clone();
+        layout_test_frame(
+            &mut state,
+            &ctx,
+            vec![egui::Event::PointerMoved(card.center()), key(false)],
+        );
+        assert!(!state.pie_input.active());
+        assert_eq!(state.editor.selected_objects, selected);
+        assert_eq!(state.editor.document, document);
+        if group == Control::ViewPie {
+            assert!(
+                state
+                    .camera
+                    .direction_in_view(glam::Vec3::NEG_X)
+                    .abs_diff_eq(glam::Vec3::Z, 1e-5)
+            );
+        } else {
+            assert_eq!(
+                state.shading,
+                crate::render::shading::ShadingMode::Wireframe
+            );
+        }
+        // The same sidebar position may select an open pie, but cannot open one.
+        layout_test_frame(
+            &mut state,
+            &ctx,
+            vec![egui::Event::PointerMoved(card.center()), key(true)],
+        );
+        assert!(!state.pie_input.active());
+        layout_test_frame(&mut state, &ctx, vec![key(false)]);
+    }
+}
+
+#[test]
 fn view_pie_resize_and_document_replacement_cancel_pending_choice() {
     let ctx = test_context();
     let mut state = WorkspaceUi::new(egui::TextureId::User(0));
@@ -1313,7 +1496,8 @@ fn layers_show_primitive_icons_and_a_generic_icon_after_mesh_conversion() {
         (PrimitiveKind::Cylinder, lucide::Icon::Cylinder),
         (PrimitiveKind::Cone, lucide::Icon::Cone),
         (PrimitiveKind::Torus, lucide::Icon::Torus),
-        (PrimitiveKind::Circle, lucide::Icon::ScanBox),
+        (PrimitiveKind::Plane, lucide::Icon::RectangleHorizontal),
+        (PrimitiveKind::Circle, lucide::Icon::Circle),
     ];
     let ids: Vec<_> = shapes
         .iter()
@@ -1447,4 +1631,96 @@ fn navigation_cancel_and_empty_selection_are_valid_command_contexts() {
         assert!(state.error.is_none());
         assert_eq!(state.editor.document, original);
     }
+}
+
+#[test]
+fn linked_scene_evaluation_failure_preserves_native_and_valid_asset_siblings() {
+    use crate::{
+        asset_io::LoadedDocument,
+        scene::{Light, LightKind, Node, SceneAsset, SceneDefinition, Transform as SceneTransform},
+    };
+    use std::sync::Arc;
+
+    let mut data = crate::scene::test_support::triangle_data();
+    data.lights.push(Light {
+        name: "Point".into(),
+        kind: LightKind::Point,
+        color: [1.0; 3],
+        intensity: 1.0,
+        range_cm: None,
+    });
+    let mut roots = Vec::new();
+    for index in 0..=crate::scene::MAX_ACTIVE_LIGHTS {
+        roots.push(data.nodes.len());
+        data.nodes.push(Node {
+            name: format!("Light {index}"),
+            children: Vec::new(),
+            mesh: None,
+            skin: None,
+            camera: None,
+            light: Some(0),
+            weights: None,
+            transform: SceneTransform::Matrix(glam::DMat4::IDENTITY),
+        });
+    }
+    data.scenes.push(SceneDefinition {
+        name: "Over-budget scene".into(),
+        roots,
+    });
+    let asset = Arc::new(SceneAsset::new(data).unwrap());
+    assert!(asset.evaluate(0, None).is_ok());
+    assert!(
+        asset
+            .evaluate(1, None)
+            .unwrap_err()
+            .contains("light budget")
+    );
+
+    let source = "/virtual/multiple-scenes.glb".to_string();
+    let mut document = Document::default();
+    let native = document.insert_primitive(PrimitiveKind::Cube).unwrap();
+    let valid = document
+        .insert_asset(
+            crate::document::AssetInstance {
+                source: source.clone(),
+                scene: 0,
+            },
+            "Valid asset".into(),
+        )
+        .unwrap();
+    let unavailable = document
+        .insert_asset(
+            crate::document::AssetInstance {
+                source: source.clone(),
+                scene: 1,
+            },
+            "Unavailable scene".into(),
+        )
+        .unwrap();
+    let expected = document.clone();
+    let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+    state
+        .install_loaded_document(
+            "/virtual/example.n3.json".into(),
+            LoadedDocument {
+                document,
+                assets: BTreeMap::from([(source, asset)]),
+                diagnostics: Vec::new(),
+                saved_bytes: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(state.editor.document, expected);
+    assert_eq!(state.asset_views.len(), 1);
+    assert_eq!(state.asset_diagnostics.len(), 1);
+    assert!(state.asset_diagnostics[0].contains("Unavailable scene"));
+    assert!(state.error.is_none());
+    assert_eq!(state.mesh.as_ref().unwrap().triangle_count, 13);
+    state.editor.select_object(valid).unwrap();
+    assert!(state.selected_asset_view().is_some());
+    state.editor.select_object(unavailable).unwrap();
+    assert!(state.selected_asset_view().is_none());
+    assert!(!state.editor.selection_points(false).unwrap().is_empty());
+    state.editor.select_object(native).unwrap();
+    assert!(state.editor.enter_edit().unwrap());
 }

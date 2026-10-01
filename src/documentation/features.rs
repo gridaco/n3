@@ -39,6 +39,12 @@ pub(super) const FEATURES: &[Feature] = &[
         scenario: workspace::run,
     },
     Feature {
+        slug: "terminal",
+        title: "Terminal",
+        template: include_str!("../../docs/templates/terminal.md.in"),
+        scenario: terminal::run,
+    },
+    Feature {
         slug: "toasts",
         title: "Toasts and shortcut hints",
         template: include_str!("../../docs/templates/toasts.md.in"),
@@ -99,6 +105,18 @@ pub(super) const FEATURES: &[Feature] = &[
         scenario: opening_models::run,
     },
     Feature {
+        slug: "scene-viewer",
+        title: "Imported assets",
+        template: include_str!("../../docs/templates/scene-viewer.md.in"),
+        scenario: scene_viewer::run,
+    },
+    Feature {
+        slug: "animation",
+        title: "Inspecting animation",
+        template: include_str!("../../docs/templates/animation.md.in"),
+        scenario: animation_inspection::run,
+    },
+    Feature {
         slug: "navigation",
         title: "Navigation",
         template: include_str!("../../docs/templates/navigation.md.in"),
@@ -130,7 +148,7 @@ pub(super) const FEATURES: &[Feature] = &[
     },
     Feature {
         slug: "shading",
-        title: "Solid and Wireframe",
+        title: "Viewport shading",
         template: include_str!("../../docs/templates/shading.md.in"),
         scenario: shading::run,
     },

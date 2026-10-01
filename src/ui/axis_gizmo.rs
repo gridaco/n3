@@ -170,11 +170,18 @@ pub fn show(
     };
     // Override egui's time-based secondary click with the same distance-only
     // policy as the viewport. A right-drag never becomes a preferences menu.
-    egui::Popup::context_menu(&response)
+    super::menu::context(&response)
         .open_memory(open_command)
         .show(|ui| {
-            controls::scope(&ctx, Control::Gizmo, || {
-                if controls::button(ui, Control::GizmoPreferences).clicked() {
+            super::menu::content(ui, Control::Gizmo, |ui| {
+                if super::menu::Item::new(
+                    crate::input::actions::ActionId::Preferences,
+                    crate::input::actions::ActionState::default(),
+                )
+                .control(Control::GizmoPreferences)
+                .show(ui)
+                .is_some_and(|response| response.clicked())
+                {
                     output.open_preferences = true;
                     ui.close();
                 }

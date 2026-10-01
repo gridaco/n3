@@ -8,11 +8,15 @@ contract that the editor does not yet have. The package is not a published SDK.
 
 | Territory            | Responsibility                                                                           |
 | -------------------- | ---------------------------------------------------------------------------------------- |
-| `src/model/`         | Canonical documents, geometry evaluation, units, validation, and file-format support.    |
+| `src/model/`         | Authored documents, geometry evaluation, units, validation, and the native text codec.   |
+| `src/asset_io/`      | Format adapters, resource resolution, open dispatch, and native document persistence.    |
+| `src/scene/`         | Internal imported scene model, validation, hierarchy and animation evaluation.           |
+| `src/scene_view.rs`  | Asset inspection, playback clock and independent view state.                             |
 | `src/editor/`        | Selection, editing sessions, history integration, transforms, and derived picking state. |
 | `src/input/`         | Physical input identity, semantic shortcuts, ownership, and shared navigation routing.   |
 | `src/render/`        | Camera projection, derived mesh data, GPU resources, and scene rendering.                |
 | `src/ui/`            | egui panels and viewport controls, properties, gizmo, rulers, and feedback.              |
+| `src/terminal/`      | Terminal emulator session and its egui view, outside authored documents and history.     |
 | `src/documentation/` | Executable scenarios, virtual input, annotations, captures, and media generation.        |
 | `src/native.rs`      | Window lifecycle, native events, dialogs, filesystem effects, and GPU presentation.      |
 | `src/settings/`      | Global preferences, validation, merging, and the host storage interface.                 |
@@ -23,17 +27,34 @@ can refer to each other without a broad import rewrite. They remain private to
 the application crate. These aliases are not public kernel exports, and the
 directory layout alone does not enforce a strict dependency graph.
 
+[Actions and menus](actions-and-menus.md) describes shared command metadata,
+live availability, shortcut presentation, and menu authoring.
+
+[Animation inspection](animation-inspection.md) connects immutable clip tracks to
+the reusable timeline kit and runtime playback, independently of authored history.
+
+[Terminal and the Tool Dock](terminal.md) describes the shared container, its
+Animation and Terminal panels, and the limited terminal backend/view boundary.
+
 Authored guide templates live in `docs/templates/`; their generated Markdown and
 WebP media live in `docs/guide/`. Architecture decisions live in
 `docs/architecture/`, research in `docs/research/`, canonical fixtures in
 `fixtures/`, and example documents in `examples/`. Regenerable binaries, bundles,
 build caches, and local review output do not belong to the promoted source tree.
 
+[Authoring and interchange](authoring-and-interchange.md) separates authored
+intent, imported scene data, evaluated results, and serialization. Imported
+glTF/GLB viewing has its own [scene boundary](scene-viewer.md), reusing the native
+and documentation hosts. Imported asset references are placed objects in the
+ordinary document; their decoded contents remain immutable resources outside
+history. A format does not select a separate editor or access mode.
+
 ## Authorities and derived state
 
-The `.n3.json` document is the geometry authority: centimeters, object transforms,
-primitive parameters, authored polygon topology, and explicit loose edges whose
-endpoints reference stable vertex IDs. Render normalization, GPU
+The authored `Document` is the geometry authority; versioned `.n3.json` is its
+canonical persistence contract. It preserves centimeters, object transforms,
+primitive parameters, authored polygon topology, explicit loose edges whose
+endpoints reference stable vertex IDs, and placed asset references. Render normalization, GPU
 triangles, normals, selection colors, camera state, input state, and history are
 not serialized into that document. Primitive evaluation and triangulation must
 not become competing editable representations.
@@ -96,13 +117,22 @@ and documentation captures feed this same pass; these meshes never become
 document objects, selection entries, or history edits.
 
 `render/shading.rs` defines viewport shading independently of documents and
-history. Solid remains the default. Wireframe reuses authored polygon edge
+history. Solid remains the default: one opaque inspection material and fixed
+lighting, independent of source materials, lights, and exposure. Imported Solid
+uses evaluated source buffers so smooth normals, line/point primitives, and
+animation poses survive. Material Preview uses the supported imported PBR
+material pipeline; native geometry retains its editor-material fallback.
+Neither mode changes authored materials or geometry.
+Wireframe reuses authored polygon edge
 buffers with a line pipeline, avoiding triangulation diagonals and optional GPU
 polygon-mode features. A colorless surface pass preserves the depth information
 used by edit feedback; all base wire edges remain visible. Shading does not
 change the independent X-ray selection policy.
 Shading is transient viewport state, separate from the persisted Solid edge
-preference. Material preview and rendered shading await a material/lighting pipeline.
+preference. All three modes share the same viewport and scene depth. Material
+Preview does not add material authoring. A future Rendered mode must establish
+scene-controlled lighting/environment and render settings; no placeholder mode
+is exposed today.
 
 X-ray is transient viewport state owned by the editor's explicit selection
 occlusion policy. `VisibleOnly` retains surface occlusion; `Through` expands
@@ -114,10 +144,10 @@ stable identity tie-break. Switching policy filters cached projected candidates 
 or changing committed history, and does not remove previously selected occluded
 vertices. Cached projections retain each candidate's depth and occlusion state.
 
-The same X-ray state reaches the scene renderer and component overlays. Solid
-uses faint surface shading and subdued occluded topology as an editing cue;
-Wireframe remains unfilled. This is separate from future material transparency,
-which must establish its own rendering contract. The semantic `ToggleXray`
+The same X-ray state reaches the scene renderer and component overlays. Both filled modes
+use faint surface shading and subdued occluded topology as an editing cue;
+Wireframe remains unfilled. X-ray overrides imported material presentation with
+the same neutral editing cue; it is independent of material alpha. The semantic `ToggleXray`
 action is shared by the View menu and the `view.xray` binding. Shortcut routing
 keeps text, popups, and active pointer gestures in control of their input.
 

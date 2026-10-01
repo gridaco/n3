@@ -24,7 +24,7 @@ fn geometry(s: &Session<'_>) -> (Vec2, f32, Vec3) {
 }
 
 fn prepare_selection(s: &mut Session<'_>, edit_mode: bool) -> Result<()> {
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     if edit_mode {
         s.shortcut("selection.all")?;
@@ -231,7 +231,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
 
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
     prepare_selection(s, true)?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(20.0, -20.0);
+    let empty = s.empty_viewport_point()?;
     existing_gesture_keeps_priority(s, empty, egui::vec2(24.0, -20.0), false)?;
     s.click(Control::ToolMove)?;
     s.hover(Control::TransformX)?;

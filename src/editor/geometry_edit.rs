@@ -73,6 +73,7 @@ pub(super) fn evaluated(geometry: &Geometry) -> Result<Cow<'_, EditableMesh>, St
     match geometry {
         Geometry::Primitive(source) => source.evaluate().map(Cow::Owned),
         Geometry::Mesh(mesh) => Ok(Cow::Borrowed(mesh)),
+        Geometry::Asset(_) => Err("Linked asset contents are read-only.".into()),
     }
 }
 
@@ -83,7 +84,7 @@ pub(super) fn editable(geometry: &mut Geometry) -> Result<&mut EditableMesh, Str
         *geometry = Geometry::Mesh(source.evaluate()?);
     }
     let Geometry::Mesh(mesh) = geometry else {
-        unreachable!()
+        return Err("Linked asset contents are read-only.".into());
     };
     Ok(mesh)
 }

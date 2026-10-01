@@ -30,9 +30,10 @@ remains the source of truth for the implemented keymap.
 
 ## Model and editing invariants
 
-- The versioned `.n3.json` document is canonical. OBJ is an import format, not the
-  editable source of truth. Preserve authored polygon boundaries and stable IDs;
-  display triangles and normalized render coordinates are derived data.
+- N3's authored document owns editing semantics; versioned `.n3.json` is its
+  canonical persistence contract. Formats are adapters, not modeling authorities.
+  Preserve authored polygon boundaries, recipes, and stable IDs; display triangles
+  and normalized render coordinates are derived data.
 - **1 document unit = 1 centimeter.** Fractional lengths remain valid. Display-unit
   changes must not resize geometry. The base unit does not prescribe the snap or
   nudge increment; keep movement policy separate from coordinate storage.
@@ -48,6 +49,20 @@ remains the source of truth for the implemented keymap.
   existing edit lifecycle. Do not bypass cache invalidation or history by adding
   an independent document-mutation path.
 
+Imported glTF/GLB contents remain immutable, but their asset instances are ordinary
+placed objects in the same authored document and editor. Placement, duplication,
+and deletion use the existing transaction/history lifecycle. Keep decoded scenes,
+playback, and evaluation caches outside history; the document stores source
+references and scene indices, not embedded payloads. Opening resolves a snapshot;
+saving must preserve references, and missing sources must retain recoverable objects.
+Read-only access is an editor capability, never inferred from the imported format.
+The imported scene model is not a future authoring schema. Keep parsing, resource
+resolution, and source-unit conversion in `asset_io`; keep the scene model and
+evaluator independent of format types and filesystem access. Read
+[authoring and interchange](docs/architecture/authoring-and-interchange.md) for
+representation boundaries and the [imported asset contract](docs/architecture/scene-viewer.md)
+for loading, placement, playback, and PBR rendering.
+
 Read [architecture](docs/architecture/architecture.md) and
 [edit transactions](docs/architecture/edit-transactions.md) before changing these
 boundaries. The current Editor still depends on egui and is not a public kernel API.
@@ -60,7 +75,10 @@ or generic frameworks.
 
 | Location             | Responsibility                                                        |
 | -------------------- | --------------------------------------------------------------------- |
-| `src/model/`         | Documents, units, persistence, geometry evaluation                    |
+| `src/model/`         | Authored documents, units, native text codec, geometry evaluation     |
+| `src/asset_io/`      | Format adapters, resource resolution, native document persistence     |
+| `src/scene/`         | Internal imported scene model, validation and pose evaluation         |
+| `src/scene_view.rs`  | Transient asset inspection and playback; separate from edit history   |
 | `src/editor/`        | Selection, edits, sessions, history, transform policies               |
 | `src/input/`         | Key mapping, semantic actions, pointer and navigation routing         |
 | `src/render/`        | Camera, wgpu rendering, derived visual feedback                       |
@@ -146,8 +164,11 @@ natively, as does the pre-push hook. Developer experience comes first: never mak
 these commands depend on Docker or a CI runner. `just ci`, `just ci-test`, and
 `just ci-docs check/update` explicitly opt into the pinned Ubuntu 24.04
 `linux/amd64` Docker environment through `tools/ci_runner.py`.
-Exact media checks require a baseline from the same renderer; a renderer mismatch
-must fail clearly, never silently skip images or introduce tolerances.
+Exact media checks require a baseline from the same renderer. Ubuntu uses a
+separate exact lavapipe receipt pinned to the complete published guide; its
+explicit update writes ignored review captures while preserving the native
+guide. A missing, stale or mismatched baseline must fail clearly, never silently
+skip images or introduce tolerances.
 The macOS CI lane runs
 `just ci-macos` for the native bundle, ad-hoc signing verification, and focused
 `native::` tests. `just test-metal` is a local real-Metal check when a Mac GPU is

@@ -9,7 +9,7 @@ use crate::{
 use std::collections::BTreeSet;
 
 fn focus_viewport(s: &mut Session<'_>) -> Result<()> {
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.require(
         s.ctx.memory(|memory| memory.focused()) == Some(viewport_focus_id()),

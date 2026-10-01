@@ -1,9 +1,10 @@
 use super::{
     local_view::{self, LocalView},
-    lucide,
+    lucide, menu,
     toast::{Toast, ToastKind, Toaster},
     typography,
 };
+use crate::input::actions::ActionId;
 use crate::input::temporary_navigation::{HeldNavigation, OrderedInput, ordered_input};
 use crate::{
     axis_gizmo,
@@ -30,13 +31,22 @@ use crate::{
     units::{self, LengthUnit},
 };
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
     time::Duration,
 };
 
+#[path = "action_state.rs"]
+mod action_state;
+#[path = "animation_panel.rs"]
+mod animation_panel;
+#[path = "asset_instances.rs"]
+mod asset_instances;
+#[path = "tool_dock.rs"]
+mod tool_dock;
 #[path = "user_settings.rs"]
 mod user_settings;
+pub(crate) use tool_dock::ToolDockPanel;
 
 /// Numeric entry stays exact; pointer scrubbing shares the viewport movement
 /// policy. egui retains precise scrub accumulation internally, so the field can
@@ -93,11 +103,26 @@ const LAYER_ICON_INSET: f32 = theme::space::LG;
 const LAYER_TEXT_INSET: f32 = theme::space::XL_4;
 
 fn workspace_side_panel_frame(style: &egui::Style, fill: egui::Color32) -> egui::Frame {
-    // egui's default side panel has only 2 points above its heading, while
-    // content starts 8 points from the sides. Use one inset for both panels.
+    // Sections own their padding; separators and scrollbars use the full panel.
     egui::Frame::side_top_panel(style)
-        .inner_margin(theme::space::margin(theme::space::LG))
+        .inner_margin(egui::Margin::ZERO)
         .fill(fill)
+}
+
+fn workspace_panel_section<R>(
+    ui: &mut egui::Ui,
+    content: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    egui::Frame::NONE
+        .inner_margin(theme::space::margin(theme::space::LG))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = theme::space::MD;
+            content(ui)
+        })
+}
+
+fn workspace_panel_separator(ui: &mut egui::Ui) {
+    ui.add(egui::Separator::default().spacing(theme::space::PX));
 }
 
 fn viewport_toolbar_frame(style: &egui::Style) -> egui::Frame {
@@ -168,17 +193,25 @@ impl Default for SavedLayout {
 /// A section is a heading and its existing controls. Keeping this spacing in
 /// one place gives the inspector a consistent rhythm as controls are added.
 fn inspector_section(ui: &mut egui::Ui, title: &str, content: impl FnOnce(&mut egui::Ui)) {
-    ui.add_space(theme::SECTION_TOP);
-    let muted = ui.visuals().weak_text_color();
-    ui.label(
-        theme::strong(title)
-            .size(theme::text::SECTION_TITLE_13)
-            .color(muted),
-    );
-    ui.add_space(theme::SECTION_GAP);
-    content(ui);
-    ui.add_space(theme::SECTION_BOTTOM);
-    ui.separator();
+    egui::Frame::NONE
+        .inner_margin(egui::Margin {
+            left: theme::space::LG as i8,
+            right: theme::space::LG as i8,
+            top: theme::SECTION_TOP as i8,
+            bottom: theme::SECTION_BOTTOM as i8,
+        })
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = theme::INSPECTOR_ITEM_GAP;
+            let muted = ui.visuals().weak_text_color();
+            ui.label(
+                theme::strong(title)
+                    .size(theme::text::SECTION_TITLE_13)
+                    .color(muted),
+            );
+            ui.add_space(theme::SECTION_GAP);
+            content(ui);
+        });
+    workspace_panel_separator(ui);
 }
 
 /// Lay out a label and three equal numeric fields on one line. The row budget
@@ -313,13 +346,13 @@ fn layer_icon(geometry: &Geometry) -> lucide::Icon {
             PrimitiveKind::Cylinder => lucide::Icon::Cylinder,
             PrimitiveKind::Cone => lucide::Icon::Cone,
             PrimitiveKind::Torus => lucide::Icon::Torus,
+            PrimitiveKind::Plane => lucide::Icon::RectangleHorizontal,
+            PrimitiveKind::Circle => lucide::Icon::Circle,
             // TODO: Add dedicated icons for these primitives in the icon pass.
-            PrimitiveKind::Plane
-            | PrimitiveKind::Circle
-            | PrimitiveKind::Sphere
-            | PrimitiveKind::Polyhedron => lucide::Icon::ScanBox,
+            PrimitiveKind::Sphere | PrimitiveKind::Polyhedron => lucide::Icon::ScanBox,
         },
         Geometry::Mesh(_) => lucide::Icon::ScanBox,
+        Geometry::Asset(_) => lucide::Icon::Box,
     }
 }
 
@@ -383,6 +416,13 @@ pub struct WorkspaceUi {
     pub ruler_2d_model: Option<Ruler2DModel>,
     ruler_2d_selection: Option<Ruler2DSelectionCache>,
     pub editor: Editor,
+    pub asset_views: BTreeMap<crate::document::AssetInstance, crate::scene_view::SceneView>,
+    pub asset_diagnostics: Vec<String>,
+    pub(crate) animation: animation_panel::AnimationPanel,
+    pub(crate) tool_dock: tool_dock::ToolDock,
+    /// Live bounds of the closed panel launcher, excluded from viewport input.
+    animation_keyboard: crate::input::timeline_input::TimelineKeyboard,
+    scene_tick_time: Option<f64>,
     pub mesh: Option<MeshData>,
     pub mesh_revision: u64,
     derived_revision: u64,
@@ -403,6 +443,7 @@ pub struct WorkspaceUi {
     pub show_grid: bool,
     pub show_ui: bool,
     pub show_preferences: bool,
+    preferences_focus_pending: bool,
     pub settings_error: Option<String>,
     pub settings_location: Option<String>,
     pub request_open_settings: bool,
@@ -434,8 +475,6 @@ pub struct WorkspaceUi {
     navigation_keys_available: bool,
     pie_input: PieInput,
     insert_menu_id: Option<egui::Id>,
-    insert_opened_programmatically: bool,
-    focus_insert_menu: bool,
     nudge_direction: Option<(i8, i8)>,
     trackpad_input: ScrollInput,
     navigation: ViewNavigation,
@@ -466,6 +505,12 @@ impl WorkspaceUi {
             ruler_2d_model: None,
             ruler_2d_selection: None,
             editor: Editor::new(Document::default()).expect("empty document is valid"),
+            asset_views: BTreeMap::new(),
+            asset_diagnostics: Vec::new(),
+            animation: animation_panel::AnimationPanel::default(),
+            tool_dock: tool_dock::ToolDock::default(),
+            animation_keyboard: Default::default(),
+            scene_tick_time: None,
             mesh: None,
             mesh_revision: 0,
             derived_revision: 0,
@@ -485,6 +530,7 @@ impl WorkspaceUi {
             show_grid: true,
             show_ui: true,
             show_preferences: false,
+            preferences_focus_pending: false,
             settings_error: None,
             settings_location: None,
             request_open_settings: false,
@@ -516,8 +562,6 @@ impl WorkspaceUi {
             navigation_keys_available: false,
             pie_input: PieInput::default(),
             insert_menu_id: None,
-            insert_opened_programmatically: false,
-            focus_insert_menu: false,
             nudge_direction: None,
             trackpad_input: ScrollInput::default(),
             navigation: ViewNavigation::default(),
@@ -598,29 +642,56 @@ impl WorkspaceUi {
         }
     }
 
+    /// Fixture convenience: native I/O callers pass the loader's exact snapshot.
     pub fn install_document(&mut self, path: PathBuf, document: Document) -> Result<(), String> {
-        let native = path
-            .extension()
-            .is_some_and(|x| x.eq_ignore_ascii_case("json"));
+        let loaded = if crate::document_io::is_native_path(&path) {
+            let loaded = crate::asset_io::load(&path)?;
+            if loaded.document != document {
+                return Err("The file changed while opening. Open it again.".into());
+            }
+            loaded
+        } else {
+            crate::asset_io::LoadedDocument {
+                document,
+                assets: BTreeMap::new(),
+                diagnostics: Vec::new(),
+                saved_bytes: None,
+            }
+        };
+        self.install_loaded_document(path, loaded)
+    }
+
+    pub fn install_loaded_document(
+        &mut self,
+        path: PathBuf,
+        loaded: crate::asset_io::LoadedDocument,
+    ) -> Result<(), String> {
+        let crate::asset_io::LoadedDocument {
+            document,
+            assets,
+            mut diagnostics,
+            saved_bytes: snapshot,
+        } = loaded;
+        let native = snapshot.is_some();
+        let views = asset_instances::prepare_views(&document, &assets, &mut diagnostics);
+        crate::asset_io::validate_resource_cache(&assets)?;
         let mut editor = Editor::new(document.clone())?;
         editor.snapping = self.editor.snapping;
         editor.snap_policy = self.editor.snap_policy;
-        let snapshot = if native {
-            Some(std::fs::read(&path).map_err(|e| e.to_string())?)
-        } else {
-            None
-        };
-        // The asynchronous reader and this baseline must describe the same file.
-        if let Some(bytes) = &snapshot {
-            let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
-            if Document::from_json(text)? != document {
-                return Err("The file changed while opening. Open it again.".into());
-            }
-        }
-        // Resolve all fallible load work before replacing the active document.
+        editor.set_access(self.editor.access());
+        let frames = views
+            .iter()
+            .map(|(key, view)| (key.clone(), view.frame.clone()))
+            .collect();
+        editor.frame = DisplayFrame::from_document_with_assets(&document, &frames)?;
+        editor.set_asset_frames(frames)?;
         if !document.objects.is_empty() {
-            document.render_mesh(&editor.frame)?;
+            editor.render_mesh()?;
         }
+        self.asset_views = views;
+        self.animation = animation_panel::AnimationPanel::default();
+        self.asset_diagnostics = diagnostics;
+        self.scene_tick_time = None;
         self.editor = editor;
         self.local_view = None;
         self.ruler_2d_selection = None;
@@ -646,10 +717,16 @@ impl WorkspaceUi {
         self.refresh_mesh()
     }
     pub fn new_document(&mut self) {
+        self.animation = animation_panel::AnimationPanel::default();
+        self.asset_views.clear();
+        self.asset_diagnostics.clear();
+        self.scene_tick_time = None;
         self.reset_navigation_input();
         let snapping = self.editor.snapping;
         let snap_policy = self.editor.snap_policy;
+        let access = self.editor.access();
         self.editor = Editor::new(Document::default()).expect("empty document");
+        self.editor.set_access(access);
         self.local_view = None;
         self.editor.snapping = snapping;
         self.editor.snap_policy = snap_policy;
@@ -833,7 +910,7 @@ impl WorkspaceUi {
             self.mesh = if self.editor.document.objects.is_empty() {
                 None
             } else {
-                Some(self.editor.document.render_mesh(&self.editor.frame)?)
+                Some(self.editor.render_mesh()?)
             };
             self.derived_revision = self.editor.revision;
             self.mesh_revision = self.mesh_revision.wrapping_add(1);
@@ -1256,7 +1333,7 @@ impl WorkspaceUi {
         }
         if matches!(
             command,
-            Command::New | Command::Open | Command::Save { .. } | Command::Quit
+            Command::New | Command::Open | Command::Import | Command::Save { .. } | Command::Quit
         ) && !self.document_action_allowed()
         {
             ctx.request_repaint();
@@ -1274,11 +1351,32 @@ impl WorkspaceUi {
         {
             return HostEffect::None;
         }
+        if let Some(action) = ActionId::from_command(command)
+            && !self.action_state(action).enabled
+        {
+            return HostEffect::None;
+        }
         match command {
+            Command::ToggleAnimationPanel => {
+                self.toggle_tool_dock_panel(ToolDockPanel::Animation, ctx)
+            }
+            Command::ToggleTerminalPanel => {
+                self.toggle_tool_dock_panel(ToolDockPanel::Terminal, ctx)
+            }
+            Command::CloseToolDock => self.close_tool_dock(ctx),
+            Command::ToggleAnimationPlayback => self.toggle_animation_playback(ctx),
+            Command::Scene(action) => self.dispatch_asset_action(action, ctx),
             Command::ShortcutHint { .. } | Command::FocusToasts => {
                 unreachable!("handled before editor dispatch")
             }
             Command::OpenPreferences => {
+                if !self.show_preferences {
+                    self.preferences_focus_pending = true;
+                    // A floating window needs an initial keyboard owner too:
+                    // until a field is clicked, Space must not reach the
+                    // timeline that was focused underneath it.
+                    ctx.memory_mut(|memory| memory.request_focus(Self::preferences_focus_id()));
+                }
                 self.show_ui = true;
                 self.show_preferences = true;
                 ctx.request_repaint();
@@ -1356,9 +1454,12 @@ impl WorkspaceUi {
                 }
             }
             Command::Open => return HostEffect::Open,
+            Command::Import => return HostEffect::Import,
+            Command::Insert(kind) => self.insert_shape(kind),
             Command::InsertMenu => {
                 // Opening a menu cannot cancel or commit an in-progress edit.
-                if !self.editor.is_interacting()
+                if self.editor.can_edit()
+                    && !self.editor.is_interacting()
                     && !navigation_active
                     && !self.mouse_navigation.wants_input()
                     && !self.pie_owns_input()
@@ -1496,6 +1597,10 @@ impl WorkspaceUi {
                     ctx.request_repaint();
                 }
             }
+            Command::ToggleEdges => {
+                self.show_edges = !self.show_edges;
+                ctx.request_repaint();
+            }
             Command::ToggleProjection => {
                 self.toggle_projection();
             }
@@ -1547,6 +1652,10 @@ impl WorkspaceUi {
             Command::Escape => {
                 if self.show_preferences {
                     self.show_preferences = false;
+                    self.preferences_focus_pending = false;
+                    // Returning from a window is a focus transition, including
+                    // retries that reprocess this same physical Escape.
+                    shortcuts::claim_viewport_input(ctx);
                 } else if !self.editor.blocks_navigation()
                     && (navigation_active
                         || self.mouse_navigation.wants_input()
@@ -1576,7 +1685,7 @@ impl WorkspaceUi {
         HostEffect::None
     }
 
-    /// Toast actions leave egui before dispatch, preserving native host effects
+    /// Menu and toast actions leave egui before dispatch, preserving native host effects
     /// and guaranteeing one execution even when layout requests another pass.
     pub fn take_ui_commands(&mut self) -> Vec<Command> {
         std::mem::take(&mut self.pending_ui_commands)
@@ -1740,7 +1849,7 @@ impl WorkspaceUi {
             return;
         }
         self.mouse_escape_handled = false;
-        if self.pie_input.owns_frame {
+        if self.pie_input.owns_frame || self.tool_dock_owns_input(ctx) {
             self.nudge_direction = None;
             self.held_navigation.block();
             self.held_navigation
@@ -1804,7 +1913,11 @@ impl WorkspaceUi {
                         self.nudge_direction = None;
                     }
                     let over_viewport = self.viewport_ui_rect.contains(pos)
-                        && (!self.show_ui
+                        && !self
+                            .tool_dock
+                            .floating_tabs_rect
+                            .is_some_and(|rect| rect.contains(pos))
+                        && (!self.navigation_gizmo_visible()
                             || !axis_gizmo::bounds(self.viewport_ui_rect).contains(pos))
                         && ctx.layer_id_at(pos) == Some(egui::LayerId::background());
                     let tool = self.temporary_navigation_tool();
@@ -1870,7 +1983,7 @@ impl WorkspaceUi {
                 NavigationMotion::Pan(delta) => self.pan(delta.x, delta.y),
                 NavigationMotion::ContextClick(pos) => {
                     if self.viewport_ui_rect.contains(pos)
-                        && (!self.show_ui
+                        && (!self.navigation_gizmo_visible()
                             || !axis_gizmo::bounds(self.viewport_ui_rect).contains(pos))
                     {
                         self.viewport_menu_position = pos;
@@ -1890,97 +2003,24 @@ impl WorkspaceUi {
             egui::LayerId::background(),
         )
         .kind(egui::PopupKind::Menu)
+        .style(theme::menu_style)
         .open_memory(None)
         .layout(egui::Layout::top_down_justified(egui::Align::Min))
         .show(|ui| {
-            controls::scope(ctx, Control::ViewportMenu, || {
-                if controls::button(ui, Control::SelectAll)
-                    .on_hover_text(shortcut_label("selection.all"))
-                    .clicked()
-                {
-                    self.dispatch(Command::SelectAll, ctx, false);
-                    ui.close();
-                    ctx.memory_mut(|memory| memory.request_focus(shortcuts::viewport_focus_id()));
+            menu::content(ui, Control::ViewportMenu, |ui| {
+                for &action in crate::ui::workspace_menus::CONTEXT_EDIT_ACTIONS {
+                    self.menu_action(ui, action, None);
                 }
-                ui.add_enabled_ui(self.editor.can_duplicate_selection(), |ui| {
-                    if controls::button(ui, Control::DuplicateSelection)
-                        .on_hover_text(format!(
-                            "{} · Duplicate selected objects in place",
-                            shortcut_label("selection.duplicate")
-                        ))
-                        .clicked()
-                    {
-                        self.dispatch(Command::DuplicateSelection, ctx, false);
-                        ui.close();
-                        ctx.memory_mut(|memory| {
-                            memory.request_focus(shortcuts::viewport_focus_id())
-                        });
-                    }
-                });
-                if self.editor.edit_mode {
-                    ui.add_enabled_ui(self.editor.can_make_face(), |ui| {
-                        if controls::button(ui, Control::MakeFace)
-                            .on_hover_text(
-                                "Create one face from three vertices or a single planar boundary",
-                            )
-                            .clicked()
-                        {
-                            self.dispatch(Command::MakeFace, ctx, false);
-                            ui.close();
-                            ctx.memory_mut(|memory| {
-                                memory.request_focus(shortcuts::viewport_focus_id())
-                            });
-                        }
-                    });
+                menu::separator(ui);
+                for &action in crate::ui::workspace_menus::CONTEXT_VIEW_ACTIONS {
+                    let control = match action {
+                        ActionId::FrameAll => Some(Control::ViewportFrame),
+                        ActionId::Preferences => Some(Control::ViewportPreferences),
+                        _ => None,
+                    };
+                    self.menu_action(ui, action, control);
                 }
-                let can_delete = if self.editor.edit_mode {
-                    !self.editor.selected_vertices.is_empty()
-                } else {
-                    !self.editor.selected_objects.is_empty()
-                };
-                ui.add_enabled_ui(can_delete, |ui| {
-                    if controls::button(ui, Control::DeleteSelection)
-                        .on_hover_text(format!(
-                            "{} / {}",
-                            shortcut_label("selection.delete"),
-                            shortcut_label("selection.backspace")
-                        ))
-                        .clicked()
-                    {
-                        self.dispatch(Command::DeleteSelection, ctx, false);
-                        ui.close();
-                        ctx.memory_mut(|memory| {
-                            memory.request_focus(shortcuts::viewport_focus_id())
-                        });
-                    }
-                });
-                ui.separator();
-                if controls::button(ui, Control::ViewportFrame).clicked() {
-                    self.frame_all();
-                    ui.close();
-                }
-                let has_selection = if self.editor.edit_mode {
-                    !self.editor.selected_vertices.is_empty()
-                } else {
-                    !self.editor.selected_objects.is_empty()
-                };
-                ui.add_enabled_ui(has_selection, |ui| {
-                    if controls::button(ui, Control::FrameSelection)
-                        .on_hover_text(format!(
-                            "{} — fit the selected objects or vertices",
-                            shortcut_label("view.frame-selection")
-                        ))
-                        .clicked()
-                    {
-                        self.frame_selection();
-                        ui.close();
-                    }
-                });
-                if controls::button(ui, Control::ViewportPreferences).clicked() {
-                    self.dispatch(Command::OpenPreferences, ctx, false);
-                    ui.close();
-                }
-            });
+            })
         });
         if let Some(popup) = popup {
             controls::record(
@@ -1993,7 +2033,7 @@ impl WorkspaceUi {
         }
     }
 
-    fn n3_menu(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, open: &mut bool) {
+    fn n3_menu(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         let logo = self.n3_logo_texture.get_or_insert_with(|| {
             let image = image::load_from_memory_with_format(N3_LOGO_PNG, image::ImageFormat::Png)
                 .expect("bundled N3 logo is a valid PNG")
@@ -2009,151 +2049,45 @@ impl WorkspaceUi {
             )
         });
         let logo_id = logo.id();
-        let idle = !self.editor.has_transform_session();
-        let (app_menu, _) = egui::containers::menu::MenuButton::from_button(
+        let (app_menu, _) = menu::dropdown(
             egui::Button::new("")
                 .min_size(egui::Vec2::splat(N3_MENU_SIZE))
                 .corner_radius(theme::radius::MD)
                 .frame_when_inactive(false),
         )
         .ui(ui, |ui| {
-            ui.set_min_width(theme::size::STEP_52);
-            controls::scope(ctx, Control::N3Menu, || {
-                let (file_menu, _) = egui::containers::menu::SubMenuButton::from_button(
-                    egui::Button::new(Control::FileMenu.label())
-                        .right_text(egui::containers::menu::SubMenuButton::RIGHT_ARROW)
-                        .min_size(egui::vec2(theme::size::STEP_52, 0.0)),
-                )
-                .ui(ui, |ui| {
-                    ui.set_min_width(theme::size::STEP_52);
-                    controls::scope(ctx, Control::FileMenu, || {
-                        if controls::button_enabled_min_width(ui, Control::New, idle, theme::size::STEP_52).clicked() {
-                            self.request_new = true;
-                            ui.close();
+            menu::content(ui, Control::N3Menu, |ui| {
+                menu::submenu(ui, Control::FileMenu, |ui| {
+                    for &action in crate::ui::workspace_menus::FILE_ACTIONS {
+                        self.menu_action(ui, action, None);
+                    }
+                });
+                ui.add_enabled_ui(!self.editor.blocks_navigation(), |ui| {
+                    menu::submenu(ui, Control::ViewMenu, |ui| {
+                        for action in [
+                            ActionId::ViewPerspective,
+                            ActionId::ViewFront,
+                            ActionId::ViewRight,
+                            ActionId::ViewBack,
+                            ActionId::ViewLeft,
+                            ActionId::ViewTop,
+                            ActionId::ViewBottom,
+                        ] {
+                            self.menu_action(ui, action, None);
                         }
-                        if controls::button_enabled_min_width(ui, Control::Open, idle, theme::size::STEP_52)
-                            .on_hover_text(format!("{} — open N3 or import OBJ", shortcut_label("document.open")))
-                            .clicked()
-                        {
-                            *open = true;
-                            ui.close();
-                        }
-                        if controls::button_enabled_min_width(ui, Control::Save, idle, theme::size::STEP_52)
-                            .on_hover_text(shortcut_label("document.save"))
-                            .clicked()
-                        {
-                            self.request_save = true;
-                            ui.close();
-                        }
-                        if controls::button_enabled_min_width(ui, Control::SaveAs, idle, theme::size::STEP_52)
-                            .on_hover_text(shortcut_label("document.save-as"))
-                            .clicked()
-                        {
-                            self.request_save = true;
-                            self.request_save_as = true;
-                            ui.close();
+                        menu::separator(ui);
+                        self.menu_action(ui, ActionId::LocalView, Some(Control::LocalViewMenu));
+                        menu::separator(ui);
+                        self.menu_action(ui, ActionId::FrameAll, Some(Control::Frame));
+                        menu::separator(ui);
+                        for &action in crate::ui::workspace_menus::VIEW_TOGGLE_ACTIONS {
+                            self.menu_action(ui, action, None);
                         }
                     });
                 });
-                controls::record(ctx, Control::FileMenu, Control::FileMenu.label(), file_menu.rect, file_menu.enabled());
-                let view_menu = ui
-                    .add_enabled_ui(!self.editor.blocks_navigation(), |ui| {
-                        egui::containers::menu::SubMenuButton::from_button(
-                            egui::Button::new(Control::ViewMenu.label())
-                                .right_text(egui::containers::menu::SubMenuButton::RIGHT_ARROW)
-                                .min_size(egui::vec2(theme::size::STEP_52, 0.0)),
-                        )
-                        .ui(ui, |ui| {
-                            ui.set_min_width(theme::size::STEP_52);
-                            controls::scope(ctx, Control::ViewMenu, || {
-                                for (control, view) in [
-                                    (Control::ViewPerspective, View::Perspective),
-                                    (Control::ViewFront, View::Front),
-                                    (Control::ViewRight, View::Right),
-                                    (Control::ViewBack, View::Back),
-                                    (Control::ViewLeft, View::Left),
-                                    (Control::ViewTop, View::Top),
-                                    (Control::ViewBottom, View::Bottom),
-                                ] {
-                                    if controls::button(ui, control).clicked() {
-                                        self.set_view(view);
-                                        ui.close();
-                                    }
-                                }
-                                ui.separator();
-                                let has_selection = !self.editor.selected_objects.is_empty();
-                                let local_available = idle && (self.is_local_view() || has_selection);
-                                ui.add_enabled_ui(local_available, |ui| {
-                                    if controls::button(ui, Control::LocalViewMenu)
-                                        .on_hover_text(format!("{} — isolate selected objects; press again to restore the scene", shortcut_label("view.local")))
-                                        .clicked()
-                                    {
-                                        self.dispatch(Command::ToggleLocalView, ctx, false);
-                                        ui.close();
-                                    }
-                                });
-                                ui.separator();
-                                if controls::button(ui, Control::Frame)
-                                    .on_hover_text(format!("{} — fit the document", shortcut_label("view.frame")))
-                                    .clicked()
-                                {
-                                    self.frame_all();
-                                    ui.close();
-                                }
-                                ui.separator();
-                                controls::checkbox(
-                                    ui,
-                                    Control::Edges,
-                                    &mut self.show_edges,
-                                )
-                                .on_hover_text("Original polygon boundaries");
-                                ui.add_enabled_ui(self.editor.numeric_text().is_none(), |ui| {
-                                    let mut enabled = self.editor.xray_enabled();
-                                    if controls::checkbox(ui, Control::Xray, &mut enabled)
-                                        .on_hover_text(format!("{} — see and select through surfaces", shortcut_label("view.xray")))
-                                        .changed()
-                                    {
-                                        self.dispatch(Command::ToggleXray, ctx, false);
-                                    }
-                                });
-                                ui.add_enabled_ui(self.is_planar_navigation(), |ui| {
-                                    let mut visible = self.show_2d_ruler;
-                                    if controls::checkbox(
-                                        ui,
-                                        Control::Ruler2DViewToggle,
-                                        &mut visible,
-                                    )
-                                    .on_hover_text(shortcut_label("view.2d-ruler"))
-                                    .changed()
-                                    {
-                                        self.dispatch(Command::ToggleRuler2D, ctx, false);
-                                    }
-                                });
-                            });
-                        })
-                    })
-                    .inner.0;
-                controls::record(
-                    ctx,
-                    Control::ViewMenu,
-                    Control::ViewMenu.label(),
-                    view_menu.rect,
-                    view_menu.enabled(),
-                );
-                ui.separator();
-                if controls::button_enabled_min_width(
-                    ui,
-                    Control::Preferences,
-                    true,
-                    theme::size::STEP_52,
-                )
-                    .on_hover_text(shortcut_label("preferences.open"))
-                    .clicked()
-                {
-                    self.dispatch(Command::OpenPreferences, ctx, false);
-                    ui.close();
-                }
-            });
+                menu::separator(ui);
+                self.menu_action(ui, ActionId::Preferences, None);
+            })
         });
         // Paint inside the existing button so the menu geometry and hit target
         // stay independent of the logo's pixels.
@@ -2181,14 +2115,15 @@ impl WorkspaceUi {
 
     fn open_insert_menu(&mut self, ctx: &egui::Context) {
         if let Some(id) = self.insert_menu_id {
-            self.insert_opened_programmatically = true;
-            self.focus_insert_menu = true;
             egui::Popup::open_id(ctx, id);
             ctx.request_repaint();
         }
     }
 
     fn viewport_empty_state(&mut self, viewport_ui: &egui::Ui) {
+        if !self.editor.can_edit() {
+            return;
+        }
         if !self.show_ui
             || self.is_planar_navigation()
             || !self.editor.document.objects.is_empty()
@@ -2253,7 +2188,7 @@ impl WorkspaceUi {
         viewport_ui.painter().text(
             center + egui::Vec2::Y * theme::size::STEP_10,
             egui::Align2::CENTER_CENTER,
-            "or drop an .obj file",
+            "or drop an OBJ, glTF or GLB file",
             egui::FontId::proportional(theme::text::SM),
             palette.muted_foreground,
         );
@@ -2263,7 +2198,7 @@ impl WorkspaceUi {
         if !self.viewport_ui_rect.is_positive() {
             return;
         }
-        let idle = !self.editor.has_transform_session();
+        let idle = self.editor.can_edit() && !self.editor.has_transform_session();
         let palette = Palette::from_context(ctx, self.accent_color);
         egui::Area::new(egui::Id::new("n3.viewport.insert"))
             .order(egui::Order::Middle)
@@ -2290,63 +2225,28 @@ impl WorkspaceUi {
                 visuals.widgets.open.weak_bg_fill = palette.accent;
                 visuals.widgets.hovered.weak_bg_fill = palette.accent;
                 visuals.widgets.active.weak_bg_fill = palette.accent;
-                let mut insert_had_focus = false;
                 let menu = ui
                     .add_enabled_ui(idle, |ui| {
-                        egui::containers::menu::MenuButton::from_button(
+                        menu::dropdown(
                             egui::Button::new("")
                                 .min_size(egui::Vec2::splat(toolbar.width()))
                                 .corner_radius(theme::radius::FULL),
                         )
                         .ui(ui, |ui| {
-                            controls::scope(ctx, Control::InsertMenu, || {
-                                // TODO: Replace the generic icons in one dedicated icon pass.
-                                for (control, kind, icon) in [
-                                    (Control::InsertCube, PrimitiveKind::Cube, lucide::Icon::Box),
-                                    (
-                                        Control::InsertCylinder,
-                                        PrimitiveKind::Cylinder,
-                                        lucide::Icon::Cylinder,
-                                    ),
-                                    (Control::InsertCone, PrimitiveKind::Cone, lucide::Icon::Cone),
-                                    (
-                                        Control::InsertTorus,
-                                        PrimitiveKind::Torus,
-                                        lucide::Icon::Torus,
-                                    ),
-                                    (
-                                        Control::InsertPlane,
-                                        PrimitiveKind::Plane,
-                                        lucide::Icon::ScanBox,
-                                    ),
-                                    (
-                                        Control::InsertCircle,
-                                        PrimitiveKind::Circle,
-                                        lucide::Icon::ScanBox,
-                                    ),
-                                    (
-                                        Control::InsertSphere,
-                                        PrimitiveKind::Sphere,
-                                        lucide::Icon::ScanBox,
-                                    ),
-                                    (
-                                        Control::InsertPolyhedron,
-                                        PrimitiveKind::Polyhedron,
-                                        lucide::Icon::ScanBox,
-                                    ),
+                            menu::content(ui, Control::InsertMenu, |ui| {
+                                for action in [
+                                    ActionId::InsertCube,
+                                    ActionId::InsertCylinder,
+                                    ActionId::InsertCone,
+                                    ActionId::InsertTorus,
+                                    ActionId::InsertPlane,
+                                    ActionId::InsertCircle,
+                                    ActionId::InsertSphere,
+                                    ActionId::InsertPolyhedron,
                                 ] {
-                                    let response = controls::button_with_icon(ui, control, icon);
-                                    if self.focus_insert_menu && response.enabled() {
-                                        response.request_focus();
-                                        self.focus_insert_menu = false;
-                                    }
-                                    insert_had_focus |= response.has_focus();
-                                    if response.clicked() {
-                                        self.insert_shape(kind);
-                                        ui.close();
-                                    }
+                                    self.menu_action(ui, action, None);
                                 }
-                            });
+                            })
                         })
                     })
                     .inner
@@ -2377,17 +2277,6 @@ impl WorkspaceUi {
                 );
                 let popup_id = egui::Popup::default_response_id(&menu);
                 self.insert_menu_id = Some(popup_id);
-                if self.insert_opened_programmatically && !egui::Popup::is_id_open(ctx, popup_id) {
-                    self.insert_opened_programmatically = false;
-                    self.focus_insert_menu = false;
-                    // Escape/activation return to the viewport; clicking a
-                    // different input field keeps that field's new focus.
-                    if insert_had_focus || ctx.memory(|memory| memory.focused().is_none()) {
-                        ctx.memory_mut(|memory| {
-                            memory.request_focus(shortcuts::viewport_focus_id())
-                        });
-                    }
-                }
                 menu.clone().on_hover_text(format!(
                     "{} — insert a shape",
                     shortcut_label("insert.open")
@@ -2409,13 +2298,17 @@ impl WorkspaceUi {
             });
     }
 
-    pub fn ui(&mut self, root_ui: &mut egui::Ui) -> bool {
+    pub fn ui(&mut self, root_ui: &mut egui::Ui) {
         let context = root_ui.ctx().clone();
         let ctx = &context;
         self.sync_theme(ctx);
         // run_ui creates the root before preferences and native appearance are
         // resolved. Panels inherit its style, so refresh that snapshot too.
         root_ui.set_style(ctx.global_style());
+        self.tool_dock.floating_tabs_rect = None;
+        self.prepare_tool_dock_frame(ctx);
+        self.prepare_animation_frame(ctx);
+        self.tick_assets(ctx);
         if ctx.current_pass_index() == 0 {
             // Snapshot the ordered host queue before a widget can consume a
             // key or modifier transition needed by held viewport navigation.
@@ -2462,6 +2355,7 @@ impl WorkspaceUi {
                     PieContext {
                         keys_available: self.navigation_keys_available,
                         can_start: !self.editor.blocks_navigation()
+                            && !self.tool_dock_owns_input(ctx)
                             && !self.mouse_navigation.wants_input(),
                         hand_held: self.held_navigation.held(NavigationTool::Pan),
                         fit_enabled: self.can_frame_selection(),
@@ -2489,7 +2383,11 @@ impl WorkspaceUi {
             self.property_session = None;
             self.inspector_key = None;
             self.last_layer_click = None;
+            // Reset held state without releasing an already captured cancellation
+            // batch. The next PieInput::begin starts a fresh ownership frame.
+            let pie_owns_frame = self.pie_input.owns_frame;
             self.reset_navigation_input();
+            self.pie_input.owns_frame = pie_owns_frame;
         }
         // Undo, a tool change, or focus loss can also cancel the preview. An
         // earlier document-action notice must not outlive that transaction.
@@ -2501,7 +2399,6 @@ impl WorkspaceUi {
         {
             self.error = None;
         }
-        let mut open = false;
         if self.show_ui {
             let status_bar = egui::Panel::bottom("status_bar")
                 .exact_size(theme::size::XL_4)
@@ -2538,6 +2435,8 @@ impl WorkspaceUi {
                     let label = format!("Transform preview · {} / {} / {}: axis · {} / double-click: apply · {}: cancel", shortcut_label("transform.axis-x"), shortcut_label("transform.axis-y"), shortcut_label("transform.axis-z"), shortcut_label("edit.confirm"), shortcut_label("cancel"));
                     let response = ui.colored_label(Palette::from_context(ctx, self.accent_color).primary, &label);
                     controls::record(ctx, Control::MoveAxisLock, &label, response.rect, true);
+                } else if !self.editor.can_edit() {
+                    ui.weak("Read-only · Select and navigate to inspect this document");
                 } else if self.editor.edit_mode {
                     ui.weak(format!("Left drag: select · Middle: pan · Right drag: orbit · {}: finish · {}: step back", shortcut_label("edit.confirm"), shortcut_label("cancel")));
                 } else {
@@ -2551,9 +2450,10 @@ impl WorkspaceUi {
                 status_bar.response.rect,
                 true,
             );
-            open = self.hierarchy(root_ui);
+            self.hierarchy(root_ui);
             self.inspector(root_ui);
         }
+        self.tool_dock_panel(root_ui);
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(root_ui, |ui| {
@@ -2578,6 +2478,16 @@ impl WorkspaceUi {
                         .sense(egui::Sense::hover()),
                 );
                 self.viewport_empty_state(ui);
+                // Establish overlay bounds before routing viewport presses.
+                // egui Areas otherwise hit-test their previous-frame geometry.
+                self.tool_dock.floating_tabs_rect = self.floating_tool_dock_tabs(ctx);
+                let panel_tab_press = ctx.input(|input| {
+                    input.events.iter().any(|event| {
+                        matches!(event, egui::Event::PointerButton {
+                        pos, button: egui::PointerButton::Primary, pressed: true, ..
+                    } if self.tool_dock.floating_tabs_rect.is_some_and(|rect| rect.contains(*pos)))
+                    })
+                });
                 let response = ui.interact(
                     self.viewport_ui_rect,
                     shortcuts::viewport_focus_id(),
@@ -2592,7 +2502,12 @@ impl WorkspaceUi {
                 });
                 let eligible_press = press.is_some_and(|position| {
                     response.rect.contains(position)
-                        && (!self.show_ui || !axis_gizmo::bounds(response.rect).contains(position))
+                        && !self
+                            .tool_dock
+                            .floating_tabs_rect
+                            .is_some_and(|rect| rect.contains(position))
+                        && (!self.navigation_gizmo_visible()
+                            || !axis_gizmo::bounds(response.rect).contains(position))
                         && ctx.layer_id_at(position) == Some(egui::LayerId::background())
                 }) && !egui::Popup::is_any_open(ctx)
                     && !ctx.memory(|memory| memory.top_modal_layer().is_some());
@@ -2612,8 +2527,10 @@ impl WorkspaceUi {
                     &self.camera,
                     self.z_up,
                     self.pie_input.owns_frame
+                        || self.tool_dock_owns_input(ctx)
                         || self.mouse_navigation.wants_input()
-                        || self.mouse_owns_primary_press,
+                        || self.mouse_owns_primary_press
+                        || panel_tab_press,
                 ) {
                     self.error = Some(error);
                 }
@@ -2629,7 +2546,7 @@ impl WorkspaceUi {
                         Palette::from_context(ui.ctx(), self.accent_color).muted_foreground,
                     );
                 }
-                if self.show_ui {
+                if self.navigation_gizmo_visible() {
                     let transition = self.view_transition();
                     let planar = self.is_planar_navigation();
                     // A press freezes animated handles before it becomes a click
@@ -2698,6 +2615,8 @@ impl WorkspaceUi {
                         self.navigation.leave_planar();
                         ctx.request_repaint();
                     }
+                }
+                if self.show_ui {
                     self.viewport_context_menu(ui.ctx());
                 }
                 self.ruler_2d_model = None;
@@ -2725,13 +2644,14 @@ impl WorkspaceUi {
                             let response =
                                 ui.interact(rect, ui.id().with(control.id()), egui::Sense::click());
                             controls::record(ctx, control, control.label(), response.rect, true);
-                            response.context_menu(|ui| {
-                                controls::scope(ctx, control, || {
-                                    if controls::button(ui, Control::Ruler2DHide).clicked() {
-                                        self.dispatch(Command::ToggleRuler2D, ctx, false);
-                                        ui.close();
-                                    }
-                                });
+                            menu::context(&response).show(|ui| {
+                                menu::content(ui, control, |ui| {
+                                    self.menu_action(
+                                        ui,
+                                        ActionId::Ruler2D,
+                                        Some(Control::Ruler2DHide),
+                                    );
+                                })
                             });
                         }
                     }
@@ -2743,8 +2663,9 @@ impl WorkspaceUi {
                 self.viewport_insert_menu(ctx, toolbar);
             }
             let scene_info = self.viewport_info(ctx);
-            let snap_feedback = self.viewport_transform_feedback(ctx, scene_info);
-            self.viewport_error(ctx, snap_feedback.or(scene_info));
+            let overlay_stack = scene_info.or(self.tool_dock.floating_tabs_rect);
+            let snap_feedback = self.viewport_transform_feedback(ctx, overlay_stack);
+            self.viewport_error(ctx, snap_feedback.or(overlay_stack));
             self.preferences_window(ctx);
         }
         let toast_available = self.toasts_available(ctx);
@@ -2780,7 +2701,7 @@ impl WorkspaceUi {
         if let Err(e) = self.refresh_mesh() {
             self.error = Some(e)
         }
-        open
+        menu::finish_frame(ctx);
     }
 
     fn toasts_available(&self, ctx: &egui::Context) -> bool {
@@ -2830,7 +2751,8 @@ impl WorkspaceUi {
                                 (Control::ToolRotate, Tool::Rotate, lucide::Icon::Rotate3d),
                                 (Control::ToolScale, Tool::Scale, lucide::Icon::Scale3d),
                             ] {
-                                let response = ui.add(
+                                let response = ui.add_enabled(
+                                    self.editor.can_edit() || tool == Tool::View,
                                     egui::Button::selectable(
                                         self.editor.tool == tool,
                                         icon.text(theme::text::TOOL_ICON_17),
@@ -3000,9 +2922,10 @@ impl WorkspaceUi {
                 ),
                 color,
             ));
-            if !mesh.warnings.is_empty() {
+            let notice_count = mesh.warnings.len() + self.asset_diagnostics.len();
+            if notice_count > 0 {
                 lines.push((
-                    format!("{} notice(s)", mesh.warnings.len()),
+                    format!("{} notice(s)", notice_count),
                     ctx.global_style().visuals.warn_fg_color,
                 ));
             }
@@ -3026,7 +2949,12 @@ impl WorkspaceUi {
             let rect = egui::Rect::from_min_size(
                 egui::pos2(
                     self.viewport_ui_rect.left() + theme::space::XL,
-                    self.viewport_ui_rect.bottom() - theme::space::XL - size.y,
+                    self.tool_dock
+                        .floating_tabs_rect
+                        .map_or(self.viewport_ui_rect.bottom() - theme::space::XL, |tabs| {
+                            tabs.top() - theme::space::LG
+                        })
+                        - size.y,
                 ),
                 size,
             );
@@ -3225,8 +3153,7 @@ impl WorkspaceUi {
         controls::record(ctx, control, &label, rect, true);
         (control == Control::SnapFeedback).then_some(rect)
     }
-    fn hierarchy(&mut self, root_ui: &mut egui::Ui) -> bool {
-        let mut open = false;
+    fn hierarchy(&mut self, root_ui: &mut egui::Ui) {
         let context = root_ui.ctx().clone();
         let ctx = &context;
         egui::Panel::left("hierarchy")
@@ -3240,11 +3167,14 @@ impl WorkspaceUi {
             .show(root_ui, |ui| {
                 apply_sidebar_colors(ui, Palette::from_context(ctx, self.accent_color));
                 self.pie_underlay(ui);
-                ui.horizontal(|ui| {
-                    ui.set_min_height(N3_MENU_SIZE);
-                    self.n3_menu(ui, ctx, &mut open);
+                ui.spacing_mut().item_spacing.y = 0.0;
+                workspace_panel_section(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.set_min_height(N3_MENU_SIZE);
+                        self.n3_menu(ui, ctx);
+                    });
                 });
-                ui.separator();
+                workspace_panel_separator(ui);
                 if self.editor.has_transform_session() {
                     ui.disable();
                 }
@@ -3256,165 +3186,175 @@ impl WorkspaceUi {
                     panel,
                     ui.is_enabled(),
                 );
-                ui.label(theme::strong(Control::ObjectList.label()));
-                ui.separator();
+                workspace_panel_section(ui, |ui| {
+                    ui.label(theme::strong(Control::ObjectList.label()));
+                });
+                workspace_panel_separator(ui);
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    controls::scope(ctx, Control::ObjectList, || {
-                        let objects: Vec<_> = self
-                            .editor
-                            .document
-                            .objects
-                            .iter()
-                            .map(|o| (o.id, o.name.clone(), layer_icon(&o.geometry)))
-                            .collect();
-                        if objects.is_empty() {
-                            ui.weak("No objects yet.");
-                        }
-                        for (id, name, icon) in objects {
-                            let available = self.editor.is_object_visible(id);
-                            if self
-                                .layer_rename
-                                .as_ref()
-                                .is_some_and(|rename| rename.id == id && available)
-                            {
-                                let (rect, _) = ui.allocate_exact_size(
-                                    egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
-                                    egui::Sense::hover(),
-                                );
-                                if let Some(color) = self.layer_row_color(id) {
-                                    ui.painter().rect_filled(
-                                        rect,
-                                        theme::radius::SM,
-                                        color.gamma_multiply(0.18),
-                                    );
-                                    ui.painter().rect_stroke(
-                                        rect,
-                                        theme::radius::SM,
-                                        egui::Stroke::new(1.0, color),
-                                        egui::StrokeKind::Inside,
-                                    );
-                                }
-                                icon.paint(
-                                    ui.painter(),
-                                    rect.left_center() + egui::vec2(LAYER_ICON_INSET, 0.0),
-                                    ui.visuals().text_color(),
-                                );
-                                let edit_rect = egui::Rect::from_min_max(
-                                    rect.min + egui::vec2(LAYER_TEXT_INSET, 0.0),
-                                    rect.max,
-                                );
-                                let rename = self.layer_rename.as_mut().unwrap();
-                                let edit_id = egui::Id::new(("n3.layer.rename", id));
-                                if rename.select_all {
-                                    let mut state = egui::TextEdit::load_state(ctx, edit_id)
-                                        .unwrap_or_default();
-                                    state.cursor.set_char_range(Some(
-                                        egui::text::CCursorRange::two(
-                                            egui::text::CCursor::new(0),
-                                            egui::text::CCursor::new(rename.value.chars().count()),
+                    workspace_panel_section(ui, |ui| {
+                        controls::scope(ctx, Control::ObjectList, || {
+                            let objects: Vec<_> = self
+                                .editor
+                                .document
+                                .objects
+                                .iter()
+                                .map(|o| (o.id, o.name.clone(), layer_icon(&o.geometry)))
+                                .collect();
+                            if objects.is_empty() {
+                                ui.weak("No objects yet.");
+                            }
+                            for (id, name, icon) in objects {
+                                let available = self.editor.is_object_visible(id);
+                                if self
+                                    .layer_rename
+                                    .as_ref()
+                                    .is_some_and(|rename| rename.id == id && available)
+                                {
+                                    let (rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(
+                                            ui.available_width(),
+                                            ui.spacing().interact_size.y,
                                         ),
-                                    ));
-                                    egui::TextEdit::store_state(ctx, edit_id, state);
-                                    rename.select_all = false;
+                                        egui::Sense::hover(),
+                                    );
+                                    if let Some(color) = self.layer_row_color(id) {
+                                        ui.painter().rect_filled(
+                                            rect,
+                                            theme::radius::SM,
+                                            color.gamma_multiply(0.18),
+                                        );
+                                        ui.painter().rect_stroke(
+                                            rect,
+                                            theme::radius::SM,
+                                            egui::Stroke::new(1.0, color),
+                                            egui::StrokeKind::Inside,
+                                        );
+                                    }
+                                    icon.paint(
+                                        ui.painter(),
+                                        rect.left_center() + egui::vec2(LAYER_ICON_INSET, 0.0),
+                                        ui.visuals().text_color(),
+                                    );
+                                    let edit_rect = egui::Rect::from_min_max(
+                                        rect.min + egui::vec2(LAYER_TEXT_INSET, 0.0),
+                                        rect.max,
+                                    );
+                                    let rename = self.layer_rename.as_mut().unwrap();
+                                    let edit_id = egui::Id::new(("n3.layer.rename", id));
+                                    if rename.select_all {
+                                        let mut state = egui::TextEdit::load_state(ctx, edit_id)
+                                            .unwrap_or_default();
+                                        state.cursor.set_char_range(Some(
+                                            egui::text::CCursorRange::two(
+                                                egui::text::CCursor::new(0),
+                                                egui::text::CCursor::new(
+                                                    rename.value.chars().count(),
+                                                ),
+                                            ),
+                                        ));
+                                        egui::TextEdit::store_state(ctx, edit_id, state);
+                                        rename.select_all = false;
+                                    }
+                                    let response = ui.place(
+                                        edit_rect,
+                                        egui::TextEdit::singleline(&mut rename.value)
+                                            .id(edit_id)
+                                            .font(egui::TextStyle::Body)
+                                            .text_color(ui.visuals().text_color())
+                                            .vertical_align(egui::Align::Center)
+                                            .frame(egui::Frame::NONE)
+                                            .min_size(edit_rect.size()),
+                                    );
+                                    controls::record(
+                                        ctx,
+                                        Control::LayerRename,
+                                        Control::LayerRename.label(),
+                                        response.rect,
+                                        response.enabled(),
+                                    );
+                                    let enter =
+                                        ui.input(|input| input.key_pressed(egui::Key::Enter));
+                                    let escape =
+                                        ui.input(|input| input.key_pressed(egui::Key::Escape));
+                                    if enter {
+                                        let value = rename.value.clone();
+                                        response.surrender_focus();
+                                        self.layer_rename = None;
+                                        let result = self.editor.rename_object(id, value);
+                                        self.report(result);
+                                    } else if escape || response.lost_focus() {
+                                        self.layer_rename = None;
+                                    }
+                                    continue;
                                 }
-                                let response = ui.place(
-                                    edit_rect,
-                                    egui::TextEdit::singleline(&mut rename.value)
-                                        .id(edit_id)
-                                        .font(egui::TextStyle::Body)
-                                        .text_color(ui.visuals().text_color())
-                                        .vertical_align(egui::Align::Center)
-                                        .frame(egui::Frame::NONE)
-                                        .min_size(edit_rect.size()),
-                                );
-                                controls::record(
-                                    ctx,
-                                    Control::LayerRename,
-                                    Control::LayerRename.label(),
-                                    response.rect,
-                                    response.enabled(),
-                                );
-                                let enter = ui.input(|input| input.key_pressed(egui::Key::Enter));
-                                let escape = ui.input(|input| input.key_pressed(egui::Key::Escape));
-                                if enter {
-                                    let value = rename.value.clone();
-                                    response.surrender_focus();
-                                    self.layer_rename = None;
-                                    let result = self.editor.rename_object(id, value);
-                                    self.report(result);
-                                } else if escape || response.lost_focus() {
-                                    self.layer_rename = None;
-                                }
-                                continue;
-                            }
-                            let (rect, response) = ui.allocate_exact_size(
-                                egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
-                                if available {
-                                    egui::Sense::click()
-                                } else {
-                                    egui::Sense::hover()
-                                },
-                            );
-                            let response = if available {
-                                response.on_hover_cursor(egui::CursorIcon::PointingHand)
-                            } else {
-                                response.on_hover_text("Hidden in Local View")
-                            };
-                            let now = ui.input(|input| input.time);
-                            let same_row_twice = response.double_clicked()
-                                && self.last_layer_click.is_some_and(|(previous, time)| {
-                                    previous == id && now - time <= 0.45
-                                });
-                            if same_row_twice {
-                                self.layer_rename = Some(LayerRename {
-                                    id,
-                                    value: name.clone(),
-                                    select_all: true,
-                                });
-                                self.last_layer_click = None;
-                                ui.memory_mut(|memory| {
-                                    memory.request_focus(egui::Id::new(("n3.layer.rename", id)))
-                                });
-                            } else if response.clicked() {
-                                self.last_layer_click = Some((id, now));
-                                let result = self.editor.select_object_with_modifier(
-                                    id,
-                                    ui.input(|input| input.modifiers.shift),
-                                );
-                                self.report(result);
-                                self.inspector_key = None;
-                            }
-                            response.widget_info(|| {
-                                egui::WidgetInfo::selected(
-                                    egui::WidgetType::SelectableLabel,
-                                    response.enabled() && available,
-                                    self.editor.selected_objects.contains(&id),
-                                    &name,
-                                )
-                            });
-                            let visible = rect.intersect(ui.clip_rect());
-                            if visible.is_positive() {
-                                self.layer_rows.push(LayerRow {
-                                    id,
-                                    rect: visible,
-                                    painter: ui.painter().with_clip_rect(visible),
-                                    name,
-                                    icon,
-                                    text_position: rect.left_center()
-                                        + egui::vec2(LAYER_TEXT_INSET, 0.0),
-                                    font: egui::TextStyle::Body.resolve(ui.style()),
-                                    text_color: if available {
-                                        ui.visuals().text_color()
+                                let (rect, response) = ui.allocate_exact_size(
+                                    egui::vec2(ui.available_width(), ui.spacing().interact_size.y),
+                                    if available {
+                                        egui::Sense::click()
                                     } else {
-                                        ui.visuals().weak_text_color()
+                                        egui::Sense::hover()
                                     },
+                                );
+                                let response = if available {
+                                    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+                                } else {
+                                    response.on_hover_text("Hidden in Local View")
+                                };
+                                let now = ui.input(|input| input.time);
+                                let same_row_twice = response.double_clicked()
+                                    && self.last_layer_click.is_some_and(|(previous, time)| {
+                                        previous == id && now - time <= 0.45
+                                    });
+                                if same_row_twice && self.editor.can_edit() {
+                                    self.layer_rename = Some(LayerRename {
+                                        id,
+                                        value: name.clone(),
+                                        select_all: true,
+                                    });
+                                    self.last_layer_click = None;
+                                    ui.memory_mut(|memory| {
+                                        memory.request_focus(egui::Id::new(("n3.layer.rename", id)))
+                                    });
+                                } else if response.clicked() {
+                                    self.last_layer_click = Some((id, now));
+                                    let result = self.editor.select_object_with_modifier(
+                                        id,
+                                        ui.input(|input| input.modifiers.shift),
+                                    );
+                                    self.report(result);
+                                    self.inspector_key = None;
+                                }
+                                response.widget_info(|| {
+                                    egui::WidgetInfo::selected(
+                                        egui::WidgetType::SelectableLabel,
+                                        response.enabled() && available,
+                                        self.editor.selected_objects.contains(&id),
+                                        &name,
+                                    )
                                 });
+                                let visible = rect.intersect(ui.clip_rect());
+                                if visible.is_positive() {
+                                    self.layer_rows.push(LayerRow {
+                                        id,
+                                        rect: visible,
+                                        painter: ui.painter().with_clip_rect(visible),
+                                        name,
+                                        icon,
+                                        text_position: rect.left_center()
+                                            + egui::vec2(LAYER_TEXT_INSET, 0.0),
+                                        font: egui::TextStyle::Body.resolve(ui.style()),
+                                        text_color: if available {
+                                            ui.visuals().text_color()
+                                        } else {
+                                            ui.visuals().weak_text_color()
+                                        },
+                                    });
+                                }
                             }
-                        }
+                        });
                     });
                 });
             });
-        open
     }
 
     fn resolve_object_hover(&mut self, ctx: &egui::Context) {
@@ -3444,7 +3384,8 @@ impl WorkspaceUi {
         {
             Some(row.id)
         } else if self.viewport_ui_rect.contains(position)
-            && (!self.show_ui || !axis_gizmo::bounds(self.viewport_ui_rect).contains(position))
+            && (!self.navigation_gizmo_visible()
+                || !axis_gizmo::bounds(self.viewport_ui_rect).contains(position))
         {
             match self
                 .editor
@@ -3570,6 +3511,7 @@ impl WorkspaceUi {
                 if self.editor.has_transform_session() {
                     ui.disable();
                 }
+                ui.spacing_mut().item_spacing.y = 0.0;
                 let panel = ui.max_rect();
                 controls::record(
                     ctx,
@@ -3578,11 +3520,13 @@ impl WorkspaceUi {
                     panel,
                     ui.is_enabled(),
                 );
-                ui.label(theme::strong(Control::Inspector.label()));
-                ui.separator();
+                workspace_panel_section(ui, |ui| {
+                    ui.label(theme::strong(Control::Inspector.label()));
+                });
+                workspace_panel_separator(ui);
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let style = ui.style_mut();
-                    style.spacing.item_spacing.y = theme::INSPECTOR_ITEM_GAP;
+                    style.spacing.item_spacing.y = 0.0;
                     style.text_styles.insert(
                         egui::TextStyle::Body,
                         egui::FontId::proportional(theme::text::INSPECTOR_BODY_12_5),
@@ -3593,25 +3537,31 @@ impl WorkspaceUi {
                     );
                     controls::scope(ctx, Control::Inspector, || {
                         if self.editor.selected_objects.len() > 1 {
-                            ui.label(theme::strong(format!(
-                                "{} objects selected",
-                                self.editor.selected_objects.len()
-                            )));
-                            ui.label(
+                            workspace_panel_section(ui, |ui| {
+                                ui.label(theme::strong(format!(
+                                    "{} objects selected",
+                                    self.editor.selected_objects.len()
+                                )));
+                                ui.label(
                                 "Drag handles to move or rotate the group, or scale it uniformly.",
                             );
-                            ui.weak("Select one object to edit its properties or vertices.");
+                                ui.weak("Select one object to edit its properties or vertices.");
+                            });
                             return;
                         }
                         let Some(id) = self.editor.selected_object else {
-                            ui.weak("Select an object to see its properties.");
+                            workspace_panel_section(ui, |ui| {
+                                ui.weak("Select an object to see its properties.");
+                            });
                             return;
                         };
                         let Some(object) = self.editor.document.objects.iter().find(|o| o.id == id)
                         else {
                             return;
                         };
-                        ui.label(&object.name);
+                        workspace_panel_section(ui, |ui| {
+                            ui.label(&object.name);
+                        });
                         if self.property_session.is_none()
                             && self.inspector_key != Some((id, self.editor.revision))
                         {
@@ -3626,315 +3576,31 @@ impl WorkspaceUi {
                                 [x.to_degrees(), y.to_degrees(), z.to_degrees()];
                             self.inspector_key = Some((id, self.editor.revision));
                         }
-                        if self.editor.edit_mode {
-                            inspector_section(ui, "Vertices", |ui| {
-                                ui.weak(format!(
-                                    "{} selected · document axes",
-                                    self.editor.selected_vertices.len()
-                                ));
-                                ui.add_space(theme::space::MD);
-                                let responses =
-                                    inspector_axis_row(ui, "Move by", |ui, i, width| {
-                                        length_field_with_axis(
-                                            ui,
-                                            &mut self.vertex_delta[i],
-                                            VERTEX_SCRUB_CM_PER_POINT,
-                                            self.display_unit,
-                                            Some((["X", "Y", "Z"][i], width)),
-                                            None,
-                                        )
-                                    });
-                                for (i, response) in responses.into_iter().enumerate() {
-                                    let control = [
-                                        Control::VertexDeltaX,
-                                        Control::VertexDeltaY,
-                                        Control::VertexDeltaZ,
-                                    ][i];
-                                    controls::record(
-                                        ctx,
-                                        control,
-                                        control.label(),
-                                        response.rect,
-                                        response.enabled(),
-                                    );
-                                    let value = self.vertex_delta[i];
-                                    let source = property_translation_source(&response);
-                                    self.property_field(
-                                        ctx,
-                                        id,
-                                        PropertyField::VertexDelta(i),
-                                        &response,
-                                        |editor| {
-                                            editor.preview_property_translation(i, value, source)
-                                        },
-                                    );
-                                    if response.dragged()
-                                        && let Some(applied) =
-                                            self.editor.property_translation_value(i)
-                                    {
-                                        // DragValue retains its precise accumulator while
-                                        // the visible draft shows the applied snapped delta.
-                                        self.vertex_delta[i] = applied;
-                                    }
-                                }
-                            });
-                        } else {
-                            inspector_section(ui, "Transform", |ui| {
-                                let responses =
-                                    inspector_axis_row(ui, "Position", |ui, i, width| {
-                                        length_field_with_axis(
-                                            ui,
-                                            &mut self.transform_draft.translation[i],
-                                            POSITION_SCRUB_CM_PER_POINT,
-                                            self.display_unit,
-                                            Some((["X", "Y", "Z"][i], width)),
-                                            None,
-                                        )
-                                    });
-                                for (i, response) in responses.into_iter().enumerate() {
-                                    let control = [
-                                        Control::PositionX,
-                                        Control::PositionY,
-                                        Control::PositionZ,
-                                    ][i];
-                                    controls::record(
-                                        ctx,
-                                        control,
-                                        control.label(),
-                                        response.rect,
-                                        response.enabled(),
-                                    );
-                                    let value = self.transform_draft.translation[i];
-                                    let source = property_translation_source(&response);
-                                    self.property_field(
-                                        ctx,
-                                        id,
-                                        PropertyField::Translation(i),
-                                        &response,
-                                        |editor| {
-                                            editor.preview_property_translation(i, value, source)
-                                        },
-                                    );
-                                    if response.dragged()
-                                        && let Some(applied) =
-                                            self.editor.property_translation_value(i)
-                                    {
-                                        self.transform_draft.translation[i] = applied;
-                                    }
-                                }
-                                let responses = inspector_axis_row(ui, "Scale", |ui, i, width| {
-                                    inspector_axis_value(
-                                        ui,
-                                        ["X", "Y", "Z"][i],
-                                        width,
-                                        egui::DragValue::new(&mut self.transform_draft.scale[i])
-                                            .speed(0.01),
-                                    )
-                                });
-                                for (i, response) in responses.into_iter().enumerate() {
-                                    let control =
-                                        [Control::ScaleX, Control::ScaleY, Control::ScaleZ][i];
-                                    controls::record(
-                                        ctx,
-                                        control,
-                                        control.label(),
-                                        response.rect,
-                                        response.enabled(),
-                                    );
-                                    let value = self.transform_draft.scale[i];
-                                    self.property_field(
-                                        ctx,
-                                        id,
-                                        PropertyField::Scale(i),
-                                        &response,
-                                        |editor| {
-                                            editor.preview_property_edit(|doc| {
-                                                doc.objects
-                                                    .iter_mut()
-                                                    .find(|o| o.id == id)
-                                                    .ok_or("Missing object")?
-                                                    .transform
-                                                    .scale[i] = value;
-                                                Ok(())
-                                            })
-                                        },
-                                    );
-                                }
-                                let responses =
-                                    inspector_axis_row(ui, "Rotation", |ui, i, width| {
-                                        inspector_axis_value(
-                                            ui,
-                                            ["X", "Y", "Z"][i],
-                                            width,
-                                            egui::DragValue::new(&mut self.rotation_degrees[i])
-                                                .speed(1.0)
-                                                .suffix("°"),
-                                        )
-                                    });
-                                for (i, response) in responses.into_iter().enumerate() {
-                                    let control = [
-                                        Control::RotationX,
-                                        Control::RotationY,
-                                        Control::RotationZ,
-                                    ][i];
-                                    controls::record(
-                                        ctx,
-                                        control,
-                                        control.label(),
-                                        response.rect,
-                                        response.enabled(),
-                                    );
-                                    let degrees = self.rotation_degrees;
-                                    self.property_field(
-                                        ctx,
-                                        id,
-                                        PropertyField::Rotation(i),
-                                        &response,
-                                        |editor| {
-                                            editor.preview_property_edit(|doc| {
-                                                doc.objects
-                                                    .iter_mut()
-                                                    .find(|o| o.id == id)
-                                                    .ok_or("Missing object")?
-                                                    .transform
-                                                    .rotation = glam::DQuat::from_euler(
-                                                    glam::EulerRot::XYZ,
-                                                    degrees[0].to_radians(),
-                                                    degrees[1].to_radians(),
-                                                    degrees[2].to_radians(),
-                                                )
-                                                .to_array();
-                                                Ok(())
-                                            })
-                                        },
-                                    );
-                                }
-                            });
-                            if let Some(mut p) = self.primitive_draft.clone() {
-                                inspector_section(ui, "Shape", |ui| {
-                                    ui.weak(p.kind.label());
+                        ui.add_enabled_ui(self.editor.can_edit(), |ui| {
+                            if self.editor.edit_mode {
+                                inspector_section(ui, "Vertices", |ui| {
+                                    ui.weak(format!(
+                                        "{} selected · document axes",
+                                        self.editor.selected_vertices.len()
+                                    ));
                                     ui.add_space(theme::space::MD);
-                                    if p.kind == PrimitiveKind::Polyhedron {
-                                        let current = p.polyhedron_type.expect("validated recipe");
-                                        let mut chosen = None;
-                                        // Names with face counts need the panel's full width.
-                                        ui.label("Type");
-                                        let response =
-                                            egui::ComboBox::from_id_salt(("polyhedron-type", id))
-                                                .selected_text(current.label())
-                                                .width(ui.available_width())
-                                                .truncate()
-                                                .show_ui(ui, |ui| {
-                                                    controls::scope(
-                                                        ctx,
-                                                        Control::PolyhedronTypeMenu,
-                                                        || {
-                                                            for (control, kind) in [
-                                                                (
-                                                                    Control::PolyhedronTetrahedron,
-                                                                    PolyhedronType::Tetrahedron,
-                                                                ),
-                                                                (
-                                                                    Control::PolyhedronCube,
-                                                                    PolyhedronType::Cube,
-                                                                ),
-                                                                (
-                                                                    Control::PolyhedronOctahedron,
-                                                                    PolyhedronType::Octahedron,
-                                                                ),
-                                                                (
-                                                                    Control::PolyhedronDodecahedron,
-                                                                    PolyhedronType::Dodecahedron,
-                                                                ),
-                                                                (
-                                                                    Control::PolyhedronIcosahedron,
-                                                                    PolyhedronType::Icosahedron,
-                                                                ),
-                                                            ] {
-                                                                let item = ui.selectable_label(
-                                                                    current == kind,
-                                                                    control.label(),
-                                                                );
-                                                                controls::record(
-                                                                    ctx,
-                                                                    control,
-                                                                    control.label(),
-                                                                    item.rect,
-                                                                    item.enabled(),
-                                                                );
-                                                                if item.clicked() {
-                                                                    chosen = Some(kind);
-                                                                }
-                                                            }
-                                                        },
-                                                    );
-                                                })
-                                                .response;
-                                        controls::record(
-                                            ctx,
-                                            Control::PolyhedronTypeMenu,
-                                            Control::PolyhedronTypeMenu.label(),
-                                            response.rect,
-                                            response.enabled(),
-                                        );
-                                        if let Some(kind) = chosen {
-                                            let mut updated = p.clone();
-                                            updated.polyhedron_type = Some(kind);
-                                            let result = self.editor.commit(
-                                                "Change polyhedron type",
-                                                |document| {
-                                                    document
-                                                        .objects
-                                                        .iter_mut()
-                                                        .find(|object| object.id == id)
-                                                        .ok_or("Missing object")?
-                                                        .geometry =
-                                                        Geometry::Primitive(updated.clone());
-                                                    Ok(())
-                                                },
-                                            );
-                                            if result.as_ref().is_ok_and(|changed| *changed) {
-                                                p.polyhedron_type = Some(kind);
-                                                self.property_session = None;
-                                                self.inspector_key = None;
-                                            }
-                                            self.report(result);
-                                        }
-                                    }
-                                    if matches!(
-                                        p.kind,
-                                        PrimitiveKind::Polyhedron | PrimitiveKind::Circle
-                                    ) {
-                                        let circle = p.kind == PrimitiveKind::Circle;
-                                        let control = if circle {
-                                            Control::CircleRadius
-                                        } else {
-                                            Control::PolyhedronSize
-                                        };
-                                        let mut value =
-                                            if circle { p.size[0] * 0.5 } else { p.size[0] };
-                                        let response = inspector_scalar_row(
-                                            ui,
-                                            if circle { "Radius" } else { "Size" },
-                                            |ui, width| {
-                                                length_field_with_axis(
-                                                    ui,
-                                                    &mut value,
-                                                    0.02,
-                                                    self.display_unit,
-                                                    None,
-                                                    Some(width),
-                                                )
-                                            },
-                                        );
-                                        if response.changed() {
-                                            if circle {
-                                                p.size[0] = value * 2.0;
-                                                p.size[1] = value * 2.0;
-                                            } else {
-                                                p.size = [value; 3];
-                                            }
-                                        }
+                                    let responses =
+                                        inspector_axis_row(ui, "Move by", |ui, i, width| {
+                                            length_field_with_axis(
+                                                ui,
+                                                &mut self.vertex_delta[i],
+                                                VERTEX_SCRUB_CM_PER_POINT,
+                                                self.display_unit,
+                                                Some((["X", "Y", "Z"][i], width)),
+                                                None,
+                                            )
+                                        });
+                                    for (i, response) in responses.into_iter().enumerate() {
+                                        let control = [
+                                            Control::VertexDeltaX,
+                                            Control::VertexDeltaY,
+                                            Control::VertexDeltaZ,
+                                        ][i];
                                         controls::record(
                                             ctx,
                                             control,
@@ -3942,57 +3608,292 @@ impl WorkspaceUi {
                                             response.rect,
                                             response.enabled(),
                                         );
-                                        let primitive = p.clone();
+                                        let value = self.vertex_delta[i];
+                                        let source = property_translation_source(&response);
                                         self.property_field(
                                             ctx,
                                             id,
-                                            PropertyField::PrimitiveSize(0),
+                                            PropertyField::VertexDelta(i),
                                             &response,
                                             |editor| {
-                                                editor.preview_property_edit(|document| {
-                                                    document
-                                                        .objects
+                                                editor
+                                                    .preview_property_translation(i, value, source)
+                                            },
+                                        );
+                                        if response.dragged()
+                                            && let Some(applied) =
+                                                self.editor.property_translation_value(i)
+                                        {
+                                            // DragValue retains its precise accumulator while
+                                            // the visible draft shows the applied snapped delta.
+                                            self.vertex_delta[i] = applied;
+                                        }
+                                    }
+                                });
+                            } else {
+                                inspector_section(ui, "Transform", |ui| {
+                                    let responses =
+                                        inspector_axis_row(ui, "Position", |ui, i, width| {
+                                            length_field_with_axis(
+                                                ui,
+                                                &mut self.transform_draft.translation[i],
+                                                POSITION_SCRUB_CM_PER_POINT,
+                                                self.display_unit,
+                                                Some((["X", "Y", "Z"][i], width)),
+                                                None,
+                                            )
+                                        });
+                                    for (i, response) in responses.into_iter().enumerate() {
+                                        let control = [
+                                            Control::PositionX,
+                                            Control::PositionY,
+                                            Control::PositionZ,
+                                        ][i];
+                                        controls::record(
+                                            ctx,
+                                            control,
+                                            control.label(),
+                                            response.rect,
+                                            response.enabled(),
+                                        );
+                                        let value = self.transform_draft.translation[i];
+                                        let source = property_translation_source(&response);
+                                        self.property_field(
+                                            ctx,
+                                            id,
+                                            PropertyField::Translation(i),
+                                            &response,
+                                            |editor| {
+                                                editor
+                                                    .preview_property_translation(i, value, source)
+                                            },
+                                        );
+                                        if response.dragged()
+                                            && let Some(applied) =
+                                                self.editor.property_translation_value(i)
+                                        {
+                                            self.transform_draft.translation[i] = applied;
+                                        }
+                                    }
+                                    let responses =
+                                        inspector_axis_row(ui, "Scale", |ui, i, width| {
+                                            inspector_axis_value(
+                                                ui,
+                                                ["X", "Y", "Z"][i],
+                                                width,
+                                                egui::DragValue::new(
+                                                    &mut self.transform_draft.scale[i],
+                                                )
+                                                .speed(0.01),
+                                            )
+                                        });
+                                    for (i, response) in responses.into_iter().enumerate() {
+                                        let control =
+                                            [Control::ScaleX, Control::ScaleY, Control::ScaleZ][i];
+                                        controls::record(
+                                            ctx,
+                                            control,
+                                            control.label(),
+                                            response.rect,
+                                            response.enabled(),
+                                        );
+                                        let value = self.transform_draft.scale[i];
+                                        self.property_field(
+                                            ctx,
+                                            id,
+                                            PropertyField::Scale(i),
+                                            &response,
+                                            |editor| {
+                                                editor.preview_property_edit(|doc| {
+                                                    doc.objects
                                                         .iter_mut()
-                                                        .find(|object| object.id == id)
+                                                        .find(|o| o.id == id)
                                                         .ok_or("Missing object")?
-                                                        .geometry = Geometry::Primitive(primitive);
+                                                        .transform
+                                                        .scale[i] = value;
                                                     Ok(())
                                                 })
                                             },
                                         );
-                                    } else {
-                                        let mut size_field =
-                                            |ui: &mut egui::Ui, i: usize, width| {
-                                                length_field_with_axis(
-                                                    ui,
-                                                    &mut p.size[i],
-                                                    0.02,
-                                                    self.display_unit,
-                                                    (p.kind != PrimitiveKind::Plane)
-                                                        .then_some((["X", "Y", "Z"][i], width)),
-                                                    (p.kind == PrimitiveKind::Plane)
-                                                        .then_some(width),
-                                                )
-                                            };
-                                        let responses: Vec<_> = if p.kind == PrimitiveKind::Plane {
-                                            ["Width", "Height"]
-                                                .into_iter()
-                                                .enumerate()
-                                                .map(|(i, label)| {
-                                                    inspector_scalar_row(ui, label, |ui, width| {
-                                                        size_field(ui, i, width)
-                                                    })
+                                    }
+                                    let responses =
+                                        inspector_axis_row(ui, "Rotation", |ui, i, width| {
+                                            inspector_axis_value(
+                                                ui,
+                                                ["X", "Y", "Z"][i],
+                                                width,
+                                                egui::DragValue::new(&mut self.rotation_degrees[i])
+                                                    .speed(1.0)
+                                                    .suffix("°"),
+                                            )
+                                        });
+                                    for (i, response) in responses.into_iter().enumerate() {
+                                        let control = [
+                                            Control::RotationX,
+                                            Control::RotationY,
+                                            Control::RotationZ,
+                                        ][i];
+                                        controls::record(
+                                            ctx,
+                                            control,
+                                            control.label(),
+                                            response.rect,
+                                            response.enabled(),
+                                        );
+                                        let degrees = self.rotation_degrees;
+                                        self.property_field(
+                                            ctx,
+                                            id,
+                                            PropertyField::Rotation(i),
+                                            &response,
+                                            |editor| {
+                                                editor.preview_property_edit(|doc| {
+                                                    doc.objects
+                                                        .iter_mut()
+                                                        .find(|o| o.id == id)
+                                                        .ok_or("Missing object")?
+                                                        .transform
+                                                        .rotation = glam::DQuat::from_euler(
+                                                        glam::EulerRot::XYZ,
+                                                        degrees[0].to_radians(),
+                                                        degrees[1].to_radians(),
+                                                        degrees[2].to_radians(),
+                                                    )
+                                                    .to_array();
+                                                    Ok(())
                                                 })
-                                                .collect()
-                                        } else {
-                                            inspector_axis_row(ui, "Size", &mut size_field).into()
-                                        };
-                                        for (i, response) in responses.into_iter().enumerate() {
-                                            let control = [
-                                                Control::PrimitiveX,
-                                                Control::PrimitiveY,
-                                                Control::PrimitiveZ,
-                                            ][i];
+                                            },
+                                        );
+                                    }
+                                });
+                                if let Some(mut p) = self.primitive_draft.clone() {
+                                    inspector_section(ui, "Shape", |ui| {
+                                        ui.weak(p.kind.label());
+                                        ui.add_space(theme::space::MD);
+                                        if p.kind == PrimitiveKind::Polyhedron {
+                                            let current =
+                                                p.polyhedron_type.expect("validated recipe");
+                                            let mut chosen = None;
+                                            // Names with face counts need the panel's full width.
+                                            ui.label("Type");
+                                            let width = ui.available_width();
+                                            let response = menu::value_dropdown(
+                                                ui,
+                                                egui::ComboBox::from_id_salt((
+                                                    "polyhedron-type",
+                                                    id,
+                                                ))
+                                                .selected_text(current.label())
+                                                .width(width)
+                                                .truncate(),
+                                                Control::PolyhedronTypeMenu,
+                                                |ui| {
+                                                    for (control, kind) in [
+                                                        (
+                                                            Control::PolyhedronTetrahedron,
+                                                            PolyhedronType::Tetrahedron,
+                                                        ),
+                                                        (
+                                                            Control::PolyhedronCube,
+                                                            PolyhedronType::Cube,
+                                                        ),
+                                                        (
+                                                            Control::PolyhedronOctahedron,
+                                                            PolyhedronType::Octahedron,
+                                                        ),
+                                                        (
+                                                            Control::PolyhedronDodecahedron,
+                                                            PolyhedronType::Dodecahedron,
+                                                        ),
+                                                        (
+                                                            Control::PolyhedronIcosahedron,
+                                                            PolyhedronType::Icosahedron,
+                                                        ),
+                                                    ] {
+                                                        let item = menu::selectable_label(
+                                                            ui,
+                                                            current == kind,
+                                                            control.label(),
+                                                        );
+                                                        controls::record(
+                                                            ctx,
+                                                            control,
+                                                            control.label(),
+                                                            item.rect,
+                                                            item.enabled(),
+                                                        );
+                                                        if item.clicked() {
+                                                            chosen = Some(kind);
+                                                        }
+                                                    }
+                                                },
+                                            )
+                                            .response;
+                                            controls::record(
+                                                ctx,
+                                                Control::PolyhedronTypeMenu,
+                                                Control::PolyhedronTypeMenu.label(),
+                                                response.rect,
+                                                response.enabled(),
+                                            );
+                                            if let Some(kind) = chosen {
+                                                let mut updated = p.clone();
+                                                updated.polyhedron_type = Some(kind);
+                                                let result = self.editor.commit(
+                                                    "Change polyhedron type",
+                                                    |document| {
+                                                        document
+                                                            .objects
+                                                            .iter_mut()
+                                                            .find(|object| object.id == id)
+                                                            .ok_or("Missing object")?
+                                                            .geometry =
+                                                            Geometry::Primitive(updated.clone());
+                                                        Ok(())
+                                                    },
+                                                );
+                                                if result.as_ref().is_ok_and(|changed| *changed) {
+                                                    p.polyhedron_type = Some(kind);
+                                                    self.property_session = None;
+                                                    self.inspector_key = None;
+                                                }
+                                                self.report(result);
+                                            }
+                                        }
+                                        if matches!(
+                                            p.kind,
+                                            PrimitiveKind::Polyhedron | PrimitiveKind::Circle
+                                        ) {
+                                            let circle = p.kind == PrimitiveKind::Circle;
+                                            let control = if circle {
+                                                Control::CircleRadius
+                                            } else {
+                                                Control::PolyhedronSize
+                                            };
+                                            let mut value =
+                                                if circle { p.size[0] * 0.5 } else { p.size[0] };
+                                            let response = inspector_scalar_row(
+                                                ui,
+                                                if circle { "Radius" } else { "Size" },
+                                                |ui, width| {
+                                                    length_field_with_axis(
+                                                        ui,
+                                                        &mut value,
+                                                        0.02,
+                                                        self.display_unit,
+                                                        None,
+                                                        Some(width),
+                                                    )
+                                                },
+                                            );
+                                            if response.changed() {
+                                                if circle {
+                                                    p.size[0] = value * 2.0;
+                                                    p.size[1] = value * 2.0;
+                                                } else {
+                                                    p.size = [value; 3];
+                                                }
+                                            }
                                             controls::record(
                                                 ctx,
                                                 control,
@@ -4004,7 +3905,127 @@ impl WorkspaceUi {
                                             self.property_field(
                                                 ctx,
                                                 id,
-                                                PropertyField::PrimitiveSize(i),
+                                                PropertyField::PrimitiveSize(0),
+                                                &response,
+                                                |editor| {
+                                                    editor.preview_property_edit(|document| {
+                                                        document
+                                                            .objects
+                                                            .iter_mut()
+                                                            .find(|object| object.id == id)
+                                                            .ok_or("Missing object")?
+                                                            .geometry =
+                                                            Geometry::Primitive(primitive);
+                                                        Ok(())
+                                                    })
+                                                },
+                                            );
+                                        } else {
+                                            let mut size_field =
+                                                |ui: &mut egui::Ui, i: usize, width| {
+                                                    length_field_with_axis(
+                                                        ui,
+                                                        &mut p.size[i],
+                                                        0.02,
+                                                        self.display_unit,
+                                                        (p.kind != PrimitiveKind::Plane)
+                                                            .then_some((["X", "Y", "Z"][i], width)),
+                                                        (p.kind == PrimitiveKind::Plane)
+                                                            .then_some(width),
+                                                    )
+                                                };
+                                            let responses: Vec<_> = if p.kind
+                                                == PrimitiveKind::Plane
+                                            {
+                                                ["Width", "Height"]
+                                                    .into_iter()
+                                                    .enumerate()
+                                                    .map(|(i, label)| {
+                                                        inspector_scalar_row(
+                                                            ui,
+                                                            label,
+                                                            |ui, width| size_field(ui, i, width),
+                                                        )
+                                                    })
+                                                    .collect()
+                                            } else {
+                                                inspector_axis_row(ui, "Size", &mut size_field)
+                                                    .into()
+                                            };
+                                            for (i, response) in responses.into_iter().enumerate() {
+                                                let control = [
+                                                    Control::PrimitiveX,
+                                                    Control::PrimitiveY,
+                                                    Control::PrimitiveZ,
+                                                ][i];
+                                                controls::record(
+                                                    ctx,
+                                                    control,
+                                                    control.label(),
+                                                    response.rect,
+                                                    response.enabled(),
+                                                );
+                                                let primitive = p.clone();
+                                                self.property_field(
+                                                    ctx,
+                                                    id,
+                                                    PropertyField::PrimitiveSize(i),
+                                                    &response,
+                                                    |editor| {
+                                                        editor.preview_property_edit(|doc| {
+                                                            doc.objects
+                                                                .iter_mut()
+                                                                .find(|o| o.id == id)
+                                                                .ok_or("Missing object")?
+                                                                .geometry =
+                                                                Geometry::Primitive(primitive);
+                                                            Ok(())
+                                                        })
+                                                    },
+                                                );
+                                            }
+                                        }
+                                        if matches!(
+                                            p.kind,
+                                            PrimitiveKind::Circle
+                                                | PrimitiveKind::Cylinder
+                                                | PrimitiveKind::Cone
+                                                | PrimitiveKind::Torus
+                                                | PrimitiveKind::Sphere
+                                        ) {
+                                            let circle = p.kind == PrimitiveKind::Circle;
+                                            let control = if circle {
+                                                Control::CircleVertices
+                                            } else {
+                                                Control::Segments
+                                            };
+                                            let response = inspector_scalar_row(
+                                                ui,
+                                                control.label(),
+                                                |ui, width| {
+                                                    inspector_numeric_value(
+                                                        ui,
+                                                        None,
+                                                        width,
+                                                        egui::DragValue::new(&mut p.segments)
+                                                            .range(
+                                                                3..=if circle { 256 } else { 128 },
+                                                            ),
+                                                    )
+                                                },
+                                            );
+                                            controls::record(
+                                                ctx,
+                                                control,
+                                                control.label(),
+                                                response.rect,
+                                                response.enabled(),
+                                            );
+                                            let primitive = p.clone();
+                                            self.property_field(
+                                                ctx,
+                                                id,
+                                                PropertyField::Segments,
                                                 &response,
                                                 |editor| {
                                                     editor.preview_property_edit(|doc| {
@@ -4019,181 +4040,172 @@ impl WorkspaceUi {
                                                 },
                                             );
                                         }
-                                    }
-                                    if matches!(
-                                        p.kind,
-                                        PrimitiveKind::Circle
-                                            | PrimitiveKind::Cylinder
-                                            | PrimitiveKind::Cone
-                                            | PrimitiveKind::Torus
-                                            | PrimitiveKind::Sphere
-                                    ) {
-                                        let circle = p.kind == PrimitiveKind::Circle;
-                                        let control = if circle {
-                                            Control::CircleVertices
-                                        } else {
-                                            Control::Segments
-                                        };
-                                        let response = inspector_scalar_row(
-                                            ui,
-                                            control.label(),
-                                            |ui, width| {
-                                                inspector_numeric_value(
-                                                    ui,
-                                                    None,
-                                                    width,
-                                                    egui::DragValue::new(&mut p.segments)
-                                                        .range(3..=if circle { 256 } else { 128 }),
-                                                )
-                                            },
-                                        );
-                                        controls::record(
-                                            ctx,
-                                            control,
-                                            control.label(),
-                                            response.rect,
-                                            response.enabled(),
-                                        );
-                                        let primitive = p.clone();
-                                        self.property_field(
-                                            ctx,
-                                            id,
-                                            PropertyField::Segments,
-                                            &response,
-                                            |editor| {
-                                                editor.preview_property_edit(|doc| {
-                                                    doc.objects
-                                                        .iter_mut()
-                                                        .find(|o| o.id == id)
-                                                        .ok_or("Missing object")?
-                                                        .geometry = Geometry::Primitive(primitive);
-                                                    Ok(())
-                                                })
-                                            },
-                                        );
-                                    }
-                                    if p.kind == PrimitiveKind::Circle {
-                                        let mut fill = p.fill;
-                                        if controls::checkbox(ui, Control::CircleFill, &mut fill)
+                                        if p.kind == PrimitiveKind::Circle {
+                                            let mut fill = p.fill;
+                                            if controls::checkbox(
+                                                ui,
+                                                Control::CircleFill,
+                                                &mut fill,
+                                            )
                                             .changed()
-                                        {
-                                            let mut updated = p.clone();
-                                            updated.fill = fill;
-                                            let result = self.editor.commit(
-                                                "Change circle fill",
-                                                |document| {
-                                                    document
-                                                        .objects
-                                                        .iter_mut()
-                                                        .find(|object| object.id == id)
-                                                        .ok_or("Missing object")?
-                                                        .geometry =
-                                                        Geometry::Primitive(updated.clone());
-                                                    Ok(())
+                                            {
+                                                let mut updated = p.clone();
+                                                updated.fill = fill;
+                                                let result = self.editor.commit(
+                                                    "Change circle fill",
+                                                    |document| {
+                                                        document
+                                                            .objects
+                                                            .iter_mut()
+                                                            .find(|object| object.id == id)
+                                                            .ok_or("Missing object")?
+                                                            .geometry =
+                                                            Geometry::Primitive(updated.clone());
+                                                        Ok(())
+                                                    },
+                                                );
+                                                if result.as_ref().is_ok_and(|changed| *changed) {
+                                                    p = updated;
+                                                    self.property_session = None;
+                                                    self.inspector_key = None;
+                                                }
+                                                self.report(result);
+                                            }
+                                        }
+                                        if matches!(
+                                            p.kind,
+                                            PrimitiveKind::Torus | PrimitiveKind::Sphere
+                                        ) {
+                                            let ring_control = if p.kind == PrimitiveKind::Sphere {
+                                                Control::SphereRings
+                                            } else {
+                                                Control::MinorSegments
+                                            };
+                                            let response = inspector_scalar_row(
+                                                ui,
+                                                ring_control.label(),
+                                                |ui, width| {
+                                                    inspector_numeric_value(
+                                                        ui,
+                                                        None,
+                                                        width,
+                                                        egui::DragValue::new(&mut p.minor_segments)
+                                                            .range(3..=64),
+                                                    )
                                                 },
                                             );
-                                            if result.as_ref().is_ok_and(|changed| *changed) {
-                                                p = updated;
-                                                self.property_session = None;
-                                                self.inspector_key = None;
-                                            }
-                                            self.report(result);
+                                            controls::record(
+                                                ctx,
+                                                ring_control,
+                                                ring_control.label(),
+                                                response.rect,
+                                                response.enabled(),
+                                            );
+                                            let primitive = p.clone();
+                                            self.property_field(
+                                                ctx,
+                                                id,
+                                                PropertyField::MinorSegments,
+                                                &response,
+                                                |editor| {
+                                                    editor.preview_property_edit(|doc| {
+                                                        doc.objects
+                                                            .iter_mut()
+                                                            .find(|o| o.id == id)
+                                                            .ok_or("Missing object")?
+                                                            .geometry =
+                                                            Geometry::Primitive(primitive);
+                                                        Ok(())
+                                                    })
+                                                },
+                                            );
                                         }
-                                    }
-                                    if matches!(
-                                        p.kind,
-                                        PrimitiveKind::Torus | PrimitiveKind::Sphere
-                                    ) {
-                                        let ring_control = if p.kind == PrimitiveKind::Sphere {
-                                            Control::SphereRings
-                                        } else {
-                                            Control::MinorSegments
-                                        };
-                                        let response = inspector_scalar_row(
-                                            ui,
-                                            ring_control.label(),
-                                            |ui, width| {
-                                                inspector_numeric_value(
-                                                    ui,
-                                                    None,
-                                                    width,
-                                                    egui::DragValue::new(&mut p.minor_segments)
-                                                        .range(3..=64),
-                                                )
-                                            },
-                                        );
-                                        controls::record(
-                                            ctx,
-                                            ring_control,
-                                            ring_control.label(),
-                                            response.rect,
-                                            response.enabled(),
-                                        );
-                                        let primitive = p.clone();
-                                        self.property_field(
-                                            ctx,
-                                            id,
-                                            PropertyField::MinorSegments,
-                                            &response,
-                                            |editor| {
-                                                editor.preview_property_edit(|doc| {
-                                                    doc.objects
-                                                        .iter_mut()
-                                                        .find(|o| o.id == id)
-                                                        .ok_or("Missing object")?
-                                                        .geometry = Geometry::Primitive(primitive);
-                                                    Ok(())
-                                                })
-                                            },
-                                        );
-                                    }
-                                    if p.kind == PrimitiveKind::Torus {
-                                        let response =
-                                            inspector_scalar_row(ui, "Tube ratio", |ui, width| {
-                                                inspector_numeric_value(
-                                                    ui,
-                                                    None,
-                                                    width,
-                                                    egui::DragValue::new(&mut p.minor_radius)
-                                                        .speed(0.01)
-                                                        .range(0.01..=0.49),
-                                                )
-                                            });
-                                        controls::record(
-                                            ctx,
-                                            Control::TubeRatio,
-                                            Control::TubeRatio.label(),
-                                            response.rect,
-                                            response.enabled(),
-                                        );
-                                        let primitive = p.clone();
-                                        self.property_field(
-                                            ctx,
-                                            id,
-                                            PropertyField::TubeRatio,
-                                            &response,
-                                            |editor| {
-                                                editor.preview_property_edit(|doc| {
-                                                    doc.objects
-                                                        .iter_mut()
-                                                        .find(|o| o.id == id)
-                                                        .ok_or("Missing object")?
-                                                        .geometry = Geometry::Primitive(primitive);
-                                                    Ok(())
-                                                })
-                                            },
-                                        );
-                                    }
-                                });
-                                self.primitive_draft = Some(p.clone());
+                                        if p.kind == PrimitiveKind::Torus {
+                                            let response = inspector_scalar_row(
+                                                ui,
+                                                "Tube ratio",
+                                                |ui, width| {
+                                                    inspector_numeric_value(
+                                                        ui,
+                                                        None,
+                                                        width,
+                                                        egui::DragValue::new(&mut p.minor_radius)
+                                                            .speed(0.01)
+                                                            .range(0.01..=0.49),
+                                                    )
+                                                },
+                                            );
+                                            controls::record(
+                                                ctx,
+                                                Control::TubeRatio,
+                                                Control::TubeRatio.label(),
+                                                response.rect,
+                                                response.enabled(),
+                                            );
+                                            let primitive = p.clone();
+                                            self.property_field(
+                                                ctx,
+                                                id,
+                                                PropertyField::TubeRatio,
+                                                &response,
+                                                |editor| {
+                                                    editor.preview_property_edit(|doc| {
+                                                        doc.objects
+                                                            .iter_mut()
+                                                            .find(|o| o.id == id)
+                                                            .ok_or("Missing object")?
+                                                            .geometry =
+                                                            Geometry::Primitive(primitive);
+                                                        Ok(())
+                                                    })
+                                                },
+                                            );
+                                        }
+                                    });
+                                    self.primitive_draft = Some(p.clone());
+                                }
                             }
-                        }
+                        });
+                        self.asset_inspector(ui);
                     });
                 });
             });
     }
+    fn preferences_focus_id() -> egui::Id {
+        egui::Id::new("n3.preferences.keyboard")
+    }
+
     fn preferences_window(&mut self, ctx: &egui::Context) {
         if !self.show_preferences {
+            self.preferences_focus_pending = false;
+            return;
+        }
+        // This initial window owner has no native widget action for Cancel.
+        // Fields and popups keep their own Escape handling; only the untouched
+        // title owner forwards the canonical action. egui may already have
+        // surrendered that focus at begin_pass when Escape was pressed.
+        let title_owns_keys = ctx.memory(|memory| {
+            memory.has_focus(Self::preferences_focus_id())
+                || (memory.focused().is_none()
+                    && memory.had_focus_last_frame(Self::preferences_focus_id()))
+        });
+        let cancel = crate::input::bindings::required("cancel");
+        if title_owns_keys
+            && !egui::Popup::is_any_open(ctx)
+            && !ctx.memory(|memory| memory.top_modal_layer().is_some())
+            && ctx.input(|input| {
+                input.focused
+                    && input.events.iter().any(|event| {
+                        matches!(
+                            event,
+                            egui::Event::Key {
+                                key, modifiers, pressed: true, repeat: false, ..
+                            } if cancel.matches_key(*key, *modifiers)
+                        )
+                    })
+            })
+        {
+            self.dispatch(Command::Escape, ctx, false);
             return;
         }
         let mut open = self.show_preferences;
@@ -4238,9 +4250,18 @@ impl WorkspaceUi {
                 controls::scope(ctx, Control::PreferencesWindow, || {
                     let title = ui.interact(
                         title_rect,
-                        ui.id().with(Control::PreferencesTitle.id()),
-                        egui::Sense::hover(),
+                        Self::preferences_focus_id(),
+                        // Native controls can take focus from this initial
+                        // window owner through ordinary click/Tab navigation.
+                        egui::Sense::focusable_noninteractive(),
                     );
+                    // Window's invisible sizing pass registers disabled
+                    // widgets and clears their focus. Complete the opening
+                    // transition only once the real title is available.
+                    if self.preferences_focus_pending && title.enabled() && ui.is_visible() {
+                        title.request_focus();
+                        self.preferences_focus_pending = false;
+                    }
                     ui.painter().text(
                         title_rect.left_center(),
                         egui::Align2::LEFT_CENTER,
@@ -4316,23 +4337,25 @@ impl WorkspaceUi {
                     };
                     let theme_menu = ui.horizontal(|ui| {
                         ui.label(Control::AppearanceThemeMenu.label());
-                        egui::ComboBox::from_id_salt("appearance-theme")
-                            .selected_text(chosen.label())
-                            .width(120.0)
-                            .show_ui(ui, |ui| {
-                                controls::scope(ctx, Control::AppearanceThemeMenu, || {
-                                    for (control, mode) in [
-                                        (Control::ThemeSystem, ThemeMode::System),
-                                        (Control::ThemeLight, ThemeMode::Light),
-                                        (Control::ThemeDark, ThemeMode::Dark),
-                                    ] {
-                                        let response = ui.selectable_value(
-                                            &mut self.theme_mode, mode, control.label());
-                                        controls::record(ctx, control, control.label(),
-                                            response.rect, response.enabled());
-                                    }
-                                });
-                            })
+                        menu::value_dropdown(
+                            ui,
+                            egui::ComboBox::from_id_salt("appearance-theme")
+                                .selected_text(chosen.label())
+                                .width(120.0),
+                            Control::AppearanceThemeMenu,
+                            |ui| {
+                                for (control, mode) in [
+                                    (Control::ThemeSystem, ThemeMode::System),
+                                    (Control::ThemeLight, ThemeMode::Light),
+                                    (Control::ThemeDark, ThemeMode::Dark),
+                                ] {
+                                    let response = menu::selectable_value(
+                                        ui, &mut self.theme_mode, mode, control.label());
+                                    controls::record(ctx, control, control.label(),
+                                        response.rect, response.enabled());
+                                }
+                            },
+                        )
                     }).inner;
                     controls::record(ctx, Control::AppearanceThemeMenu,
                         Control::AppearanceThemeMenu.label(), theme_menu.response.rect,
@@ -4367,23 +4390,26 @@ impl WorkspaceUi {
                     ui.label(theme::strong("Units"));
                     let menu = ui.horizontal(|ui| {
                         ui.label(Control::LengthUnitMenu.label());
-                        egui::ComboBox::from_id_salt("display-length-unit")
-                            .selected_text(self.display_unit.symbol())
-                            .width(120.0)
-                            .show_ui(ui, |ui| {
-                                controls::scope(ctx, Control::LengthUnitMenu, || {
-                                    for unit in LengthUnit::ALL {
-                                        let control = length_unit_control(unit);
-                                        let response = ui.selectable_value(
-                                            &mut self.display_unit,
-                                            unit,
-                                            control.label(),
-                                        );
-                                        controls::record(ctx, control, control.label(),
-                                            response.rect, response.enabled());
-                                    }
-                                });
-                            })
+                        menu::value_dropdown(
+                            ui,
+                            egui::ComboBox::from_id_salt("display-length-unit")
+                                .selected_text(self.display_unit.symbol())
+                                .width(120.0),
+                            Control::LengthUnitMenu,
+                            |ui| {
+                                for unit in LengthUnit::ALL {
+                                    let control = length_unit_control(unit);
+                                    let response = menu::selectable_value(
+                                        ui,
+                                        &mut self.display_unit,
+                                        unit,
+                                        control.label(),
+                                    );
+                                    controls::record(ctx, control, control.label(),
+                                        response.rect, response.enabled());
+                                }
+                            },
+                        )
                     }).inner;
                     controls::record(ctx, Control::LengthUnitMenu,
                         Control::LengthUnitMenu.label(), menu.response.rect,
@@ -4401,24 +4427,26 @@ impl WorkspaceUi {
                         } else {
                             Control::SnapAdaptive
                         };
-                        let menu = egui::ComboBox::from_id_salt("movement-snap-spacing")
-                            .selected_text(selected.label())
-                            .width(120.0)
-                            .show_ui(ui, |ui| {
-                                controls::scope(ctx, Control::SnapSpacingMenu, || {
-                                    for control in [Control::SnapAdaptive, Control::SnapFixed] {
-                                        let response = ui.selectable_label(selected == control, control.label());
-                                        controls::record(ctx, control, control.label(), response.rect, response.enabled());
-                                        if response.clicked() && selected != control {
-                                            self.editor.snap_policy = if control == Control::SnapFixed {
-                                                StepPolicy::Fixed
-                                            } else {
-                                                StepPolicy::default()
-                                            };
-                                        }
+                        let menu = menu::value_dropdown(
+                            ui,
+                            egui::ComboBox::from_id_salt("movement-snap-spacing")
+                                .selected_text(selected.label())
+                                .width(120.0),
+                            Control::SnapSpacingMenu,
+                            |ui| {
+                                for control in [Control::SnapAdaptive, Control::SnapFixed] {
+                                    let response = menu::selectable_label(ui, selected == control, control.label());
+                                    controls::record(ctx, control, control.label(), response.rect, response.enabled());
+                                    if response.clicked() && selected != control {
+                                        self.editor.snap_policy = if control == Control::SnapFixed {
+                                            StepPolicy::Fixed
+                                        } else {
+                                            StepPolicy::default()
+                                        };
                                     }
-                                });
-                            });
+                                }
+                            },
+                        );
                         controls::record(ctx, Control::SnapSpacingMenu, Control::SnapSpacingMenu.label(), menu.response.rect, menu.response.enabled());
                         menu.response.on_hover_text("Auto chooses a clean step at the current view scale and keeps it throughout the drag. Numeric-field drags use their own sensitivity.");
                         ui.add_enabled_ui(matches!(self.editor.snap_policy, StepPolicy::Fixed), |ui| {
@@ -4464,23 +4492,25 @@ impl WorkspaceUi {
                         PlanarExit::OrientationAndPerspective => Control::Return3DBoth,
                     };
                     ui.label(Control::Return3DMenu.label());
-                    let return_menu = egui::ComboBox::from_id_salt("return-to-3d")
-                        .selected_text(return_label.label())
-                        .width(240.0)
-                        .show_ui(ui, |ui| {
-                            controls::scope(ctx, Control::Return3DMenu, || {
-                                for (control, policy) in [
-                                    (Control::Return3DPerspective, PlanarExit::PerspectiveOnly),
-                                    (Control::Return3DOrientation, PlanarExit::OrientationOnly),
-                                    (Control::Return3DBoth, PlanarExit::OrientationAndPerspective),
-                                ] {
-                                    let response = ui.selectable_value(
-                                        &mut self.return_3d, policy, control.label());
-                                    controls::record(ctx, control, control.label(),
-                                        response.rect, response.enabled());
-                                }
-                            });
-                        });
+                    let return_menu = menu::value_dropdown(
+                        ui,
+                        egui::ComboBox::from_id_salt("return-to-3d")
+                            .selected_text(return_label.label())
+                            .width(240.0),
+                        Control::Return3DMenu,
+                        |ui| {
+                            for (control, policy) in [
+                                (Control::Return3DPerspective, PlanarExit::PerspectiveOnly),
+                                (Control::Return3DOrientation, PlanarExit::OrientationOnly),
+                                (Control::Return3DBoth, PlanarExit::OrientationAndPerspective),
+                            ] {
+                                let response = menu::selectable_value(
+                                    ui, &mut self.return_3d, policy, control.label());
+                                controls::record(ctx, control, control.label(),
+                                    response.rect, response.enabled());
+                            }
+                        },
+                    );
                     controls::record(ctx, Control::Return3DMenu,
                         Control::Return3DMenu.label(), return_menu.response.rect,
                         return_menu.response.enabled());

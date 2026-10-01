@@ -1,4 +1,4 @@
-//! Render documentation frames through the viewer's real scene and egui pipelines.
+//! Render frames through the real egui compositor, optionally with a scene.
 
 use std::{sync::mpsc, time::Duration};
 
@@ -13,9 +13,8 @@ mod backend;
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
-/// A completed scene + UI + tutorial overlay frame, independent of its encoder.
-/// Rows are tightly packed RGBA8, in top-to-bottom order. Scenario time belongs
-/// to the caller, so a future clip recorder can attach a duration to each frame.
+/// A completed frame, independent of its encoder. Rows are tightly packed
+/// RGBA8 in top-to-bottom order. Scenario time belongs to the caller.
 pub struct CapturedFrame {
     pub width: u32,
     pub height: u32,
@@ -29,6 +28,20 @@ pub struct Capture {
     pub texture: egui::TextureId,
     pub adapter: String,
     pub renderer_profile: &'static str,
+    compositor: Compositor,
+}
+
+/// UI-only capture uses the same compositor, readback, framing, and encoding
+/// as the public guides, without constructing a scene or a scene texture.
+pub struct UiCapture {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    pub adapter: String,
+    pub renderer_profile: &'static str,
+    compositor: Compositor,
+}
+
+struct Compositor {
     ui_renderer: egui_wgpu::Renderer,
     target: wgpu::Texture,
     target_view: wgpu::TextureView,
@@ -38,7 +51,7 @@ pub struct Capture {
     presentation: WindowFrameTemplate,
 }
 
-impl Capture {
+impl UiCapture {
     pub async fn new(width: u32, height: u32) -> Result<Self, String> {
         if width == 0 || height == 0 {
             return Err("Capture dimensions must be positive.".into());
@@ -89,31 +102,112 @@ impl Capture {
             view_formats: &[],
         });
         let target_view = target.create_view(&Default::default());
-        let scene = SceneRenderer::new(&device, width, height);
-        let mut ui_renderer =
+        let ui_renderer =
             egui_wgpu::Renderer::new(&device, FORMAT, egui_wgpu::RendererOptions::default());
-        let texture =
-            ui_renderer.register_native_texture(&device, &scene.view, wgpu::FilterMode::Linear);
+        Ok(Self {
+            device,
+            queue,
+            adapter: adapter_name,
+            renderer_profile: profile.name(),
+            compositor: Compositor {
+                ui_renderer,
+                target,
+                target_view,
+                width,
+                height,
+                frame_ready: false,
+                presentation,
+            },
+        })
+    }
+
+    pub fn render(&mut self, ctx: &egui::Context, output: egui::FullOutput) -> Result<(), String> {
+        self.compositor
+            .render(&self.device, &self.queue, ctx, output, |_| Ok(()))
+    }
+
+    pub fn read_frame(&self) -> Result<CapturedFrame, String> {
+        self.compositor.read_frame(&self.device, &self.queue)
+    }
+
+    pub fn framed_frame(&self) -> Result<CapturedFrame, String> {
+        self.compositor.presentation.compose(self.read_frame()?)
+    }
+
+    pub fn framed_webp(&self) -> Result<Vec<u8>, String> {
+        let frame = self.framed_frame()?;
+        encode_webp(&frame.rgba, frame.width, frame.height)
+    }
+
+    pub fn framed_dimensions(&self) -> (u32, u32) {
+        self.compositor.presentation.dimensions()
+    }
+
+    pub fn frame_template_name(&self) -> &'static str {
+        presentation::TEMPLATE_NAME
+    }
+}
+
+impl Capture {
+    pub async fn new(width: u32, height: u32) -> Result<Self, String> {
+        let UiCapture {
+            device,
+            queue,
+            adapter,
+            renderer_profile,
+            mut compositor,
+        } = UiCapture::new(width, height).await?;
+        let scene = SceneRenderer::new(&device, width, height);
+        let texture = compositor.ui_renderer.register_native_texture(
+            &device,
+            &scene.view,
+            wgpu::FilterMode::Linear,
+        );
         Ok(Self {
             device,
             queue,
             scene,
             texture,
-            adapter: adapter_name,
-            renderer_profile: profile.name(),
-            ui_renderer,
-            target,
-            target_view,
-            width,
-            height,
-            frame_ready: false,
-            presentation,
+            adapter,
+            renderer_profile,
+            compositor,
         })
     }
 
     // Matches the native viewer's scene and compositor inputs.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub fn render(
+        &mut self,
+        ctx: &egui::Context,
+        output: egui::FullOutput,
+        viewport: egui::Rect,
+        camera: &Camera,
+        shading: crate::render::shading::ShadingMode,
+        xray: bool,
+        show_edges: bool,
+        show_grid: bool,
+        z_up: bool,
+        viewport_color: egui::Color32,
+    ) -> Result<(), String> {
+        self.render_with_assets(
+            ctx,
+            output,
+            viewport,
+            camera,
+            shading,
+            xray,
+            show_edges,
+            show_grid,
+            z_up,
+            viewport_color,
+            &[],
+            &crate::document::DisplayFrame::default(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_with_assets(
         &mut self,
         ctx: &egui::Context,
         mut output: egui::FullOutput,
@@ -125,11 +219,11 @@ impl Capture {
         show_grid: bool,
         z_up: bool,
         viewport_color: egui::Color32,
+        assets: &[crate::renderer::PlacedScene],
+        display_frame: &crate::document::DisplayFrame,
     ) -> Result<(), String> {
-        if output.pixels_per_point != 1.0 {
-            output.textures_delta.clear();
-            return Err("Documentation capture requires exactly one pixel per point.".into());
-        }
+        self.compositor.frame_ready = false;
+        validate_pixel_scale(&mut output)?;
         let size = viewport.size();
         let limit = self.device.limits().max_texture_dimension_2d as f32;
         if !viewport.is_finite()
@@ -143,20 +237,139 @@ impl Capture {
         }
         let width = size.x.round().max(1.0) as u32;
         let height = size.y.round().max(1.0) as u32;
-        if self.scene.width != width || self.scene.height != height {
+        let resized = self.scene.width != width || self.scene.height != height;
+        if resized {
             self.scene.resize(&self.device, width, height);
-            self.ui_renderer.update_egui_texture_from_wgpu_texture(
-                &self.device,
-                &self.scene.view,
-                wgpu::FilterMode::Linear,
-                self.texture,
-            );
         }
-        // Apply deltas on every simulated frame, including frames that are not saved.
+        self.scene
+            .set_assets(&self.device, &self.queue, assets, display_frame)
+            .inspect_err(|_| output.textures_delta.clear())?;
+        if resized {
+            self.compositor
+                .ui_renderer
+                .update_egui_texture_from_wgpu_texture(
+                    &self.device,
+                    &self.scene.view,
+                    wgpu::FilterMode::Linear,
+                    self.texture,
+                );
+        }
+        self.compositor
+            .render(&self.device, &self.queue, ctx, output, |encoder| {
+                self.scene.render(
+                    &self.queue,
+                    encoder,
+                    camera,
+                    crate::renderer::ViewportRenderOptions {
+                        shading,
+                        xray,
+                        show_edges,
+                        show_grid,
+                        z_up,
+                        background: viewport_color,
+                    },
+                )
+            })
+    }
+
+    #[cfg(test)]
+    pub fn webp(&self) -> Result<Vec<u8>, String> {
+        let frame = self.read_frame()?;
+        encode_webp(&frame.rgba, frame.width, frame.height)
+    }
+
+    /// The canvas is copied without scaling, preserving pointer coordinates.
+    pub fn framed_webp(&self) -> Result<Vec<u8>, String> {
+        let frame = self.framed_frame()?;
+        encode_webp(&frame.rgba, frame.width, frame.height)
+    }
+
+    pub fn framed_frame(&self) -> Result<CapturedFrame, String> {
+        self.compositor.presentation.compose(self.read_frame()?)
+    }
+
+    pub fn framed_dimensions(&self) -> (u32, u32) {
+        self.compositor.presentation.dimensions()
+    }
+
+    pub fn frame_template_name(&self) -> &'static str {
+        presentation::TEMPLATE_NAME
+    }
+
+    /// Read the latest completed render without advancing time or input.
+    pub fn read_frame(&self) -> Result<CapturedFrame, String> {
+        self.compositor.read_frame(&self.device, &self.queue)
+    }
+}
+
+fn validate_pixel_scale(output: &mut egui::FullOutput) -> Result<(), String> {
+    if output.pixels_per_point != 1.0 {
+        output.textures_delta.clear();
+        return Err("Documentation capture requires exactly one pixel per point.".into());
+    }
+    Ok(())
+}
+
+fn validate_egui_diagnostics(output: &mut egui::FullOutput) -> Result<(), String> {
+    // egui 0.36 emits this sustained-multipass diagnostic through its debug
+    // painter, not PlatformOutput. Inspect the original shape before tessellation
+    // rather than guessing from pass counts: a single legitimate layout retry
+    // is allowed. The production-egui test below also guards this integration
+    // against dependency upgrades changing the diagnostic's representation.
+    fn performance_warning(shape: &egui::Shape) -> Option<&str> {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(performance_warning),
+            egui::Shape::Text(text)
+                if text.pos == egui::Pos2::ZERO
+                    && text.fallback_color == egui::Color32::RED
+                    && text
+                        .galley
+                        .text()
+                        .starts_with("egui PERF WARNING: request_discard has been called ") =>
+            {
+                Some(text.galley.text())
+            }
+            _ => None,
+        }
+    }
+    if let Some(warning) = output
+        .shapes
+        .iter()
+        .find_map(|shape| performance_warning(&shape.shape))
+    {
+        let error = format!(
+            "Capture rejected an egui layout performance diagnostic. Fix the repeated layout \
+             discard before updating documentation or workbench evidence:\n{warning}"
+        );
+        output.textures_delta.clear();
+        return Err(error);
+    }
+    Ok(())
+}
+
+impl Compositor {
+    fn render(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        ctx: &egui::Context,
+        mut output: egui::FullOutput,
+        render_scene: impl FnOnce(&mut wgpu::CommandEncoder) -> Result<(), String>,
+    ) -> Result<(), String> {
+        // A failed render must never leave the previous frame available to a
+        // caller as if the current requested frame had completed successfully.
+        self.frame_ready = false;
+        validate_pixel_scale(&mut output)?;
+        validate_egui_diagnostics(&mut output)?;
+        self.presentation
+            .set_palette(crate::theme::Palette::from_context(
+                ctx,
+                crate::settings::AccentColor::DEFAULT,
+            ))?;
+        // Apply deltas on every simulated frame, including frames not saved.
         for (id, deltas) in output.textures_delta.set.drain() {
             for delta in deltas {
-                self.ui_renderer
-                    .update_texture(&self.device, &self.queue, id, &delta);
+                self.ui_renderer.update_texture(device, queue, id, &delta);
             }
         }
         let jobs = ctx.tessellate(output.shapes, 1.0);
@@ -164,31 +377,13 @@ impl Capture {
             size_in_pixels: [self.width, self.height],
             pixels_per_point: 1.0,
         };
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("n3 documentation frame encoder"),
-            });
-        self.scene.render(
-            &self.queue,
-            &mut encoder,
-            camera,
-            crate::renderer::ViewportRenderOptions {
-                shading,
-                xray,
-                show_edges,
-                show_grid,
-                z_up,
-                background: viewport_color,
-            },
-        );
-        let buffers = self.ui_renderer.update_buffers(
-            &self.device,
-            &self.queue,
-            &mut encoder,
-            &jobs,
-            &screen,
-        );
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("n3 documentation frame encoder"),
+        });
+        render_scene(&mut encoder).inspect_err(|_| output.textures_delta.clear())?;
+        let buffers = self
+            .ui_renderer
+            .update_buffers(device, queue, &mut encoder, &jobs, &screen);
         {
             let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("n3 documentation UI compositor"),
@@ -206,8 +401,7 @@ impl Capture {
             self.ui_renderer
                 .render(&mut pass.forget_lifetime(), &jobs, &screen);
         }
-        self.queue
-            .submit(buffers.into_iter().chain(std::iter::once(encoder.finish())));
+        queue.submit(buffers.into_iter().chain(std::iter::once(encoder.finish())));
         for id in output.textures_delta.free.drain() {
             self.ui_renderer.free_texture(&id);
         }
@@ -215,55 +409,29 @@ impl Capture {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub fn webp(&self) -> Result<Vec<u8>, String> {
-        let frame = self.read_frame()?;
-        encode_webp(&frame.rgba, frame.width, frame.height)
-    }
-
-    /// Documentation media shares one static title-bar presentation. The app
-    /// canvas is copied without scaling, so scenario pointer coordinates stay
-    /// in the original capture space.
-    pub fn framed_webp(&self) -> Result<Vec<u8>, String> {
-        let frame = self.framed_frame()?;
-        encode_webp(&frame.rgba, frame.width, frame.height)
-    }
-
-    pub fn framed_frame(&self) -> Result<CapturedFrame, String> {
-        self.presentation.compose(self.read_frame()?)
-    }
-
-    pub fn framed_dimensions(&self) -> (u32, u32) {
-        self.presentation.dimensions()
-    }
-
-    pub fn frame_template_name(&self) -> &'static str {
-        presentation::TEMPLATE_NAME
-    }
-
-    /// Read the latest completed render without advancing time, changing input,
-    /// or requiring the camera to be settled. Suitable for in-flight clip frames.
-    pub fn read_frame(&self) -> Result<CapturedFrame, String> {
+    fn read_frame(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<CapturedFrame, String> {
         if !self.frame_ready {
             return Err("Render a frame before requesting a capture.".into());
         }
         let row_bytes = self.width * 4;
         let padded_row_bytes = padded_row_bytes(self.width);
         let buffer_size = u64::from(padded_row_bytes) * u64::from(self.height);
-        if buffer_size > self.device.limits().max_buffer_size {
+        if buffer_size > device.limits().max_buffer_size {
             return Err("Capture readback exceeds the GPU buffer limit.".into());
         }
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("n3 documentation frame readback"),
             size: buffer_size,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("n3 documentation readback encoder"),
-            });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("n3 documentation readback encoder"),
+        });
         encoder.copy_texture_to_buffer(
             self.target.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
@@ -276,14 +444,14 @@ impl Capture {
             },
             self.target.size(),
         );
-        let submission = self.queue.submit([encoder.finish()]);
+        let submission = queue.submit([encoder.finish()]);
         let (sender, receiver) = mpsc::sync_channel(1);
         buffer
             .slice(..)
             .map_async(wgpu::MapMode::Read, move |result| {
                 let _ = sender.send(result);
             });
-        self.device
+        device
             .poll(wgpu::PollType::Wait {
                 submission_index: Some(submission),
                 timeout: Some(Duration::from_secs(30)),
@@ -333,6 +501,85 @@ fn encode_webp(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> 
 mod tests {
     use super::*;
 
+    fn diagnostic_output(ctx: &egui::Context, discard: bool) -> egui::FullOutput {
+        ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(129.0, 97.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                ui.label("Ordinary application content");
+                if discard {
+                    ui.ctx().request_discard("test sustained layout retry");
+                }
+            },
+        )
+    }
+
+    #[test]
+    fn capture_diagnostic_guard_rejects_the_actual_egui_performance_warning() {
+        let ctx = egui::Context::default();
+        // egui counts completed logical frames, then paints the diagnostic on
+        // the next frame. This uses its production warning, not a fabricated
+        // text shape that could drift away from the pinned dependency.
+        for _ in 0..3 {
+            let mut output = diagnostic_output(&ctx, true);
+            assert_eq!(output.platform_output.num_completed_passes, 2);
+            validate_egui_diagnostics(&mut output).unwrap();
+            output.textures_delta.clear();
+        }
+        let mut output = diagnostic_output(&ctx, true);
+        output
+            .textures_delta
+            .free
+            .insert(egui::TextureId::Managed(999));
+        let error = validate_egui_diagnostics(&mut output).unwrap_err();
+        assert!(error.contains("egui PERF WARNING"));
+        assert!(error.contains("test sustained layout retry"));
+        assert!(output.textures_delta.is_empty());
+    }
+
+    #[test]
+    fn capture_diagnostic_guard_accepts_ordinary_frames_and_isolated_layout_retry() {
+        let ctx = egui::Context::default();
+        let mut ordinary = diagnostic_output(&ctx, false);
+        validate_egui_diagnostics(&mut ordinary).unwrap();
+        ordinary.textures_delta.clear();
+        let mut retried = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.label("A newly measured layout");
+            if ui.ctx().current_pass_index() == 0 {
+                ui.ctx().request_discard("initial layout measurement");
+            }
+        });
+        assert_eq!(retried.platform_output.num_completed_passes, 2);
+        validate_egui_diagnostics(&mut retried).unwrap();
+        retried.textures_delta.clear();
+        for _ in 0..5 {
+            let mut ordinary = diagnostic_output(&ctx, false);
+            validate_egui_diagnostics(&mut ordinary).unwrap();
+            ordinary.textures_delta.clear();
+        }
+    }
+
+    #[test]
+    fn capture_diagnostic_guard_invalidates_the_previously_completed_frame() {
+        let mut capture = pollster::block_on(UiCapture::new(129, 97)).unwrap();
+        let ctx = egui::Context::default();
+        for _ in 0..3 {
+            capture.render(&ctx, diagnostic_output(&ctx, true)).unwrap();
+        }
+        assert!(capture.read_frame().is_ok());
+        let error = capture
+            .render(&ctx, diagnostic_output(&ctx, true))
+            .unwrap_err();
+        assert!(error.contains("egui PERF WARNING"));
+        assert!(capture.read_frame().is_err());
+        assert!(capture.framed_webp().is_err());
+    }
+
     /// Two separate surfaces, optionally hidden by a larger unselected surface.
     /// Their triangle diagonal must never become a selection outline.
     fn feedback_mesh(occluded: bool) -> crate::mesh::MeshData {
@@ -368,6 +615,8 @@ mod tests {
             mesh.object_ranges.push(ObjectRange {
                 object,
                 triangles: start..mesh.vertices.len() as u32,
+                edges: 0..0,
+                loose_edges: 0..0,
             });
             mesh.vertex_count += 4;
             mesh.face_count += 1;
@@ -389,7 +638,10 @@ mod tests {
             egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
-                    egui::vec2(capture.width as f32, capture.height as f32),
+                    egui::vec2(
+                        capture.compositor.width as f32,
+                        capture.compositor.height as f32,
+                    ),
                 )),
                 ..Default::default()
             },
@@ -433,7 +685,8 @@ mod tests {
         camera.set_view(crate::camera::View::Front);
         capture
             .scene
-            .set_mesh(&capture.device, &feedback_mesh(true));
+            .set_mesh(&capture.device, &feedback_mesh(true))
+            .unwrap();
         let base = feedback_frame(
             &mut capture,
             &ctx,
@@ -501,7 +754,8 @@ mod tests {
         camera.set_view(crate::camera::View::Front);
         capture
             .scene
-            .set_mesh(&capture.device, &feedback_mesh(false));
+            .set_mesh(&capture.device, &feedback_mesh(false))
+            .unwrap();
         let selected = ObjectHighlights {
             selected: [17].into(),
             hovered: None,
@@ -626,7 +880,8 @@ mod tests {
         );
         capture
             .scene
-            .set_mesh(&capture.device, &feedback_mesh(true));
+            .set_mesh(&capture.device, &feedback_mesh(true))
+            .unwrap();
         let occluded_base = feedback_frame(
             &mut capture,
             &ctx,
@@ -642,7 +897,8 @@ mod tests {
         // Resize the attachments while feedback is active, then clear the scene.
         capture
             .scene
-            .set_mesh(&capture.device, &feedback_mesh(false));
+            .set_mesh(&capture.device, &feedback_mesh(false))
+            .unwrap();
         let smaller = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(211.0, 157.0));
         capture.scene.set_pixel_scale(2.0);
         let resized_base = feedback_frame(
@@ -780,7 +1036,7 @@ mod tests {
             assert_eq!(presented.dimensions(), capture.framed_dimensions());
             let corner = presentation::CORNER_RADIUS.ceil() as u32;
             for y in 0..frame.height - corner {
-                for x in 0..frame.width {
+                for x in 1..frame.width - 1 {
                     assert_eq!(
                         presented.get_pixel(
                             x + presentation::SIDE,
@@ -807,5 +1063,110 @@ mod tests {
             frames[0], frames[1],
             "the shared scene grid must appear in the capture"
         );
+    }
+
+    #[test]
+    fn ui_only_capture_shares_lossless_readback_and_unscaled_window_framing() {
+        let mut capture = pollster::block_on(UiCapture::new(129, 97)).unwrap();
+        assert!(capture.read_frame().is_err());
+        assert_eq!(capture.frame_template_name(), presentation::TEMPLATE_NAME);
+        let ctx = egui::Context::default();
+        crate::ui::typography::install(&ctx);
+        let bounds = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(129.0, 97.0));
+        let mut previous = None;
+        let mut presented_frames = Vec::new();
+        for (sample, theme) in [
+            egui::Theme::Light,
+            egui::Theme::Light,
+            egui::Theme::Dark,
+            egui::Theme::Light,
+            egui::Theme::Light,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            ctx.set_theme(theme);
+            let time = sample as f64;
+            let output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(bounds),
+                    time: Some(time),
+                    ..Default::default()
+                },
+                |ui| {
+                    let painter = ui.painter();
+                    painter.rect_filled(bounds, 0, egui::Color32::WHITE);
+                    let clipped = painter.with_clip_rect(egui::Rect::from_min_size(
+                        egui::pos2(20.0, 20.0),
+                        egui::vec2(20.0, 20.0),
+                    ));
+                    clipped.rect_filled(bounds, 0, egui::Color32::BLUE);
+                    painter.text(
+                        egui::pos2(64.0, 60.0),
+                        egui::Align2::CENTER_CENTER,
+                        "⌘S",
+                        egui::FontId::proportional(crate::theme::text::SM),
+                        egui::Color32::BLACK,
+                    );
+                },
+            );
+            capture.render(&ctx, output).unwrap();
+            let frame = capture.read_frame().unwrap();
+            let pixel = |x, y| {
+                let index = ((y * frame.width + x) * 4) as usize;
+                &frame.rgba[index..index + 4]
+            };
+            assert_eq!(pixel(5, 5), [255, 255, 255, 255]);
+            assert_eq!(pixel(25, 25), [0, 0, 255, 255]);
+            assert_eq!(pixel(45, 25), [255, 255, 255, 255]);
+            if let Some((previous_theme, ref previous_pixels)) = previous
+                && previous_theme == theme
+            {
+                assert!(
+                    frame.rgba == *previous_pixels,
+                    "UI-only frames remain deterministic within the same appearance"
+                );
+            }
+            let framed = capture.framed_frame().unwrap();
+            let decoded = image::load_from_memory_with_format(
+                &capture.framed_webp().unwrap(),
+                image::ImageFormat::WebP,
+            )
+            .unwrap()
+            .to_rgba8();
+            assert_eq!(decoded.dimensions(), capture.framed_dimensions());
+            assert_eq!(decoded.as_raw(), &framed.rgba);
+            for y in 10..frame.height - 20 {
+                for x in 10..frame.width - 20 {
+                    assert_eq!(
+                        decoded.get_pixel(x, y + presentation::TITLE).0,
+                        pixel(x, y),
+                        "The UI-only canvas uses the same unscaled frame presentation"
+                    );
+                }
+            }
+            let palette =
+                crate::theme::Palette::from_context(&ctx, crate::settings::AccentColor::DEFAULT);
+            let border = palette.border.to_srgba_unmultiplied();
+            assert_eq!(
+                decoded.get_pixel(90, presentation::TITLE / 2).0,
+                palette.titlebar.to_srgba_unmultiplied()
+            );
+            assert_eq!(decoded.get_pixel(0, presentation::TITLE + 40).0, border);
+            assert_eq!(decoded.get_pixel(64, framed.height - 1).0, border);
+            presented_frames.push(framed.rgba);
+            previous = Some((theme, frame.rgba));
+        }
+        assert!(presented_frames[0] != presented_frames[2]);
+        assert!(
+            presented_frames[0] == presented_frames[3],
+            "Reusing a capture across appearances must restore the exact Light frame"
+        );
+        let scaled = egui::FullOutput {
+            pixels_per_point: 2.0,
+            ..Default::default()
+        };
+        assert!(capture.render(&ctx, scaled).is_err());
+        assert!(capture.read_frame().is_err());
     }
 }

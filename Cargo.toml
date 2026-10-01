@@ -10,6 +10,8 @@ name = "n3"
 path = "src/main.rs"
 
 [dependencies]
+alacritty_terminal = "=0.26.0"
+base64 = "0.22.1"
 bytemuck = { version = "1.25.2", features = ["derive"] }
 earcutr = "0.5.0"
 egui = "=0.36.2"
@@ -19,14 +21,27 @@ egui-winit = { version = "=0.36.2", default-features = false, features = [
   "links",
 ] }
 glam = "0.33.11"
+gltf = { version = "1.4.1", default-features = false, features = [
+  "utils",
+  "names",
+  "extensions",
+  "extras",
+  "KHR_lights_punctual",
+  "KHR_materials_unlit",
+  "KHR_texture_transform",
+] }
 image = { version = "=0.25.10", default-features = false, features = [
+  "jpeg",
   "png",
   "webp",
 ] }
+libc = "0.2"
 pollster = "1.0.1"
+percent-encoding = "2.3.2"
 rfd = "0.17.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
+sha2 = "0.10.9"
 wgpu = "30.0.1"
 winit = "=0.30.13"
 

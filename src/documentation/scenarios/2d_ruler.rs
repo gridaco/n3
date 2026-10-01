@@ -212,7 +212,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         s.state.show_2d_ruler && s.state.ruler_2d_model.is_none(),
         "The 2D ruler shortcut has no effect in 3D mode",
     )?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.shortcut("view.front")?;
     s.require(

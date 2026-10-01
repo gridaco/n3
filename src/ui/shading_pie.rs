@@ -1,25 +1,25 @@
 //! Shading choices reuse the view pie's cancel zones, edge avoidance, tracing,
 //! and painter. Input lifecycle and command dispatch belong to the host.
-use egui::{Context, Pos2, Rect, Vec2};
+use egui::{Context, Id, Pos2, Rect, Vec2};
 
-use super::pie::{Item, Layout};
+use super::pie::{Item, Layout, RADIUS};
 use crate::{controls::Control, render::shading::ShadingMode, shortcuts::Command};
-
-const RADIUS: Vec2 = Vec2::new(105.0, 75.0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Action {
     Wireframe,
     Solid,
+    MaterialPreview,
 }
 
 impl Action {
-    pub const ALL: [Self; 2] = [Self::Wireframe, Self::Solid];
+    pub const ALL: [Self; 3] = [Self::Wireframe, Self::Solid, Self::MaterialPreview];
 
     pub fn mode(self) -> ShadingMode {
         match self {
             Self::Wireframe => ShadingMode::Wireframe,
             Self::Solid => ShadingMode::Solid,
+            Self::MaterialPreview => ShadingMode::MaterialPreview,
         }
     }
 
@@ -31,6 +31,7 @@ impl Action {
         match self {
             Self::Wireframe => Control::PieWireframe,
             Self::Solid => Control::PieSolid,
+            Self::MaterialPreview => Control::PieMaterialPreview,
         }
     }
 
@@ -38,6 +39,19 @@ impl Action {
         match self {
             Self::Wireframe => -Vec2::X,
             Self::Solid => Vec2::X,
+            Self::MaterialPreview => Vec2::Y,
+        }
+    }
+
+    fn tooltip(self) -> &'static str {
+        match self {
+            Self::Wireframe => {
+                "Show polygon boundaries, including rear edges, without filled surfaces."
+            }
+            Self::Solid => "Show shaded surfaces with neutral viewport lighting.",
+            Self::MaterialPreview => {
+                "Preview materials and textures with studio lighting. Native meshes keep their solid appearance."
+            }
         }
     }
 }
@@ -45,12 +59,33 @@ impl Action {
 #[derive(Clone, Debug)]
 pub struct Pie {
     layout: Layout,
+    instance: Option<Id>,
 }
 
 impl Pie {
-    pub fn open(anchor: Pos2, viewport: Rect) -> Option<Self> {
+    pub fn open(ctx: &Context, anchor: Pos2, bounds: Rect) -> Option<Self> {
+        Self::open_instance(ctx, None, anchor, bounds)
+    }
+
+    /// Keep painted layers and tooltip state independent from other instances.
+    pub fn open_with_id(ctx: &Context, id: Id, anchor: Pos2, bounds: Rect) -> Option<Self> {
+        Self::open_instance(ctx, Some(id), anchor, bounds)
+    }
+
+    fn open_instance(
+        ctx: &Context,
+        instance: Option<Id>,
+        anchor: Pos2,
+        bounds: Rect,
+    ) -> Option<Self> {
         Some(Self {
-            layout: Layout::open(anchor, viewport, RADIUS)?,
+            layout: Layout::open(
+                anchor,
+                bounds,
+                RADIUS,
+                Layout::measure_cards(ctx, Action::ALL.into_iter().map(Action::control)),
+            )?,
+            instance,
         })
     }
 
@@ -64,7 +99,7 @@ impl Pie {
     }
 
     pub fn item_rect(&self, action: Action) -> Rect {
-        self.layout.item_rect(action.offset())
+        self.layout.item_rect(action.offset(), action.control())
     }
 
     pub fn hovered(&self, point: Pos2) -> Option<Action> {
@@ -76,10 +111,10 @@ impl Pie {
             .find(|action| self.item_rect(*action).contains(point))
             .or_else(|| {
                 let delta = self.layout.normalized_delta(point - self.center());
-                // Only the left/right wedges choose a mode. Empty vertical
-                // directions cancel, leaving deliberate room for future modes.
+                // The unoccupied upper wedge cancels. Rendered will need its
+                // own scene-lighting contract before it becomes a choice here.
                 if delta.x.abs() < delta.y.abs() {
-                    return None;
+                    return (delta.y > 0.0).then_some(Action::MaterialPreview);
                 }
                 Some(if delta.x < 0.0 {
                     Action::Wireframe
@@ -97,9 +132,17 @@ impl Pie {
             enabled: true,
             hovered: hovered == Some(action),
             selected: action.mode() == current,
+            sector_half_angle: std::f32::consts::FRAC_PI_4,
+            tooltip: Some(action.tooltip()),
         });
-        self.layout
-            .paint(ctx, "n3.shading_pie", Control::ShadingPie, &items);
+        self.layout.paint(
+            ctx,
+            "n3.shading_pie",
+            self.instance,
+            Control::ShadingPie,
+            &items,
+            pointer,
+        );
     }
 }
 
@@ -108,13 +151,24 @@ mod tests {
     use super::*;
     use crate::controls;
 
+    fn open(anchor: Pos2, bounds: Rect) -> Option<Pie> {
+        let ctx = Context::default();
+        let mut pie = None;
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            pie = Pie::open(ui.ctx(), anchor, bounds);
+        })
+        .textures_delta
+        .clear();
+        pie
+    }
+
     fn viewport() -> Rect {
         Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 800.0))
     }
 
     #[test]
-    fn cards_and_horizontal_wedges_choose_modes_while_other_directions_cancel() {
-        let pie = Pie::open(viewport().center(), viewport()).unwrap();
+    fn cards_and_occupied_wedges_choose_modes_while_top_and_center_cancel() {
+        let pie = open(viewport().center(), viewport()).unwrap();
         for action in Action::ALL {
             let card = pie.item_rect(action);
             for point in [
@@ -128,7 +182,6 @@ mod tests {
         }
         for point in [
             pie.anchor(),
-            pie.center() + Vec2::Y * 100.0,
             pie.center() - Vec2::Y * 100.0,
             Pos2::new(-1.0, 0.0),
             Pos2::new(f32::NAN, 0.0),
@@ -148,29 +201,30 @@ mod tests {
                 viewport.right_bottom(),
                 viewport.center(),
             ] {
-                let pie = Pie::open(anchor, viewport).unwrap();
+                let pie = open(anchor, viewport).unwrap();
                 assert_eq!(pie.anchor(), anchor);
                 assert_eq!(pie.hovered(anchor), None);
                 for action in Action::ALL {
                     assert!(viewport.contains_rect(pie.item_rect(action)));
                 }
-                assert!(
-                    !pie.item_rect(Action::Solid)
-                        .intersects(pie.item_rect(Action::Wireframe))
-                );
+                for (index, action) in Action::ALL.into_iter().enumerate() {
+                    for other in &Action::ALL[index + 1..] {
+                        assert!(!pie.item_rect(action).intersects(pie.item_rect(*other)));
+                    }
+                }
             }
         }
-        assert!(Pie::open(Pos2::ZERO, Rect::ZERO).is_none());
+        assert!(open(Pos2::ZERO, Rect::ZERO).is_none());
     }
 
     #[test]
-    fn painting_witnesses_two_choices_without_taking_input_and_marks_current_mode() {
+    fn painting_witnesses_three_choices_without_taking_input_and_marks_current_mode() {
         let ctx = Context::default();
         controls::enable(&ctx);
-        let pie = Pie::open(viewport().center(), viewport()).unwrap();
+        let pie = open(viewport().center(), viewport()).unwrap();
         let pointer = pie.item_rect(Action::Wireframe).center();
         let mut frames = Vec::new();
-        for current in [ShadingMode::Solid, ShadingMode::Wireframe] {
+        for current in Action::ALL.map(Action::mode) {
             let mut output = ctx.run_ui(
                 egui::RawInput {
                     screen_rect: Some(viewport()),
@@ -204,5 +258,6 @@ mod tests {
             frames[0], frames[1],
             "The current shading mode needs a visible state"
         );
+        assert_ne!(frames[1], frames[2]);
     }
 }

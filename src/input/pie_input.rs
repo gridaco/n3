@@ -69,10 +69,24 @@ enum ActivePie {
     Shading(shading_pie::Pie),
 }
 impl ActivePie {
-    fn open(kind: Kind, point: Pos2, viewport: Rect) -> Option<Self> {
+    fn open(
+        ctx: &Context,
+        kind: Kind,
+        point: Pos2,
+        bounds: Rect,
+        instance: Option<egui::Id>,
+    ) -> Option<Self> {
         match kind {
-            Kind::View => view_pie::Pie::open(point, viewport).map(Self::View),
-            Kind::Shading => shading_pie::Pie::open(point, viewport).map(Self::Shading),
+            Kind::View => match instance {
+                Some(id) => view_pie::Pie::open_with_id(ctx, id.with("view"), point, bounds),
+                None => view_pie::Pie::open(ctx, point, bounds),
+            }
+            .map(Self::View),
+            Kind::Shading => match instance {
+                Some(id) => shading_pie::Pie::open_with_id(ctx, id.with("shading"), point, bounds),
+                None => shading_pie::Pie::open(ctx, point, bounds),
+            }
+            .map(Self::Shading),
         }
     }
     fn kind(&self) -> Kind {
@@ -99,6 +113,7 @@ pub struct PieContext {
 
 #[derive(Default)]
 pub struct PieInput {
+    instance: Option<egui::Id>,
     pie: Option<ActivePie>,
     pointer: Option<Pos2>,
     buttons: [bool; 5],
@@ -108,6 +123,12 @@ pub struct PieInput {
 }
 
 impl PieInput {
+    pub(crate) fn for_instance(id: egui::Id) -> Self {
+        Self {
+            instance: Some(id),
+            ..Self::default()
+        }
+    }
     pub fn active(&self) -> bool {
         self.pie.is_some()
     }
@@ -122,12 +143,49 @@ impl PieInput {
         self.pointer = None;
         self.buttons = [false; 5];
         self.suppress_buttons = false;
+        self.owns_frame = false;
+        self.screen = None;
     }
 
     /// First pass only. A hold/move/release can arrive in one native batch.
     /// Tool changes before an opened pie are carried with its command because
     /// claiming the frame intentionally suppresses the normal shortcut collector.
     pub fn begin(&mut self, ctx: &Context, viewport: Rect, context: PieContext) -> Vec<Command> {
+        self.begin_with_pointer_policy(
+            ctx,
+            viewport,
+            ctx.content_rect(),
+            context,
+            crate::navigation_events::viewport_accepts_pointer,
+        )
+    }
+
+    /// Hosts can constrain an isolated component while reusing the same input
+    /// lifecycle. The editor supplies its full window bounds through `begin`.
+    pub(crate) fn begin_in(
+        &mut self,
+        ctx: &Context,
+        viewport: Rect,
+        bounds: Rect,
+        context: PieContext,
+    ) -> Vec<Command> {
+        self.begin_with_pointer_policy(ctx, viewport, bounds, context, |ctx, viewport, point| {
+            // An isolated component has no editor gizmo. Preserve egui's
+            // pointer ownership while leaving editor hit regions to `begin`.
+            viewport.contains(point)
+                && !ctx.egui_is_using_pointer()
+                && ctx.layer_id_at(point) == Some(egui::LayerId::background())
+        })
+    }
+
+    fn begin_with_pointer_policy(
+        &mut self,
+        ctx: &Context,
+        viewport: Rect,
+        bounds: Rect,
+        context: PieContext,
+        accepts_pointer: fn(&Context, Rect, Pos2) -> bool,
+    ) -> Vec<Command> {
         let PieContext {
             keys_available,
             can_start,
@@ -139,10 +197,8 @@ impl PieInput {
         let available = ctx.input(|input| input.focused)
             && !egui::Popup::is_any_open(ctx)
             && !ctx.memory(|memory| memory.top_modal_layer().is_some());
-        let resized = self
-            .screen
-            .is_some_and(|screen| screen != ctx.content_rect());
-        self.screen = Some(ctx.content_rect());
+        let resized = self.screen.is_some_and(|screen| screen != bounds);
+        self.screen = Some(bounds);
         if !available || resized {
             self.pie = None;
         }
@@ -205,13 +261,13 @@ impl PieInput {
                         && !hand_held
                         && !self.owns_frame
                         && !self.buttons.iter().any(|down| *down)
-                        && let Some(point) = self.pointer.filter(|point| {
-                            crate::navigation_events::viewport_accepts_pointer(
-                                ctx, viewport, *point,
-                            )
-                        })
+                        && let Some(point) = self
+                            .pointer
+                            .filter(|point| accepts_pointer(ctx, viewport, *point))
                     {
-                        self.pie = ActivePie::open(kind, point, viewport);
+                        // Opening belongs to the viewport, but the held pie may
+                        // extend over panels within this window's content area.
+                        self.pie = ActivePie::open(ctx, kind, point, bounds, self.instance);
                         self.owns_frame = self.active();
                         if self.owns_frame {
                             adopted_tool = preceding_tool;
@@ -237,7 +293,12 @@ impl PieInput {
                     }
                 }
                 Event::PointerGone | Event::WindowFocused(false) => {
+                    // An explicit reset releases all transient state. A
+                    // cancellation inside an owned event batch still reserves
+                    // that batch so its remaining events cannot reach tools.
+                    let owns_frame = self.owns_frame;
                     self.reset();
+                    self.owns_frame = owns_frame;
                     command = None;
                     adopted_tool = None;
                 }
@@ -269,6 +330,229 @@ impl PieInput {
 mod tests {
     use super::*;
     use egui::Key;
+
+    fn binding_event(id: &str, pressed: bool) -> Event {
+        let binding = bindings::required(id);
+        Event::Key {
+            key: binding.key().unwrap(),
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: binding.modifiers,
+        }
+    }
+
+    fn fixture_context() -> PieContext {
+        PieContext {
+            keys_available: true,
+            can_start: true,
+            hand_held: false,
+            fit_enabled: true,
+            tool: Tool::View,
+        }
+    }
+
+    fn frame(ctx: &Context, screen: Rect, events: Vec<Event>, draw: impl FnMut(&mut egui::Ui)) {
+        ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                focused: true,
+                events,
+                ..Default::default()
+            },
+            draw,
+        )
+        .textures_delta
+        .clear();
+    }
+
+    #[test]
+    fn isolated_hosts_route_the_real_binding_to_one_instance_and_deliver_release_once() {
+        let ctx = Context::default();
+        let screen = Rect::from_min_size(Pos2::ZERO, egui::vec2(1200.0, 800.0));
+        let bounds = [
+            Rect::from_min_size(Pos2::ZERO, egui::vec2(580.0, 800.0)),
+            Rect::from_min_size(Pos2::new(620.0, 0.0), egui::vec2(580.0, 800.0)),
+        ];
+        let mut hosts = [
+            PieInput::for_instance(egui::Id::new("pie-host-left")),
+            PieInput::for_instance(egui::Id::new("pie-host-right")),
+        ];
+        frame(&ctx, screen, vec![], |_| {});
+        frame(
+            &ctx,
+            screen,
+            vec![
+                Event::PointerMoved(bounds[1].center()),
+                binding_event("view.pie", true),
+            ],
+            |ui| {
+                for (host, rect) in hosts.iter_mut().zip(bounds) {
+                    assert!(
+                        host.begin_in(ui.ctx(), rect, rect, fixture_context())
+                            .is_empty()
+                    );
+                }
+            },
+        );
+        assert!(!hosts[0].active() && !hosts[0].owns_frame);
+        assert!(hosts[1].view_active() && hosts[1].owns_frame);
+        let target = match hosts[1].pie.as_ref().unwrap() {
+            ActivePie::View(pie) => pie.item_rect(view_pie::Action::Front).center(),
+            _ => unreachable!(),
+        };
+        let mut commands = Vec::new();
+        frame(
+            &ctx,
+            screen,
+            vec![
+                Event::PointerMoved(target),
+                binding_event("view.pie", false),
+            ],
+            |ui| {
+                for (host, rect) in hosts.iter_mut().zip(bounds) {
+                    commands.extend(host.begin_in(ui.ctx(), rect, rect, fixture_context()));
+                }
+                // The host processes ordered input only on the first layout
+                // pass; painting can retry without issuing another command.
+                hosts[1].paint(ui.ctx(), true, ShadingMode::Solid);
+                hosts[1].paint(ui.ctx(), true, ShadingMode::Solid);
+            },
+        );
+        assert_eq!(commands, vec![view_pie::Action::Front.command()]);
+        assert!(!hosts.iter().any(PieInput::active));
+        frame(&ctx, screen, vec![], |ui| {
+            for (host, rect) in hosts.iter_mut().zip(bounds) {
+                assert!(
+                    host.begin_in(ui.ctx(), rect, rect, fixture_context())
+                        .is_empty()
+                );
+            }
+        });
+        assert!(!hosts.iter().any(|host| host.owns_frame));
+    }
+
+    #[test]
+    fn component_bounds_resize_cancels_pending_choice_before_release() {
+        let ctx = Context::default();
+        let screen = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 800.0));
+        let original = Rect::from_min_size(Pos2::new(50.0, 50.0), egui::vec2(800.0, 650.0));
+        let smaller = Rect::from_min_size(original.min, egui::vec2(600.0, 400.0));
+        let id = egui::Id::new("resizable-pie");
+        let mut host = PieInput::for_instance(id);
+        frame(&ctx, screen, vec![], |_| {});
+        frame(
+            &ctx,
+            screen,
+            vec![
+                Event::PointerMoved(original.center()),
+                binding_event("view.pie", true),
+            ],
+            |ui| {
+                assert!(
+                    host.begin_in(ui.ctx(), original, original, fixture_context())
+                        .is_empty()
+                )
+            },
+        );
+        assert!(host.active());
+        let target = match host.pie.as_ref().unwrap() {
+            ActivePie::View(pie) => pie.item_rect(view_pie::Action::Right).center(),
+            _ => unreachable!(),
+        };
+        frame(
+            &ctx,
+            screen,
+            vec![
+                Event::PointerMoved(target),
+                binding_event("view.pie", false),
+            ],
+            |ui| {
+                assert!(
+                    host.begin_in(ui.ctx(), smaller, smaller, fixture_context())
+                        .is_empty()
+                )
+            },
+        );
+        assert!(!host.active());
+        assert!(
+            host.owns_frame,
+            "The cancelled release still belongs to the pie"
+        );
+        host.reset();
+        assert_eq!(host.instance, Some(id));
+        assert!(!host.owns_frame);
+        frame(
+            &ctx,
+            screen,
+            vec![
+                Event::PointerMoved(original.center()),
+                binding_event("view.pie", true),
+            ],
+            |ui| {
+                assert!(
+                    host.begin_in(ui.ctx(), original, original, fixture_context())
+                        .is_empty()
+                )
+            },
+        );
+        assert!(host.active(), "Reset allows reopening at new dimensions");
+        frame(
+            &ctx,
+            screen,
+            vec![
+                Event::WindowFocused(false),
+                binding_event("view.pie", false),
+            ],
+            |ui| {
+                assert!(
+                    host.begin_in(ui.ctx(), original, original, fixture_context())
+                        .is_empty()
+                )
+            },
+        );
+        assert!(!host.active());
+        assert!(
+            host.owns_frame,
+            "Focus loss keeps the cancelled batch owned"
+        );
+    }
+
+    #[test]
+    fn isolated_pie_host_has_no_phantom_viewport_gizmo_hit_region() {
+        let ctx = Context::default();
+        let screen = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 800.0));
+        let point = crate::axis_gizmo::bounds(screen).center();
+        let mut editor_host = PieInput::default();
+        let mut component_host = PieInput::for_instance(egui::Id::new("corner-pie"));
+        frame(&ctx, screen, vec![], |_| {});
+        frame(
+            &ctx,
+            screen,
+            vec![Event::PointerMoved(point), binding_event("view.pie", true)],
+            |ui| {
+                assert!(
+                    editor_host
+                        .begin(ui.ctx(), screen, fixture_context())
+                        .is_empty()
+                );
+                assert!(
+                    component_host
+                        .begin_in(ui.ctx(), screen, screen, fixture_context())
+                        .is_empty()
+                );
+            },
+        );
+        assert!(
+            !editor_host.active(),
+            "The editor reserves the actual axis gizmo"
+        );
+        assert!(
+            component_host.active(),
+            "An isolated component has no axis gizmo"
+        );
+    }
+
     #[test]
     fn queued_trigger_reserves_gestures_until_the_ui_processes_the_batch() {
         let press = Event::Key {

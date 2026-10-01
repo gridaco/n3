@@ -15,6 +15,8 @@ pub(crate) fn strong(text: impl Into<String>) -> egui::RichText {
 #[derive(Clone, Copy)]
 pub struct Palette {
     pub background: egui::Color32,
+    /// Window chrome is a distinct role, initially matching the main surface.
+    pub titlebar: egui::Color32,
     pub foreground: egui::Color32,
     pub card: egui::Color32,
     pub card_foreground: egui::Color32,
@@ -53,6 +55,7 @@ impl Palette {
         let mut palette = match theme {
             ResolvedTheme::Light => Self {
                 background: rgb(255, 255, 255),
+                titlebar: rgb(255, 255, 255),
                 foreground: rgb(24, 24, 27),
                 card: rgb(255, 255, 255),
                 card_foreground: rgb(24, 24, 27),
@@ -82,36 +85,38 @@ impl Palette {
                 workbench_hud: egui::Color32::from_rgba_unmultiplied(255, 255, 255, 242),
                 workbench_hud_border: rgb(216, 216, 220),
             },
+            // Achromatic surfaces and text; emphasis and semantic colors remain colored.
             ResolvedTheme::Dark => Self {
-                background: rgb(24, 24, 27),
-                foreground: rgb(244, 244, 245),
-                card: rgb(24, 24, 27),
-                card_foreground: rgb(244, 244, 245),
-                popover: rgb(24, 24, 27),
-                popover_foreground: rgb(244, 244, 245),
+                background: egui::Color32::from_gray(23),
+                titlebar: egui::Color32::from_gray(23),
+                foreground: egui::Color32::from_gray(250),
+                card: egui::Color32::from_gray(23),
+                card_foreground: egui::Color32::from_gray(250),
+                popover: egui::Color32::from_gray(23),
+                popover_foreground: egui::Color32::from_gray(250),
                 primary: chosen_accent,
                 primary_foreground: egui::Color32::WHITE,
-                secondary: rgb(39, 39, 43),
-                secondary_foreground: rgb(244, 244, 245),
-                muted: rgb(30, 30, 34),
-                muted_foreground: rgb(161, 161, 170),
-                accent: rgb(48, 48, 54),
-                accent_foreground: rgb(244, 244, 245),
+                secondary: egui::Color32::from_gray(38),
+                secondary_foreground: egui::Color32::from_gray(250),
+                muted: egui::Color32::from_gray(38),
+                muted_foreground: egui::Color32::from_gray(163),
+                accent: egui::Color32::from_gray(48),
+                accent_foreground: egui::Color32::from_gray(250),
                 destructive: egui::Visuals::dark().error_fg_color,
-                border: rgb(62, 62, 69),
-                input: rgb(62, 62, 69),
+                border: egui::Color32::from_gray(64),
+                input: egui::Color32::from_gray(64),
                 ring: chosen_accent,
-                sidebar: rgb(24, 24, 27),
-                sidebar_foreground: rgb(244, 244, 245),
+                sidebar: egui::Color32::from_gray(23),
+                sidebar_foreground: egui::Color32::from_gray(250),
                 sidebar_primary: chosen_accent,
                 sidebar_primary_foreground: egui::Color32::WHITE,
-                sidebar_accent: rgb(48, 48, 54),
-                sidebar_accent_foreground: rgb(244, 244, 245),
-                sidebar_border: rgb(62, 62, 69),
+                sidebar_accent: egui::Color32::from_gray(48),
+                sidebar_accent_foreground: egui::Color32::from_gray(250),
+                sidebar_border: egui::Color32::from_gray(64),
                 sidebar_ring: chosen_accent,
-                workbench_viewport: rgb(23, 24, 28),
-                workbench_hud: egui::Color32::from_rgba_unmultiplied(24, 24, 27, 238),
-                workbench_hud_border: rgb(69, 69, 75),
+                workbench_viewport: egui::Color32::from_gray(23),
+                workbench_hud: egui::Color32::from_rgba_unmultiplied(23, 23, 23, 238),
+                workbench_hud_border: egui::Color32::from_gray(64),
             },
         };
         // The saved accent is N3's primary action color. shadcn's accent is
@@ -200,6 +205,8 @@ fn legible_accent(
 }
 
 pub const ROW_HEIGHT: f32 = size::XL_3;
+pub const TOOL_DOCK_TAB_BAR_HEIGHT: f32 = size::STEP_8;
+pub const TOOL_DOCK_TAB_BAR_INSET: f32 = space::SM;
 /// Tailwind's default font-size scale in egui points, plus N3's compact and
 /// spatial-label sizes. These are font sizes only; egui owns line height.
 #[allow(dead_code)] // Keep the complete type vocabulary for future controls.
@@ -427,6 +434,15 @@ pub const AXIS_COLORS: [egui::Color32; 3] = [
 pub const OBJECT_SELECTED: egui::Color32 = egui::Color32::from_rgb(61, 132, 219);
 pub const OBJECT_HOVERED: egui::Color32 = egui::Color32::from_rgb(104, 139, 172);
 
+/// Menu rows share the native flat treatment with a readable text inset.
+/// egui's default menu style resets horizontal button padding to two points.
+pub fn menu_style(style: &mut egui::Style) {
+    egui::containers::menu::menu_style(style);
+    style.spacing.button_padding = egui::vec2(space::LG, space::NONE);
+    // Adjacent menu rows share an edge, so pointer hover has no dead gaps.
+    style.spacing.item_spacing.y = space::NONE;
+}
+
 fn style(theme: ResolvedTheme, accent: AccentColor) -> egui::Style {
     let palette = Palette::new(theme, accent);
     let mut style = egui::Style {
@@ -551,6 +567,50 @@ mod tests {
             ctx.style_of(ctx.theme()).visuals.error_fg_color,
             original_error
         );
+    }
+
+    #[test]
+    fn dark_surfaces_and_text_are_neutral_with_legible_contrast() {
+        let p = Palette::new(ResolvedTheme::Dark, AccentColor::DEFAULT);
+        for color in [
+            p.background,
+            p.titlebar,
+            p.foreground,
+            p.card,
+            p.card_foreground,
+            p.popover,
+            p.popover_foreground,
+            p.secondary,
+            p.secondary_foreground,
+            p.muted,
+            p.muted_foreground,
+            p.accent,
+            p.accent_foreground,
+            p.border,
+            p.input,
+            p.sidebar,
+            p.sidebar_foreground,
+            p.sidebar_accent,
+            p.sidebar_accent_foreground,
+            p.sidebar_border,
+            p.workbench_viewport,
+            p.workbench_hud,
+            p.workbench_hud_border,
+        ] {
+            assert_eq!(color.r(), color.g());
+            assert_eq!(color.g(), color.b());
+        }
+        for background in [p.background, p.secondary, p.accent] {
+            assert!(contrast_ratio(p.foreground, background) >= 4.5);
+            assert!(contrast_ratio(p.muted_foreground, background) >= 4.5);
+        }
+        assert_ne!(p.primary.r(), p.primary.b());
+        assert_eq!(p.destructive, egui::Visuals::dark().error_fg_color);
+        for appearance in [ResolvedTheme::Light, ResolvedTheme::Dark] {
+            let p = Palette::new(appearance, AccentColor::DEFAULT);
+            assert_eq!(p.titlebar, p.background);
+            assert_eq!(p.titlebar, p.sidebar);
+        }
     }
 
     #[test]

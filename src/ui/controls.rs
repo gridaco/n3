@@ -8,9 +8,33 @@ use std::{
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Control {
+    ToolDock,
+    TerminalPanelToggle,
+    TerminalPanel,
+    TerminalViewport,
+    TerminalStatus,
+    AnimationPanelToggle,
+    ToolDockTabBar,
+    ToolDockClose,
+    AnimationTimeline,
+    AnimationRuler,
+    AnimationFit,
+    SceneHierarchy,
+    ScenePicker,
+    SceneClip,
+    ScenePlay,
+    SceneRest,
+    SceneTime,
+    SceneLoop,
+    SceneSpeed,
+    SceneCamera,
+    SceneExposure,
+    SceneDetails,
+    SceneDiagnostics,
     N3Menu,
     FileMenu,
     Open,
+    Import,
     Frame,
     Projection,
     ViewMenu,
@@ -20,6 +44,7 @@ pub enum Control {
     ShadingPie,
     PieSolid,
     PieWireframe,
+    PieMaterialPreview,
     PieTop,
     PieBottom,
     PieFront,
@@ -161,10 +186,34 @@ pub enum Control {
 }
 
 impl Control {
-    pub const ALL: [Self; 150] = [
+    pub const ALL: [Self; 175] = [
+        Self::ToolDock,
+        Self::TerminalPanelToggle,
+        Self::TerminalPanel,
+        Self::TerminalViewport,
+        Self::TerminalStatus,
+        Self::AnimationPanelToggle,
+        Self::ToolDockTabBar,
+        Self::ToolDockClose,
+        Self::AnimationTimeline,
+        Self::AnimationRuler,
+        Self::AnimationFit,
+        Self::SceneHierarchy,
+        Self::ScenePicker,
+        Self::SceneClip,
+        Self::ScenePlay,
+        Self::SceneRest,
+        Self::SceneTime,
+        Self::SceneLoop,
+        Self::SceneSpeed,
+        Self::SceneCamera,
+        Self::SceneExposure,
+        Self::SceneDetails,
+        Self::SceneDiagnostics,
         Self::N3Menu,
         Self::FileMenu,
         Self::Open,
+        Self::Import,
         Self::Frame,
         Self::Projection,
         Self::ViewMenu,
@@ -174,6 +223,7 @@ impl Control {
         Self::ShadingPie,
         Self::PieSolid,
         Self::PieWireframe,
+        Self::PieMaterialPreview,
         Self::PieTop,
         Self::PieBottom,
         Self::PieFront,
@@ -315,9 +365,33 @@ impl Control {
     ];
     pub fn id(self) -> &'static str {
         match self {
+            Self::ToolDock => "tool-dock",
+            Self::TerminalPanelToggle => "terminal.toggle",
+            Self::TerminalPanel => "terminal.panel",
+            Self::TerminalViewport => "terminal.viewport",
+            Self::TerminalStatus => "terminal.status",
+            Self::AnimationPanelToggle => "animation.toggle",
+            Self::ToolDockTabBar => "tool-dock.tabs",
+            Self::ToolDockClose => "tool-dock.close",
+            Self::AnimationTimeline => "animation.timeline",
+            Self::AnimationRuler => "animation.ruler",
+            Self::AnimationFit => "animation.fit",
+            Self::SceneHierarchy => "scene.hierarchy",
+            Self::ScenePicker => "scene.scene",
+            Self::SceneClip => "scene.animation",
+            Self::ScenePlay => "scene.play",
+            Self::SceneRest => "scene.rest",
+            Self::SceneTime => "scene.time",
+            Self::SceneLoop => "scene.loop",
+            Self::SceneSpeed => "scene.speed",
+            Self::SceneCamera => "scene.camera",
+            Self::SceneExposure => "scene.exposure",
+            Self::SceneDetails => "scene.details",
+            Self::SceneDiagnostics => "scene.diagnostics",
             Self::N3Menu => "app.menu",
             Self::FileMenu => "app.file",
             Self::Open => "open",
+            Self::Import => "import",
             Self::Frame => "frame",
             Self::Projection => "projection",
             Self::ViewMenu => "view",
@@ -327,6 +401,7 @@ impl Control {
             Self::ShadingPie => "shading-pie",
             Self::PieSolid => "shading-pie.solid",
             Self::PieWireframe => "shading-pie.wireframe",
+            Self::PieMaterialPreview => "shading-pie.material-preview",
             Self::PieTop => "view-pie.top",
             Self::PieBottom => "view-pie.bottom",
             Self::PieFront => "view-pie.front",
@@ -469,18 +544,43 @@ impl Control {
     }
     pub fn label(self) -> &'static str {
         match self {
+            Self::ToolDock => "Tool Dock",
+            Self::TerminalPanelToggle => crate::input::actions::ActionId::TerminalPanel.label(),
+            Self::TerminalPanel => "Terminal panel",
+            Self::TerminalViewport => "Terminal contents",
+            Self::TerminalStatus => "Terminal status",
+            Self::AnimationPanelToggle => crate::input::actions::ActionId::AnimationPanel.label(),
+            Self::ToolDockTabBar => "Tool Dock tab bar",
+            Self::ToolDockClose => "Close Tool Dock",
+            Self::AnimationTimeline => "Animation timeline",
+            Self::AnimationRuler => "Time ruler",
+            Self::AnimationFit => "Fit",
+            Self::SceneHierarchy => "Scene hierarchy",
+            Self::ScenePicker => "Scene",
+            Self::SceneClip => "Animation",
+            Self::ScenePlay => "Play / pause",
+            Self::SceneRest => "Rest pose",
+            Self::SceneTime => "Time",
+            Self::SceneLoop => "Loop",
+            Self::SceneSpeed => "Speed",
+            Self::SceneCamera => "Camera",
+            Self::SceneExposure => "Exposure",
+            Self::SceneDetails => "Scene details",
+            Self::SceneDiagnostics => "Compatibility",
             Self::N3Menu => "N3",
             Self::FileMenu => "File",
-            Self::Open => "Open…",
+            Self::Open => crate::input::actions::ActionId::Open.label(),
+            Self::Import => crate::input::actions::ActionId::Import.label(),
             Self::Frame => "Frame",
             Self::Projection => "Projection",
             Self::ViewMenu => "View",
-            Self::LocalViewMenu => "Local View",
-            Self::Xray => "X-ray",
+            Self::LocalViewMenu => crate::input::actions::ActionId::LocalView.label(),
+            Self::Xray => crate::input::actions::ActionId::Xray.label(),
             Self::ViewPie => "View",
             Self::ShadingPie => "Shading",
             Self::PieSolid => "Solid",
             Self::PieWireframe => "Wireframe",
+            Self::PieMaterialPreview => "Material Preview",
             Self::PieTop => "Top",
             Self::PieBottom => "Bottom",
             Self::PieFront => "Front",
@@ -488,14 +588,14 @@ impl Control {
             Self::PieLeft => "Left",
             Self::PieRight => "Right",
             Self::PieSelection => "Frame selection",
-            Self::ViewPerspective => "Perspective",
-            Self::ViewFront => "Front",
-            Self::ViewRight => "Right",
-            Self::ViewTop => "Top",
-            Self::ViewBack => "Back",
-            Self::ViewLeft => "Left",
-            Self::ViewBottom => "Bottom",
-            Self::Edges => "Edges",
+            Self::ViewPerspective => crate::input::actions::ActionId::ViewPerspective.label(),
+            Self::ViewFront => crate::input::actions::ActionId::ViewFront.label(),
+            Self::ViewRight => crate::input::actions::ActionId::ViewRight.label(),
+            Self::ViewTop => crate::input::actions::ActionId::ViewTop.label(),
+            Self::ViewBack => crate::input::actions::ActionId::ViewBack.label(),
+            Self::ViewLeft => crate::input::actions::ActionId::ViewLeft.label(),
+            Self::ViewBottom => crate::input::actions::ActionId::ViewBottom.label(),
+            Self::Edges => crate::input::actions::ActionId::Edges.label(),
             Self::Grid => "Grid",
             Self::SnapGrid => "Snap movement to grid",
             Self::SnapSpacingMenu => "Movement spacing",
@@ -504,7 +604,9 @@ impl Control {
             Self::SnapStep => "Fixed step (cm)",
             Self::SnapFeedback => "Movement snap",
             Self::ZUp => "Z-up",
-            Self::Preferences | Self::PreferencesWindow | Self::PreferencesTitle => "Preferences",
+            Self::Preferences | Self::PreferencesWindow | Self::PreferencesTitle => {
+                crate::input::actions::ActionId::Preferences.label()
+            }
             Self::PreferencesClose => "Close",
             Self::AppearanceThemeMenu => "Theme",
             Self::ThemeSystem => "System",
@@ -540,27 +642,27 @@ impl Control {
             Self::ToastDismiss => "Dismiss notification",
             Self::ToastAction => "Notification action",
             Self::ViewportMenu => "Viewport",
-            Self::ViewportFrame => "Frame all",
-            Self::FrameSelection => "Frame selection",
-            Self::ViewportPreferences => "Preferences",
-            Self::SelectAll => "Select all",
-            Self::DuplicateSelection => "Duplicate",
-            Self::DeleteSelection => "Delete",
-            Self::MakeFace => "Make Face",
+            Self::ViewportFrame => crate::input::actions::ActionId::FrameAll.label(),
+            Self::FrameSelection => crate::input::actions::ActionId::FrameSelection.label(),
+            Self::ViewportPreferences => crate::input::actions::ActionId::Preferences.label(),
+            Self::SelectAll => crate::input::actions::ActionId::SelectAll.label(),
+            Self::DuplicateSelection => crate::input::actions::ActionId::Duplicate.label(),
+            Self::DeleteSelection => crate::input::actions::ActionId::Delete.label(),
+            Self::MakeFace => crate::input::actions::ActionId::MakeFace.label(),
             Self::Dismiss => "Dismiss",
-            Self::New => "New",
-            Self::Save => "Save",
-            Self::SaveAs => "Save as…",
+            Self::New => crate::input::actions::ActionId::New.label(),
+            Self::Save => crate::input::actions::ActionId::Save.label(),
+            Self::SaveAs => crate::input::actions::ActionId::SaveAs.label(),
             Self::InsertMenu => "Insert",
             Self::EmptyStateInsert => "Insert a shape",
-            Self::InsertCube => "Cube",
-            Self::InsertCylinder => "Cylinder",
-            Self::InsertCone => "Cone",
-            Self::InsertTorus => "Torus",
-            Self::InsertPlane => "Plane",
-            Self::InsertCircle => "Circle",
-            Self::InsertSphere => "Sphere",
-            Self::InsertPolyhedron => "Polyhedron",
+            Self::InsertCube => crate::input::actions::ActionId::InsertCube.label(),
+            Self::InsertCylinder => crate::input::actions::ActionId::InsertCylinder.label(),
+            Self::InsertCone => crate::input::actions::ActionId::InsertCone.label(),
+            Self::InsertTorus => crate::input::actions::ActionId::InsertTorus.label(),
+            Self::InsertPlane => crate::input::actions::ActionId::InsertPlane.label(),
+            Self::InsertCircle => crate::input::actions::ActionId::InsertCircle.label(),
+            Self::InsertSphere => crate::input::actions::ActionId::InsertSphere.label(),
+            Self::InsertPolyhedron => crate::input::actions::ActionId::InsertPolyhedron.label(),
             Self::ToolView => "Cursor",
             Self::ToolMove => "Move",
             Self::ToolRotate => "Rotate",
@@ -615,7 +717,7 @@ impl Control {
             Self::TransformValue => "Transform value",
             Self::Ruler2DHorizontal => "Horizontal 2D ruler",
             Self::Ruler2DVertical => "Vertical 2D ruler",
-            Self::Ruler2DViewToggle => "2D ruler",
+            Self::Ruler2DViewToggle => crate::input::actions::ActionId::Ruler2D.label(),
             Self::Ruler2DHide => "Hide 2D ruler",
         }
     }
@@ -624,25 +726,6 @@ impl Control {
             .into_iter()
             .find(|control| control.id() == id)
             .ok_or_else(|| format!("Unknown control binding: {id}"))
-    }
-
-    /// Key hints are presentation of the input bindings, separate from the
-    /// witnessed control name used by accessibility and generated menu paths.
-    fn menu_shortcut(self) -> Option<&'static str> {
-        match self {
-            Self::LocalViewMenu => Some("view.local"),
-            Self::Xray => Some("view.xray"),
-            Self::MakeFace => Some("mesh.make-face"),
-            Self::ViewPerspective => Some("view.perspective"),
-            Self::ViewFront => Some("view.front"),
-            Self::ViewRight => Some("view.right"),
-            Self::ViewBack => Some("view.back"),
-            Self::ViewLeft => Some("view.left"),
-            Self::ViewTop => Some("view.top"),
-            Self::ViewBottom => Some("view.bottom"),
-            Self::Ruler2DHide => Some("view.2d-ruler"),
-            _ => None,
-        }
     }
 }
 
@@ -703,6 +786,9 @@ fn active(ctx: &egui::Context) -> Option<SharedTrace> {
 pub fn enable(ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(key(), Arc::new(Mutex::new(Trace::default()))));
 }
+pub(crate) fn disable(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.remove::<SharedTrace>(key()));
+}
 pub fn begin_pass(ctx: &egui::Context) {
     if let Some(trace) = active(ctx) {
         *trace.lock().unwrap() = Trace::default();
@@ -743,35 +829,22 @@ pub fn scope<R>(ctx: &egui::Context, parent: Control, draw: impl FnOnce() -> R) 
     }
     result
 }
-pub fn button(ui: &mut egui::Ui, control: Control) -> egui::Response {
-    button_enabled(ui, control, true)
+/// Extend menu dividers through the popup frame's content padding.
+pub fn menu_separator(ui: &mut egui::Ui) -> egui::Response {
+    ui.add(egui::Separator::default().grow(f32::from(ui.spacing().menu_margin.left)))
 }
 
-pub fn button_with_icon(
-    ui: &mut egui::Ui,
-    control: Control,
-    icon: super::lucide::Icon,
-) -> egui::Response {
-    let response = ui.add(egui::Button::new((
-        icon.text(ui.spacing().icon_width),
-        control.label(),
-    )));
-    // The glyph is decorative; accessibility and guide bindings keep the name.
-    response.widget_info(|| {
-        egui::WidgetInfo::labeled(
-            egui::WidgetType::Button,
-            response.enabled(),
-            control.label(),
-        )
-    });
-    record(
-        ui.ctx(),
-        control,
-        control.label(),
-        response.rect,
-        response.enabled(),
-    );
-    response
+/// N3's default submenu row. Keep icon and sizing policy out of menu call sites.
+pub fn submenu_button(control: Control) -> egui::containers::menu::SubMenuButton<'static> {
+    egui::containers::menu::SubMenuButton::from_button(
+        egui::Button::new(control.label())
+            .right_text(super::lucide::Icon::ChevronRight.text(crate::theme::text::BASE))
+            .min_size(egui::vec2(crate::theme::size::STEP_52, 0.0)),
+    )
+}
+
+pub fn button(ui: &mut egui::Ui, control: Control) -> egui::Response {
+    button_enabled(ui, control, true)
 }
 
 pub fn button_enabled(ui: &mut egui::Ui, control: Control, enabled: bool) -> egui::Response {
@@ -785,9 +858,6 @@ pub fn button_enabled_min_width(
     min_width: f32,
 ) -> egui::Response {
     let mut button = egui::Button::new(control.label());
-    if let Some(id) = control.menu_shortcut() {
-        button = button.shortcut_text(shortcut_label(id));
-    }
     button = button.min_size(egui::vec2(min_width, 0.0));
     let response = ui.add_enabled(enabled, button);
     record(
@@ -823,11 +893,6 @@ mod tests {
             Control::ALL.map(Control::id).into_iter().collect();
         assert_eq!(ids.len(), Control::ALL.len());
         assert!(Control::parse("removed.save").is_err());
-        for control in Control::ALL {
-            if let Some(id) = control.menu_shortcut() {
-                assert!(crate::input::bindings::binding(id).is_ok());
-            }
-        }
     }
     #[test]
     fn paths_follow_actual_scope_and_displayed_label() {

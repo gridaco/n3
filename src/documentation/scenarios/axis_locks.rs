@@ -60,7 +60,7 @@ fn release_drag(s: &mut Session<'_>, end: egui::Pos2) -> Result<()> {
 }
 
 fn double_click(s: &mut Session<'_>) -> Result<()> {
-    let position = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let position = s.empty_viewport_point()?;
     s.frame(
         vec![egui::Event::PointerMoved(position)],
         Duration::from_millis(500),
@@ -207,7 +207,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
     s.witness(Control::Viewport)?;
     s.witness(Control::ToolMove)?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.shortcut("selection.all")?;
     s.shortcut("tool.move")?;
@@ -501,7 +501,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         .ok_or("The first cube has no Layers row")?;
     s.click_at(row.center())?;
     s.shortcut("edit.confirm")?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.shortcut("selection.next")?;
     s.require(

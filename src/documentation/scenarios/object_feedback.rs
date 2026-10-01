@@ -194,7 +194,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         s.state.editor.selected_object == Some(left),
         "Clicking the other Layers row changes selection back to its object",
     )?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     hover_at(s, empty)?;
     let highlights = s.state.object_highlights();
     s.require(

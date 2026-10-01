@@ -282,6 +282,10 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         "A right-button release within four logical pixels opens the viewport context menu without camera movement",
     )?;
     s.witness(Control::ViewportMenu)?;
+    s.require(
+        s.trace.get(Control::ViewportFrame)?.rect.width() >= crate::theme::size::STEP_52,
+        "Context-menu rows use the same minimum width as dropdown menus",
+    )?;
     s.value("mouse-drag-threshold", DRAG_THRESHOLD);
     s.witness(Control::ViewportPreferences)?;
     s.hover(Control::ViewportFrame)?;

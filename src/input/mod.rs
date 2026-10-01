@@ -1,3 +1,4 @@
+pub(crate) mod actions;
 pub(crate) mod bindings;
 pub(crate) mod keyboard_input;
 pub(crate) mod move_input;
@@ -9,3 +10,4 @@ pub(crate) mod pointer_policy;
 pub(crate) mod scroll_input;
 pub(crate) mod shortcuts;
 pub(crate) mod temporary_navigation;
+pub(crate) mod timeline_input;

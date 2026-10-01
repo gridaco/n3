@@ -65,7 +65,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
     s.witness(Control::Viewport)?;
     s.witness(Control::ObjectList)?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     let full_camera = camera(s);
     let revision = s.state.editor.revision;

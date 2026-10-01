@@ -216,7 +216,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         "Each completed length edit is one undo step; display-only changes add none",
     )?;
 
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.shortcut("selection.all")?;
     s.shortcut("tool.move")?;

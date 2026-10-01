@@ -43,6 +43,8 @@ fn quads(objects: &[u64]) -> MeshData {
         mesh.object_ranges.push(ObjectRange {
             object,
             triangles: triangles.clone(),
+            edges: edges_start..edges_start + 8,
+            loose_edges: edges_start..edges_start,
         });
         mesh.edit_topology.push(EditObjectTopology {
             object,
@@ -76,6 +78,9 @@ fn loose_loop(occluder: bool) -> MeshData {
     // when present, remains an ordinary solid occluder.
     mesh.vertices.drain(..6);
     for object in &mut mesh.object_ranges {
+        if object.object == 17 {
+            object.loose_edges = object.edges.clone();
+        }
         object.triangles =
             object.triangles.start.saturating_sub(6)..object.triangles.end.saturating_sub(6);
     }
@@ -160,7 +165,10 @@ fn unfilled_objects_remain_visible_and_highlighted_without_solid_edge_overlay() 
     let ctx = egui::Context::default();
     let background = egui::Color32::from_gray(240);
     let empty = frame(&mut capture, &ctx, ShadingMode::Solid, false, background);
-    capture.scene.set_mesh(&capture.device, &loose_loop(false));
+    capture
+        .scene
+        .set_mesh(&capture.device, &loose_loop(false))
+        .unwrap();
     assert!(capture.scene.triangle_buffer.is_none());
     let edge_buffer = capture.scene.edge_buffer.as_ref().unwrap() as *const _;
     let revision = capture.scene.edit.upload_revision;
@@ -238,9 +246,15 @@ fn loose_edge_feedback_respects_occlusion_and_local_view() {
     let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT)).unwrap();
     let ctx = egui::Context::default();
     let background = egui::Color32::from_gray(240);
-    capture.scene.set_mesh(&capture.device, &quads(&[99]));
+    capture
+        .scene
+        .set_mesh(&capture.device, &quads(&[99]))
+        .unwrap();
     let front = frame(&mut capture, &ctx, ShadingMode::Solid, false, background);
-    capture.scene.set_mesh(&capture.device, &loose_loop(true));
+    capture
+        .scene
+        .set_mesh(&capture.device, &loose_loop(true))
+        .unwrap();
     assert_eq!(
         front,
         frame(&mut capture, &ctx, ShadingMode::Solid, false, background)
@@ -263,7 +277,10 @@ fn loose_edge_feedback_respects_occlusion_and_local_view() {
         .set_visible_objects(Some(&BTreeSet::from([17])));
     let isolated = frame(&mut capture, &ctx, ShadingMode::Solid, false, background);
     assert_ne!(front, isolated);
-    capture.scene.set_mesh(&capture.device, &loose_loop(false));
+    capture
+        .scene
+        .set_mesh(&capture.device, &loose_loop(false))
+        .unwrap();
     assert_eq!(
         isolated,
         frame(&mut capture, &ctx, ShadingMode::Solid, false, background)
@@ -283,7 +300,10 @@ fn wireframe_has_no_fill_or_triangle_diagonals_and_keeps_rear_authored_edges() {
     let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT)).unwrap();
     let ctx = egui::Context::default();
     for background in [egui::Color32::from_gray(240), egui::Color32::from_gray(25)] {
-        capture.scene.set_mesh(&capture.device, &quads(&[17, 99]));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(&[17, 99]))
+            .unwrap();
         let triangles = capture.scene.triangle_buffer.as_ref().unwrap() as *const _;
         let edges = capture.scene.edge_buffer.as_ref().unwrap() as *const _;
         let solid = frame(&mut capture, &ctx, ShadingMode::Solid, false, background);
@@ -314,7 +334,10 @@ fn wireframe_has_no_fill_or_triangle_diagonals_and_keeps_rear_authored_edges() {
             capture.scene.edge_buffer.as_ref().unwrap()
         ));
 
-        capture.scene.set_mesh(&capture.device, &quads(&[99]));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(&[99]))
+            .unwrap();
         assert_eq!(
             solid,
             frame(&mut capture, &ctx, ShadingMode::Solid, false, background)
@@ -347,7 +370,10 @@ fn wireframe_isolation_and_edit_feedback_keep_visible_only_semantics() {
     let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT)).unwrap();
     let ctx = egui::Context::default();
     let background = egui::Color32::from_gray(240);
-    capture.scene.set_mesh(&capture.device, &quads(&[17, 99]));
+    capture
+        .scene
+        .set_mesh(&capture.device, &quads(&[17, 99]))
+        .unwrap();
     let normal = frame(
         &mut capture,
         &ctx,
@@ -388,7 +414,10 @@ fn wireframe_isolation_and_edit_feedback_keep_visible_only_semantics() {
         background.to_array(),
         "Selected faces still have no fill"
     );
-    capture.scene.set_mesh(&capture.device, &quads(&[17]));
+    capture
+        .scene
+        .set_mesh(&capture.device, &quads(&[17]))
+        .unwrap();
     assert_eq!(
         isolated,
         frame(
@@ -439,7 +468,10 @@ fn xray_preserves_a_faint_nearest_surface_independent_of_triangle_order() {
     let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT)).unwrap();
     let ctx = egui::Context::default();
     for background in [egui::Color32::from_gray(240), egui::Color32::from_gray(25)] {
-        capture.scene.set_mesh(&capture.device, &quads(&[17, 99]));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(&[17, 99]))
+            .unwrap();
         let triangles = capture.scene.triangle_buffer.as_ref().unwrap() as *const _;
         let edges = capture.scene.edge_buffer.as_ref().unwrap() as *const _;
         let revision = capture.scene.edit.upload_revision;
@@ -489,7 +521,10 @@ fn xray_preserves_a_faint_nearest_surface_independent_of_triangle_order() {
         ));
         assert_eq!(revision, capture.scene.edit.upload_revision);
 
-        capture.scene.set_mesh(&capture.device, &quads(&[99, 17]));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(&[99, 17]))
+            .unwrap();
         assert_eq!(
             xray,
             frame_with_xray(
@@ -502,7 +537,10 @@ fn xray_preserves_a_faint_nearest_surface_independent_of_triangle_order() {
             ),
             "A depth prepass prevents hidden surfaces accumulating opacity by draw order"
         );
-        capture.scene.set_mesh(&capture.device, &quads(&[99]));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(&[99]))
+            .unwrap();
         let front = frame_with_xray(
             &mut capture,
             &ctx,
@@ -526,7 +564,10 @@ fn xray_reveals_hidden_edit_and_object_feedback_but_respects_local_view() {
     for background in [egui::Color32::from_gray(240), egui::Color32::from_gray(25)] {
         for shading in [ShadingMode::Solid, ShadingMode::Wireframe] {
             capture.scene.set_visible_objects(None);
-            capture.scene.set_mesh(&capture.device, &quads(&[17, 99]));
+            capture
+                .scene
+                .set_mesh(&capture.device, &quads(&[17, 99]))
+                .unwrap();
             capture
                 .scene
                 .set_edit_selection(&capture.device, EditSelection::default());
@@ -614,7 +655,10 @@ fn xray_reveals_hidden_edit_and_object_feedback_but_respects_local_view() {
                 .scene
                 .set_visible_objects(Some(&BTreeSet::from([99])));
             let isolated = frame_with_xray(&mut capture, &ctx, shading, true, false, background);
-            capture.scene.set_mesh(&capture.device, &quads(&[99]));
+            capture
+                .scene
+                .set_mesh(&capture.device, &quads(&[99]))
+                .unwrap();
             assert_eq!(
                 isolated,
                 frame_with_xray(&mut capture, &ctx, shading, true, false, background),

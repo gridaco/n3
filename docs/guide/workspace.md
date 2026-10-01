@@ -19,20 +19,42 @@ share the same soft shadow. In vertex edit mode, the exit bar appears
 at the viewport's bottom center. Drag the borders of
 <code>Layers</code> and <code>Properties</code> to resize those panels. Both start
 at 240 pixels wide.
+Full-width dividers separate the padded sections in Layers and Properties.
 Cursor is selected when N3 starts, so you can select objects without showing
 transform handles. Choose Move, Rotate, or Scale when you need their handles.
 Layers shows a shape icon for each inserted primitive and a generic 3D object
 icon for editable meshes. The whole row remains the selection target.
 Square modeling-tool buttons in <code>Tools</code> keep their size
 when hovered. Buttons and menus use the same rounded-corner scale.
-<code>Scene information</code> shows mesh counts and notices at the viewport's bottom
-left when there is scene information to report.
+Menu rows have an 8-point horizontal inset inside their hover background.
+Dividers span the full menu width.
+Submenu rows use a right-facing chevron.
+Adjacent menu rows touch, so moving between commands has no empty hover gap.
+Available keyboard shortcuts appear at the right of each action. Disabled
+commands keep their shortcut hints; actions with no shortcut leave that space empty.
+On macOS, modifier hints use ⌘ (Command), ⇧ (Shift), ⌥ (Option), and ⌃ (Control).
+For example, <kbd>Shift</kbd> + <kbd>Command</kbd> + <kbd>S</kbd> appears compactly as
+⇧⌘S in menus. Windows and Linux use names and separators,
+such as Ctrl+Shift+S for that same action.
+The guide keeps descriptive key names, and menu accessibility exposes those names
+separately from the symbols.
+<code>Scene information</code> shows mesh counts and notices at the viewport's lower
+left when there is scene information to report, above <code>Tool Dock tab bar</code>.
+The Tool Dock tab bar opens Animation or Terminal in the shared Tool Dock.
+Choose <code>Tool Dock tab bar → Animation</code> to inspect animation, or read about the
+[Terminal](terminal.md).
 The <code>Status bar</code> is 32 points tall and keeps
 interaction guidance visible along the bottom edge.
 
 ![workspace layout](assets/workspace-layout.webp)
 
 Open N3 to see File, View, and Preferences.
+Menus support the keyboard even when opened with the mouse. Use
+<kbd>Up</kbd> / <kbd>Down</kbd> or <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd>
+to move between available items. <kbd>Right</kbd> opens a submenu;
+<kbd>Left</kbd> returns to its parent. <kbd>Enter</kbd> or <kbd>Space</kbd> activates
+the focused item. <kbd>Escape</kbd> closes one menu level and returns focus when
+the root menu closes. Disabled items and separators are skipped.
 
 ![workspace menu](assets/workspace-menu.webp)
 

@@ -21,6 +21,16 @@ just test
 just verify
 ```
 
+The editor initially opens at 1440 × 900 logical points, capped to 90% of the
+primary monitor's full dimensions. This leaves desktop margins; winit does not
+expose the usable work area excluding the Dock and menu bar. The usual minimum
+is 820 × 500 points, reduced when necessary to fit the capped launch size.
+Executable guide captures keep their own fixed dimensions.
+
+For focused component development, run `just workbench`. The internal
+[UI workbench skill](../.agents/skills/ui-workbench/SKILL.md) owns the agent workflow
+for fixture cases, deterministic evidence and component boundaries.
+
 Rust 1.98.1 and `just` 1.46 are the pinned development tools. The repository's
 `rust-toolchain.toml` selects Rust with Clippy and rustfmt without changing the
 global toolchain. `Cargo.toml` retains Rust 1.95 as the minimum supported
@@ -39,8 +49,14 @@ and `CARGO_TARGET_DIR` overrides. After dependencies are available, set
 For an explicit Ubuntu CI reproduction, use `just ci`, `just ci-test [ARGS...]`,
 or `just ci-docs check/update`. Only these commands require Docker. Their runner
 uses separate caches under `.cache/ci/linux-amd64` and mounts source read-only
-for checks; only `ci-docs update` can write the guide. No generated app bundle,
+for checks. `ci-docs update` writes the separate Linux receipt and ignored review
+captures while keeping the native guide read-only. No generated app bundle,
 cache, or review capture belongs in Git.
+
+Containers retain the invoking user's numeric UID/GID so writable cache and
+review files keep their host ownership. The runner mounts isolated passwd/group
+entries read-only from its cache; the terminal backend needs a resolvable account
+even when its controlled shell is explicitly configured.
 
 ## Formatting
 
@@ -70,12 +86,19 @@ generated pages independently.
 
 ## Verification and Git hooks
 
-The current guide baseline uses native macOS Metal. Local development is verified
-against that baseline. Ubuntu CI still needs a separately validated Linux media
-baseline strategy before the first push: its lavapipe pixels must not be compared
-as if they were Metal pixels. The explicit CI commands currently fail on this
-renderer mismatch; they do not skip media checks or silently regenerate anything.
-Resolving that CI gate must not become a Docker requirement for local iteration.
+The published guide baseline uses native macOS Metal. Local development compares
+every artifact directly against that guide. Ubuntu CI replays the same scenarios
+with the pinned lavapipe renderer and checks every artifact's byte length and
+SHA-256 against `docs/baselines/linux-vulkan-lavapipe.json`. The receipt also pins
+the entire native guide, and generated Markdown must match its published text.
+Missing receipts, stale native guides, inventory changes and byte drift fail;
+there are no image tolerances, skipped captures or automatic updates.
+
+After deliberately updating and reviewing the native guide, run
+`just ci-docs update` to generate the Linux review tree under
+`.cache/docs/linux-vulkan-lavapipe/` and update its receipt. Inspect that text,
+stills and animation playback, then run `just ci-docs check`. Only this explicit
+Ubuntu reproduction requires Docker; native development remains independent.
 
 `just setup` installs contributor dependencies and configures
 `core.hooksPath=.githooks` in local Git configuration, shared by the clone's linked
@@ -190,6 +213,30 @@ Settings tests and guide replay use isolated stores; they must never load or
 modify the current user's file.
 
 ## Documents and imports
+
+`.gltf` and `.glb` open as linked asset placements in an ordinary N3 document.
+Native geometry and imported placements share selection, transforms, duplication,
+deletion and Undo. Source meshes, materials and animation remain immutable;
+decoded resources and playback stay outside authored history. See the
+[imported asset contract](architecture/scene-viewer.md) for its format profile,
+rendering, animation and resource limits. Unsupported required extensions fail;
+unsupported optional extensions appear in Properties diagnostics. Saving
+`.n3.json` preserves source references and placement; editing asset contents,
+converting them to authored meshes, and glTF/GLB export are not implemented.
+
+File Open and startup replace the current document. File Import adds objects to
+it. Dropping `.n3.json` opens that document; dropping OBJ/glTF/GLB imports into the
+current document. OBJ geometry becomes editable, while imported scene placements
+retain their linked sources. `--read-only` explicitly disables document editing
+independently of input format.
+
+```sh
+just run fixtures/gltf/WaterBottle/glTF-Binary/WaterBottle.glb
+just cargo run --locked -- --check fixtures/gltf/SimpleSkin/glTF/SimpleSkin.gltf
+```
+
+The `--check` command validates and evaluates the default scene without creating
+a window; it does not establish GPU appearance or full format conformance.
 
 N3 documents use versioned JSON (`.n3.json`) with stable object and vertex IDs.
 Canonical lengths are centimeters; fractional values remain valid. Procedural

@@ -22,7 +22,7 @@ use crate::{
     axis_gizmo,
     camera::Camera,
     controls::{self, Control},
-    document::{DisplayFrame, Document, PrimitiveKind},
+    document::{AssetFrames, DisplayFrame, Document, Geometry, PrimitiveKind},
     edit_feedback,
     edit_history::EditHistory,
     numeric_transform::ParsedNumber,
@@ -30,12 +30,10 @@ use crate::{
     pointer_policy::crossed_drag_threshold,
     snapping::{SnapSettings, StepPolicy, TranslationSource},
     theme,
+    ui::marquee,
 };
 
 const HISTORY_LIMIT: usize = 64;
-
-#[cfg(test)]
-use crate::document::Geometry;
 
 #[cfg(test)]
 #[path = "editor_snapping_tests.rs"]
@@ -50,6 +48,9 @@ mod primitive_edit_tests;
 
 #[cfg(test)]
 mod xray_tests;
+
+#[cfg(test)]
+mod asset_tests;
 
 // Keep picking forgiving even when dense meshes use compact painted markers.
 const PICK_RADIUS: f32 = 8.0;
@@ -230,6 +231,15 @@ struct NumericTransform {
     pivot: DVec3,
 }
 
+/// Transient permission independent of geometry kind and file format. Reading,
+/// selecting and navigating remain available in either mode.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EditorAccess {
+    #[default]
+    ReadWrite,
+    ReadOnly,
+}
+
 pub struct Editor {
     pub document: Document,
     pub frame: DisplayFrame,
@@ -254,6 +264,8 @@ pub struct Editor {
     /// its handles. Never part of the document or history.
     pub transform_axis: Option<usize>,
     pub revision: u64,
+    access: EditorAccess,
+    asset_frames: AssetFrames,
     history: EditHistory<Snapshot>,
     property_transaction: bool,
     property_snapping: SnapSettings,
@@ -288,6 +300,8 @@ impl Editor {
             snap_policy: StepPolicy::default(),
             transform_axis: None,
             revision: 0,
+            access: EditorAccess::ReadWrite,
+            asset_frames: AssetFrames::new(),
             history: EditHistory::new(HISTORY_LIMIT),
             property_transaction: false,
             property_snapping: SnapSettings::default(),
@@ -301,7 +315,65 @@ impl Editor {
         })
     }
 
+    pub fn access(&self) -> EditorAccess {
+        self.access
+    }
+
+    pub fn can_edit(&self) -> bool {
+        self.access == EditorAccess::ReadWrite
+    }
+
+    /// Locking cancels any unaccepted preview while write access still exists.
+    /// History is retained, so unlocking can resume normal undo/redo.
+    pub fn set_access(&mut self, access: EditorAccess) {
+        if self.access == access {
+            return;
+        }
+        self.cancel();
+        self.leave_edit();
+        self.tool = Tool::View;
+        self.last_nudge = None;
+        self.access = access;
+    }
+
+    fn require_write(&self) -> Result<(), String> {
+        if self.can_edit() {
+            Ok(())
+        } else {
+            Err("This document is read-only.".into())
+        }
+    }
+
+    pub(crate) fn asset_frames(&self) -> &AssetFrames {
+        &self.asset_frames
+    }
+
+    /// Publish evaluated resources atomically. References and history stay intact;
+    /// revision invalidation refreshes only derived geometry and picking caches.
+    pub(crate) fn set_asset_frames(&mut self, frames: AssetFrames) -> Result<(), String> {
+        if frames.len() == self.asset_frames.len()
+            && frames.iter().all(|(key, value)| {
+                self.asset_frames
+                    .get(key)
+                    .is_some_and(|old| Arc::ptr_eq(old, value))
+            })
+        {
+            return Ok(());
+        }
+        self.document
+            .render_mesh_with_assets(&self.frame, &frames)?;
+        self.asset_frames = frames;
+        self.changed();
+        Ok(())
+    }
+
+    pub(crate) fn render_mesh(&self) -> Result<crate::mesh::MeshData, String> {
+        self.document
+            .render_mesh_with_assets(&self.frame, &self.asset_frames)
+    }
+
     pub fn set_tool(&mut self, tool: Tool) {
+        let tool = if self.can_edit() { tool } else { Tool::View };
         if self.tool != tool {
             self.cancel();
             self.last_nudge = None;
@@ -313,6 +385,7 @@ impl Editor {
     }
 
     pub fn toggle_transform_axis(&mut self, axis: usize) -> Result<(), String> {
+        self.require_write()?;
         if axis > 2 {
             return Err("Transform axis must be X, Y, or Z.".into());
         }
@@ -342,6 +415,9 @@ impl Editor {
     }
 
     pub fn numeric_input_available(&self) -> bool {
+        if !self.can_edit() {
+            return false;
+        }
         self.tool != Tool::View
             && self.transform_axis.is_some_and(|axis| axis < 3)
             && !self.property_transaction
@@ -373,7 +449,7 @@ impl Editor {
                 .transaction_baseline()
                 .cloned()
                 .unwrap_or_else(|| self.snapshot());
-            let pivot = snapshot_pivot(&before, &self.frame)?;
+            let pivot = snapshot_pivot(&before, &self.frame, &self.asset_frames)?;
             self.history.begin_transaction(before.clone());
             self.numeric = Some(NumericTransform {
                 text: String::new(),
@@ -487,6 +563,7 @@ impl Editor {
     }
 
     fn publish_numeric_candidate(&mut self, mut candidate: Document) -> Result<(), String> {
+        self.require_write()?;
         self.validate_candidate(&mut candidate)?;
         if candidate != self.document {
             self.document = candidate;
@@ -498,6 +575,7 @@ impl Editor {
     /// Translate in document units. A locked or pending Move previews within its
     /// session. Otherwise repeats join only the preceding unchanged nudge result.
     pub fn nudge(&mut self, delta_world: DVec3, repeat: bool) -> Result<bool, String> {
+        self.require_write()?;
         if self.numeric.is_some() {
             return Err("Apply or cancel the numeric transform before nudging.".into());
         }
@@ -556,6 +634,7 @@ impl Editor {
         _label: &str,
         change: impl FnOnce(&mut Document) -> Result<(), String>,
     ) -> Result<bool, String> {
+        self.require_write()?;
         self.cancel();
         self.last_nudge = None;
         let mut candidate = self.document.clone();
@@ -576,7 +655,7 @@ impl Editor {
     /// always starts from the captured baseline, so revising a value cannot
     /// accumulate geometry or quaternion roundoff across UI frames.
     pub fn begin_property_edit(&mut self) -> bool {
-        if self.is_interacting() || self.transform_axis.is_some() {
+        if !self.can_edit() || self.is_interacting() || self.transform_axis.is_some() {
             return false;
         }
         self.last_nudge = None;
@@ -692,6 +771,7 @@ impl Editor {
         &mut self,
         change: impl FnOnce(&mut Document, &Snapshot) -> Result<(), String>,
     ) -> Result<bool, String> {
+        self.require_write()?;
         if !self.property_transaction {
             return Err("No property edit is active.".into());
         }
@@ -746,6 +826,9 @@ impl Editor {
     }
 
     pub fn undo(&mut self) -> bool {
+        if !self.can_edit() {
+            return false;
+        }
         self.last_nudge = None;
         if self.cancel() {
             return true;
@@ -758,6 +841,9 @@ impl Editor {
     }
 
     pub fn redo(&mut self) -> bool {
+        if !self.can_edit() {
+            return false;
+        }
         self.last_nudge = None;
         if self.cancel() {
             return true;
@@ -799,6 +885,9 @@ impl Editor {
 
     /// Finish a pending interaction, or toggle editing for the selected mesh.
     pub fn confirm(&mut self) -> Result<ConfirmOutcome, String> {
+        if !self.can_edit() {
+            return Ok(ConfirmOutcome::NothingToDo);
+        }
         if let Some(error) = self.numeric_error() {
             return Err(error.to_owned());
         }
@@ -816,7 +905,7 @@ impl Editor {
                 if let Err(error) = self
                     .document
                     .validate()
-                    .and_then(|()| self.document.render_mesh(&self.frame).map(|_| ()))
+                    .and_then(|()| self.render_mesh().map(|_| ()))
                 {
                     let before = self.history.cancel_transaction().unwrap();
                     self.restore(before);
@@ -847,8 +936,11 @@ impl Editor {
             self.leave_edit();
             Ok(ConfirmOutcome::EditModeLeft)
         } else if self.selected_object.is_some() {
-            self.enter_edit()?;
-            Ok(ConfirmOutcome::EditModeEntered)
+            if self.enter_edit()? {
+                Ok(ConfirmOutcome::EditModeEntered)
+            } else {
+                Ok(ConfirmOutcome::NothingToDo)
+            }
         } else {
             Ok(ConfirmOutcome::NothingToDo)
         }
@@ -861,7 +953,7 @@ impl Editor {
                     if let Err(error) = self
                         .document
                         .validate()
-                        .and_then(|()| self.document.render_mesh(&self.frame).map(|_| ()))
+                        .and_then(|()| self.render_mesh().map(|_| ()))
                     {
                         if self.has_transform_session() {
                             self.cancel();
@@ -983,6 +1075,7 @@ impl Editor {
     /// polygon or loose edge. Surviving IDs, loose vertices, and empty objects are
     /// retained. This is deletion, not dissolve, remeshing, or cleanup.
     pub fn delete_selection(&mut self) -> Result<bool, String> {
+        self.require_write()?;
         self.cancel();
         if self.edit_mode {
             if self.selected_vertices.is_empty() {
@@ -1206,10 +1299,11 @@ impl Editor {
         }
         let projection = Projection::new(viewport, camera, z_up)?;
         if self.cache.is_none() {
-            self.cache = Some(GeometryCache::new(
+            self.cache = Some(GeometryCache::with_assets(
                 &self.document,
                 &self.frame,
                 self.visible_object_ids.as_ref(),
+                &self.asset_frames,
             )?);
         }
         Ok(self
@@ -1317,8 +1411,82 @@ impl Editor {
         Ok(id)
     }
 
+    /// Append imported objects atomically with their resolved resources. All
+    /// object IDs are remapped; linked source payloads stay outside history.
+    pub(crate) fn import_objects(
+        &mut self,
+        mut objects: Vec<crate::document::Object>,
+        frames: AssetFrames,
+    ) -> Result<Vec<u64>, String> {
+        self.require_write()?;
+        if self.is_interacting() || self.transform_axis.is_some() {
+            return Err("Apply or cancel the current interaction before importing objects.".into());
+        }
+        if objects.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut next = self
+            .document
+            .objects
+            .iter()
+            .map(|object| object.id)
+            .max()
+            .unwrap_or(0);
+        let mut ids = Vec::with_capacity(objects.len());
+        for object in &mut objects {
+            next = next.checked_add(1).ok_or("Object ID space exhausted")?;
+            object.id = next;
+            ids.push(next);
+        }
+        let mut candidate = self.document.clone();
+        candidate.objects.extend(objects);
+        let mut resources = self.asset_frames.clone();
+        resources.extend(frames);
+        candidate.validate()?;
+        // With no existing world to preserve, establish normalization before
+        // validating the first imported asset's GPU-coordinate boundary.
+        let frame = if self.document.objects.is_empty() {
+            DisplayFrame::from_document_with_assets(&candidate, &resources)?
+        } else {
+            self.frame
+        };
+        candidate.render_mesh_with_assets(&frame, &resources)?;
+        let before = self.snapshot();
+        self.document = candidate;
+        self.frame = frame;
+        self.asset_frames = resources;
+        if let Some(visible) = &mut self.visible_object_ids {
+            visible.extend(ids.iter().copied());
+        }
+        self.set_object_selection_set(ids.iter().copied().collect(), ids.first().copied());
+        self.last_nudge = None;
+        self.push_undo(before);
+        self.changed();
+        Ok(ids)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn insert_asset(
+        &mut self,
+        asset: crate::document::AssetInstance,
+        name: String,
+    ) -> Result<u64, String> {
+        let mut id = 0;
+        self.commit("Insert linked asset", |document| {
+            id = document.insert_asset(asset, name)?;
+            Ok(())
+        })?;
+        if let Some(visible) = &mut self.visible_object_ids {
+            visible.insert(id);
+            self.cache = None;
+        }
+        self.select_object(id)?;
+        Ok(id)
+    }
+
     pub fn can_duplicate_selection(&self) -> bool {
-        !self.edit_mode
+        self.can_edit()
+            && !self.edit_mode
             && !self.selected_objects.is_empty()
             && !self.is_interacting()
             && self.transform_axis.is_none()
@@ -1328,6 +1496,7 @@ impl Editor {
     /// Object IDs are fresh; vertex/face IDs remain scoped to each copied object.
     /// Publish geometry and the copied selection together as one undoable edit.
     pub fn duplicate_selection(&mut self) -> Result<bool, String> {
+        self.require_write()?;
         if !self.can_duplicate_selection() {
             return Ok(false);
         }
@@ -1372,6 +1541,14 @@ impl Editor {
     }
 
     pub fn enter_edit(&mut self) -> Result<bool, String> {
+        self.require_write()?;
+        if self
+            .selected_object
+            .and_then(|id| self.document.objects.iter().find(|object| object.id == id))
+            .is_some_and(|object| matches!(object.geometry, Geometry::Asset(_)))
+        {
+            return Ok(false);
+        }
         self.cancel();
         if self.selected_objects.len() > 1 {
             return Err("Select one object before editing its vertices.".into());
@@ -1403,7 +1580,7 @@ impl Editor {
 
     pub fn reframe(&mut self) -> Result<(), String> {
         self.cancel();
-        self.frame = DisplayFrame::from_document(&self.document)?;
+        self.frame = DisplayFrame::from_document_with_assets(&self.document, &self.asset_frames)?;
         self.changed();
         Ok(())
     }
@@ -1429,6 +1606,27 @@ impl Editor {
             if !self.selected_objects.contains(&object.id)
                 || (self.edit_mode && Some(object.id) != self.selected_object)
             {
+                continue;
+            }
+            if let Geometry::Asset(asset) = &object.geometry {
+                let world_points = if let Some(evaluated) = self.asset_frames.get(asset) {
+                    crate::model::asset_geometry::AssetGeometry::new(object, evaluated)?
+                        .into_framing_points(object)
+                } else {
+                    vec![DVec3::from_array(object.transform.translation)]
+                };
+                let points: Vec<_> = world_points
+                    .into_iter()
+                    .map(|point| {
+                        rotation.transform_point3(self.frame.world_to_display(point).as_vec3())
+                    })
+                    .collect();
+                if points.iter().any(|point| !point.is_finite()) {
+                    return Err("Selected asset is outside the display coordinate range.".into());
+                }
+                if !points.is_empty() {
+                    groups.push(points);
+                }
                 continue;
             }
             let geometry = self.document.eval_object(object.id)?;
@@ -1682,7 +1880,7 @@ impl Editor {
                     *current = position;
                     *dragged |= crossed_drag_threshold(*start, position);
                     if *dragged {
-                        let rect = Rect::from_two_pos(*start, position).intersect(viewport);
+                        let rect = marquee::rectangle(*start, position, viewport);
                         let mut selected = if *additive {
                             before.clone()
                         } else {
@@ -1787,7 +1985,9 @@ impl Editor {
                 && let Some(hit) = hit
             {
                 self.select_object(hit)?;
-                self.enter_edit()?;
+                if self.can_edit() {
+                    self.enter_edit()?;
+                }
                 consumed = true;
             }
         }
@@ -1924,7 +2124,7 @@ impl Editor {
             edit.normalize(document)?;
         }
         document.validate()?;
-        document.render_mesh(&self.frame)?;
+        document.render_mesh_with_assets(&self.frame, &self.asset_frames)?;
         Ok(())
     }
 
@@ -1995,10 +2195,11 @@ impl Editor {
 
     fn prepare(&mut self, projection: &Projection) -> Result<(), String> {
         if self.cache.is_none() {
-            self.cache = Some(GeometryCache::new(
+            self.cache = Some(GeometryCache::with_assets(
                 &self.document,
                 &self.frame,
                 self.visible_object_ids.as_ref(),
+                &self.asset_frames,
             )?);
         }
         self.cache.as_mut().unwrap().project(projection);
@@ -2017,6 +2218,9 @@ impl Editor {
     }
 
     fn locked_transform_handle(&self, projection: &Projection) -> Option<Handle> {
+        if !self.can_edit() {
+            return None;
+        }
         let index = self
             .transform_axis
             .filter(|axis| *axis < 3 && self.tool != Tool::View)?;
@@ -2091,6 +2295,9 @@ impl Editor {
     }
 
     fn handles(&self, projection: &Projection) -> Vec<Handle> {
+        if !self.can_edit() {
+            return Vec::new();
+        }
         if self.tool != Tool::View && self.transform_axis.is_some() {
             return self
                 .locked_transform_handle(projection)
@@ -2347,10 +2554,11 @@ impl Editor {
         let projection = Projection::new(viewport, camera, z_up).ok()?;
         if self.cache.is_none() {
             self.cache = Some(
-                GeometryCache::new(
+                GeometryCache::with_assets(
                     &self.document,
                     &self.frame,
                     self.visible_object_ids.as_ref(),
+                    &self.asset_frames,
                 )
                 .ok()?,
             );
@@ -2367,6 +2575,7 @@ impl Editor {
         handle: &Handle,
         pointer: Pos2,
     ) -> Result<(), String> {
+        self.require_write()?;
         if self.numeric.is_some() {
             return Err("Apply or cancel the numeric transform before dragging.".into());
         }
@@ -2432,6 +2641,7 @@ impl Editor {
     }
 
     fn preview_transform(&mut self, pointer: Pos2) -> Result<(), String> {
+        self.require_write()?;
         if self.numeric.is_some() {
             return Ok(());
         }
@@ -2623,17 +2833,9 @@ impl Editor {
         if let Some((start, current)) = marquee
             && crossed_drag_threshold(start, current)
         {
-            let rect = Rect::from_two_pos(start, current).intersect(projection.viewport);
-            painter.rect_filled(
-                rect,
-                theme::radius::NONE,
-                Color32::from_rgba_unmultiplied(116, 173, 246, 25),
-            );
-            painter.rect_stroke(
-                rect,
-                theme::radius::NONE,
-                Stroke::new(1.0, Color32::from_rgb(116, 173, 246)),
-                egui::StrokeKind::Inside,
+            marquee::paint(
+                &painter,
+                marquee::rectangle(start, current, projection.viewport),
             );
         }
     }
@@ -2746,21 +2948,24 @@ fn selection_pivot_in_display(
     selected_vertices: &BTreeSet<u64>,
     edit_mode: bool,
 ) -> Option<DVec3> {
-    let mut points: Vec<_> = cache
-        .vertices
-        .iter()
-        .filter(|vertex| {
-            selected_objects.contains(&vertex.object)
-                && (!edit_mode || selected_vertices.contains(&vertex.id))
-        })
-        .map(|vertex| vertex.position)
-        .collect();
-    if points.is_empty() && !edit_mode {
+    let mut placements_without_samples = selected_objects.clone();
+    let mut points = Vec::new();
+    for vertex in &cache.vertices {
+        if selected_objects.contains(&vertex.object)
+            && (!edit_mode || selected_vertices.contains(&vertex.id))
+        {
+            points.push(vertex.position);
+            placements_without_samples.remove(&vertex.object);
+        }
+    }
+    if !edit_mode {
+        // Each missing or geometry-empty placement contributes its origin to
+        // group transforms, without adding selectable proxy geometry.
         points.extend(
             document
                 .objects
                 .iter()
-                .filter(|object| selected_objects.contains(&object.id))
+                .filter(|object| placements_without_samples.contains(&object.id))
                 .map(|object| {
                     frame.world_to_display(DVec3::from_array(object.transform.translation))
                 }),
@@ -2769,23 +2974,35 @@ fn selection_pivot_in_display(
     if points.is_empty() {
         return None;
     }
-    Some(if !edit_mode && selected_objects.len() > 1 {
-        let minimum = points
-            .iter()
-            .copied()
-            .fold(DVec3::splat(f64::INFINITY), DVec3::min);
-        let maximum = points
-            .iter()
-            .copied()
-            .fold(DVec3::splat(f64::NEG_INFINITY), DVec3::max);
-        minimum + (maximum - minimum) * 0.5
-    } else {
-        points.iter().copied().sum::<DVec3>() / points.len() as f64
-    })
+    Some(
+        if !edit_mode
+            && (selected_objects.len() > 1
+                || document.objects.iter().any(|object| {
+                    selected_objects.contains(&object.id)
+                        && matches!(object.geometry, Geometry::Asset(_))
+                }))
+        {
+            let minimum = points
+                .iter()
+                .copied()
+                .fold(DVec3::splat(f64::INFINITY), DVec3::min);
+            let maximum = points
+                .iter()
+                .copied()
+                .fold(DVec3::splat(f64::NEG_INFINITY), DVec3::max);
+            minimum + (maximum - minimum) * 0.5
+        } else {
+            points.iter().copied().sum::<DVec3>() / points.len() as f64
+        },
+    )
 }
 
-fn snapshot_pivot(selected: &Snapshot, frame: &DisplayFrame) -> Result<DVec3, String> {
-    let cache = GeometryCache::new(&selected.document, frame, None)?;
+fn snapshot_pivot(
+    selected: &Snapshot,
+    frame: &DisplayFrame,
+    assets: &AssetFrames,
+) -> Result<DVec3, String> {
+    let cache = GeometryCache::with_assets(&selected.document, frame, None, assets)?;
     let display = selection_pivot_in_display(
         &cache,
         &selected.document,
@@ -3192,17 +3409,82 @@ struct GeometryCache {
 }
 
 impl GeometryCache {
+    #[cfg(test)]
     fn new(
         document: &Document,
         frame: &DisplayFrame,
         visible_objects: Option<&BTreeSet<u64>>,
     ) -> Result<Self, String> {
+        Self::with_assets(document, frame, visible_objects, &AssetFrames::new())
+    }
+
+    fn with_assets(
+        document: &Document,
+        frame: &DisplayFrame,
+        visible_objects: Option<&BTreeSet<u64>>,
+        assets: &AssetFrames,
+    ) -> Result<Self, String> {
+        crate::model::asset_geometry::validate_budget(document, assets)?;
         let mut vertices = Vec::new();
         let mut selectable_vertices = BTreeSet::new();
         let mut loose_edges = Vec::new();
         let mut triangles = Vec::new();
         for object in &document.objects {
             if visible_objects.is_some_and(|visible| !visible.contains(&object.id)) {
+                continue;
+            }
+            if let Geometry::Asset(reference) = &object.geometry {
+                let Some(evaluated) = assets.get(reference) else {
+                    continue;
+                };
+                let geometry = crate::model::asset_geometry::AssetGeometry::new(object, evaluated)?;
+                let points: Vec<_> = geometry
+                    .points
+                    .iter()
+                    .map(|&point| frame.world_to_display(point))
+                    .collect();
+                if points.iter().any(|point| !point.is_finite()) {
+                    return Err("Linked asset exceeds the display coordinate range.".into());
+                }
+                for indices in &geometry.triangles {
+                    selectable_vertices.extend(indices.map(|index| (object.id, index as u64)));
+                }
+                for indices in &geometry.lines {
+                    selectable_vertices.extend(indices.map(|index| (object.id, index as u64)));
+                }
+                selectable_vertices.extend(
+                    geometry
+                        .standalone_points
+                        .iter()
+                        .map(|&index| (object.id, index as u64)),
+                );
+                for indices in geometry.triangles {
+                    triangles.push(Triangle {
+                        object: object.id,
+                        points: indices.map(|index| points[index]),
+                    });
+                }
+                for indices in geometry.lines {
+                    loose_edges.push(WorldEdge {
+                        object: object.id,
+                        points: indices.map(|index| points[index]),
+                    });
+                }
+                for index in geometry.standalone_points {
+                    loose_edges.push(WorldEdge {
+                        object: object.id,
+                        points: [points[index]; 2],
+                    });
+                }
+                // IDs identify object-selection samples only. Asset contents
+                // cannot enter vertex edit mode or authored edit topology.
+                vertices.extend(points.into_iter().enumerate().map(|(index, position)| {
+                    WorldVertex {
+                        object: object.id,
+                        id: index as u64,
+                        position,
+                    }
+                }));
                 continue;
             }
             let mesh = document.eval_object(object.id)?;

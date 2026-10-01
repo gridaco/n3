@@ -21,7 +21,7 @@ fn pan_with_held_modifiers(s: &mut Session<'_>, pressed: bool) -> Result<()> {
 }
 
 fn select(s: &mut Session<'_>, edit: bool) -> Result<()> {
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(18.0, -18.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     if edit {
         s.shortcut("selection.all")?;
@@ -196,7 +196,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     }
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
     select(s, true)?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(20.0, -20.0);
+    let empty = s.empty_viewport_point()?;
     existing_gesture_keeps_priority(s, empty, false)?;
     s.click(Control::ToolMove)?;
     s.hover(Control::TransformX)?;

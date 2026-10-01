@@ -5,7 +5,7 @@
 use super::CapturedFrame;
 use crate::doc_animation::AnimationSettings;
 
-pub(crate) const TEMPLATE_NAME: &str = "macos27-light-v3";
+pub(crate) const TEMPLATE_NAME: &str = "macos27-themed-v5";
 
 // Apple confirms a tighter, consistent macOS 27 window radius but does not
 // publish numeric dimensions. These guide-pixel values are inferred from the
@@ -22,10 +22,35 @@ pub(super) const CORNER_RADIUS: f32 = 15.0;
 const BUTTON_CENTERS: [u32; 3] = [21, 45, 68];
 const BUTTON_RADIUS: f32 = 7.0;
 
-const BODY: [u8; 4] = [255, 255, 255, 255];
-const TITLEBAR: [u8; 4] = [250, 250, 251, 255];
-const BORDER: [u8; 4] = [204, 206, 211, 255];
-const DIVIDER: [u8; 4] = [228, 229, 232, 255];
+// Chrome follows the resolved capture appearance, never the host OS theme.
+// Keep a restrained one-pixel outline, including around the content corners.
+const BORDER_WIDTH: f32 = 1.0;
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct FrameColors {
+    body: [u8; 4],
+    titlebar: [u8; 4],
+    border: [u8; 4],
+    divider: [u8; 4],
+}
+impl FrameColors {
+    fn from_palette(palette: crate::theme::Palette) -> Self {
+        // This is a role mapping, not another set of theme color definitions.
+        Self {
+            body: palette.background.to_srgba_unmultiplied(),
+            titlebar: palette.titlebar.to_srgba_unmultiplied(),
+            border: palette.border.to_srgba_unmultiplied(),
+            divider: palette.sidebar_border.to_srgba_unmultiplied(),
+        }
+    }
+}
+
+// Only the clipped boundary needs per-pixel blending on each captured frame.
+struct ContentEdge {
+    source: usize,
+    target: usize,
+    coverage: f32,
+}
+
 const BUTTONS: [[u8; 4]; 3] = [[241, 99, 97, 255], [246, 193, 61, 255], [54, 201, 88, 255]];
 
 /// Reused for every still and clip sample in one documentation capture. The
@@ -39,6 +64,8 @@ pub(crate) struct WindowFrameTemplate {
     side: u32,
     top: u32,
     rgba: Vec<u8>,
+    colors: FrameColors,
+    content_edges: Vec<ContentEdge>,
 }
 
 impl WindowFrameTemplate {
@@ -50,6 +77,23 @@ impl WindowFrameTemplate {
         inner_width: u32,
         inner_height: u32,
         shadow: bool,
+    ) -> Result<Self, String> {
+        Self::with_colors(
+            inner_width,
+            inner_height,
+            shadow,
+            FrameColors::from_palette(crate::theme::Palette::new(
+                crate::settings::ResolvedTheme::Light,
+                crate::settings::AccentColor::DEFAULT,
+            )),
+        )
+    }
+
+    fn with_colors(
+        inner_width: u32,
+        inner_height: u32,
+        shadow: bool,
+        colors: FrameColors,
     ) -> Result<Self, String> {
         if inner_width == 0 || inner_height == 0 {
             return Err("Window-frame content dimensions must be positive".into());
@@ -75,6 +119,7 @@ impl WindowFrameTemplate {
         }
 
         let mut rgba = vec![0; byte_count];
+        let mut content_edges = Vec::new();
         let window = (
             side as f32,
             top as f32,
@@ -99,20 +144,32 @@ impl WindowFrameTemplate {
                     .max(0.0);
                     let ambient = 0.18 * (-shadow_distance.powi(2) / (2.0 * 17.0f32.powi(2))).exp();
                     let contact = 0.11 * (-shadow_distance.powi(2) / (2.0 * 5.0f32.powi(2))).exp();
-                    pixel.copy_from_slice(&[25, 29, 38, ((ambient + contact) * 255.0) as u8]);
+                    pixel.copy_from_slice(&[0, 0, 0, ((ambient + contact) * 255.0) as u8]);
                 }
 
                 let distance = rounded_rect_distance(px, py, window, CORNER_RADIUS);
                 let coverage = (0.5 - distance).clamp(0.0, 1.0);
+                let is_content = x >= side
+                    && x < side + inner_width
+                    && y >= top + TITLE
+                    && y < top + TITLE + inner_height;
+                let content_coverage = (0.5 - distance - BORDER_WIDTH).clamp(0.0, 1.0);
+                if is_content && content_coverage < 1.0 {
+                    content_edges.push(ContentEdge {
+                        source: (((y - top - TITLE) * inner_width + x - side) * 4) as usize,
+                        target: index,
+                        coverage: content_coverage,
+                    });
+                }
                 if coverage > 0.0 {
-                    let color = if distance > -1.0 {
-                        BORDER
+                    let color = if (is_content && content_coverage < 1.0) || distance > -1.0 {
+                        colors.border
                     } else if py < window.1 + TITLE as f32 - 1.0 {
-                        TITLEBAR
+                        colors.titlebar
                     } else if py < window.1 + TITLE as f32 {
-                        DIVIDER
+                        colors.divider
                     } else {
-                        BODY
+                        colors.body
                     };
                     blend_over(pixel, color, coverage);
                 }
@@ -132,7 +189,22 @@ impl WindowFrameTemplate {
             side,
             top,
             rgba,
+            colors,
+            content_edges,
         })
+    }
+
+    pub(crate) fn set_palette(&mut self, palette: crate::theme::Palette) -> Result<(), String> {
+        let colors = FrameColors::from_palette(palette);
+        if self.colors != colors {
+            *self = Self::with_colors(
+                self.inner_width,
+                self.inner_height,
+                self.side != SIDE,
+                colors,
+            )?;
+        }
+        Ok(())
     }
 
     pub(crate) fn dimensions(&self) -> (u32, u32) {
@@ -158,41 +230,20 @@ impl WindowFrameTemplate {
         let stride = self.width as usize * 4;
         let x_offset = self.side as usize * 4;
         let y_offset = (self.top + TITLE) as usize;
-        let corner_rows = CORNER_RADIUS.ceil() as u32;
         for (y, source_row) in frame.rgba.chunks_exact(row_bytes).enumerate() {
             let target = (y_offset + y) * stride + x_offset;
             rgba[target..target + row_bytes].copy_from_slice(source_row);
-            if (y as u32) < self.inner_height.saturating_sub(corner_rows) {
-                continue;
-            }
-            for x in 0..self.inner_width.min(corner_rows) {
-                for corner_x in [x, self.inner_width - 1 - x] {
-                    let target_x = self.side + corner_x;
-                    let target_y = self.top + TITLE + y as u32;
-                    let coverage = (0.5
-                        - rounded_rect_distance(
-                            target_x as f32 + 0.5,
-                            target_y as f32 + 0.5,
-                            (
-                                self.side as f32,
-                                self.top as f32,
-                                (self.side + self.inner_width) as f32,
-                                (self.top + TITLE + self.inner_height) as f32,
-                            ),
-                            CORNER_RADIUS,
-                        ))
-                    .clamp(0.0, 1.0);
-                    let source = corner_x as usize * 4;
-                    let target_index = target + source;
-                    rgba[target_index..target_index + 4]
-                        .copy_from_slice(&self.rgba[target_index..target_index + 4]);
-                    blend_over(
-                        &mut rgba[target_index..target_index + 4],
-                        source_row[source..source + 4].try_into().unwrap(),
-                        coverage,
-                    );
-                }
-            }
+        }
+        // Copy the interior unchanged, then restore only the cached outline and
+        // corner mask. The capture must never overwrite the window's border.
+        for edge in &self.content_edges {
+            let pixel = &mut rgba[edge.target..edge.target + 4];
+            pixel.copy_from_slice(&self.rgba[edge.target..edge.target + 4]);
+            blend_over(
+                pixel,
+                frame.rgba[edge.source..edge.source + 4].try_into().unwrap(),
+                edge.coverage,
+            );
         }
         Ok(CapturedFrame {
             width: self.width,
@@ -249,6 +300,14 @@ fn paint_traffic_light(rgba: &mut [u8], width: u32, cx: u32, cy: f32, color: [u8
 mod tests {
     use super::*;
 
+    fn palette(theme: egui::Theme) -> crate::theme::Palette {
+        let theme = match theme {
+            egui::Theme::Light => crate::settings::ResolvedTheme::Light,
+            egui::Theme::Dark => crate::settings::ResolvedTheme::Dark,
+        };
+        crate::theme::Palette::new(theme, crate::settings::AccentColor::DEFAULT)
+    }
+
     fn pixel(frame: &CapturedFrame, x: u32, y: u32) -> &[u8] {
         let start = ((y * frame.width + x) * 4) as usize;
         &frame.rgba[start..start + 4]
@@ -282,12 +341,106 @@ mod tests {
             pixel(&second, SIDE, TOP + TITLE + 39)
         );
         assert_ne!(
-            pixel(&first, SIDE + 14, TOP + TITLE + 39),
-            pixel(&second, SIDE + 14, TOP + TITLE + 39)
+            pixel(&first, SIDE + 48, TOP + TITLE + 38),
+            pixel(&second, SIDE + 48, TOP + TITLE + 38)
         );
         assert_eq!(pixel(&first, 0, 0)[3], 0);
         assert_eq!(pixel(&first, SIDE, TOP + TITLE + 20)[3], 255);
         assert!(pixel(&first, SIDE + BUTTON_CENTERS[0], TOP + TITLE / 2)[0] > 180);
+    }
+
+    #[test]
+    fn outline_survives_content_and_all_corners_share_the_same_silhouette() {
+        let mut template = WindowFrameTemplate::new(96, 40).unwrap();
+        for theme in [egui::Theme::Light, egui::Theme::Dark] {
+            template.set_palette(palette(theme)).unwrap();
+            let frame = template
+                .compose(CapturedFrame {
+                    width: 96,
+                    height: 40,
+                    rgba: [255, 0, 255, 255].repeat(96 * 40),
+                })
+                .unwrap();
+            let palette = FrameColors::from_palette(palette(theme));
+            for (x, y) in [(48, 0), (0, TITLE + 20), (95, TITLE + 20), (48, 81)] {
+                assert_eq!(pixel(&frame, x, y), palette.border);
+            }
+            assert_eq!(pixel(&frame, 80, TITLE / 2), palette.titlebar);
+            assert_eq!(pixel(&frame, 48, TITLE - 1), palette.divider);
+            for y in 0..CORNER_RADIUS as u32 {
+                for x in 0..CORNER_RADIUS as u32 {
+                    let alpha = pixel(&frame, x, y)[3];
+                    assert_eq!(alpha, pixel(&frame, 95 - x, y)[3]);
+                    assert_eq!(alpha, pixel(&frame, x, 81 - y)[3]);
+                    assert_eq!(alpha, pixel(&frame, 95 - x, 81 - y)[3]);
+                }
+            }
+            assert_eq!(pixel(&frame, 1, TITLE + 20), [255, 0, 255, 255]);
+            assert_eq!(pixel(&frame, 48, 80), [255, 0, 255, 255]);
+        }
+    }
+
+    #[test]
+    fn theme_switching_is_deterministic_and_keeps_the_cached_mask_between_samples() {
+        let mut template = WindowFrameTemplate::new(96, 40).unwrap();
+        let light = template.rgba.clone();
+        let pointer = template.rgba.as_ptr();
+        let mask_pointer = template.content_edges.as_ptr();
+        template.set_palette(palette(egui::Theme::Light)).unwrap();
+        assert_eq!(pointer, template.rgba.as_ptr());
+        assert_eq!(mask_pointer, template.content_edges.as_ptr());
+        template.set_palette(palette(egui::Theme::Dark)).unwrap();
+        assert_ne!(light, template.rgba);
+        template.set_palette(palette(egui::Theme::Light)).unwrap();
+        assert_eq!(light, template.rgba);
+        // Very narrow and short canvases must not duplicate or overrun mask pixels.
+        let tiny = WindowFrameTemplate::new(1, 1).unwrap();
+        assert_eq!(tiny.content_edges.len(), 1);
+        assert!(
+            tiny.compose(CapturedFrame {
+                width: 1,
+                height: 1,
+                rgba: vec![255; 4],
+            })
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn shared_palette_updates_chrome_without_a_theme_switch() {
+        let mut template = WindowFrameTemplate::new(96, 40).unwrap();
+        let mut p = palette(egui::Theme::Light);
+        // A primary accent change must not invalidate neutral frame chrome.
+        let pointer = template.rgba.as_ptr();
+        p.primary = egui::Color32::RED;
+        template.set_palette(p).unwrap();
+        assert_eq!(pointer, template.rgba.as_ptr());
+        // Titlebar has its own role; future changes propagate without editing
+        // this compositor or aliasing titlebar back to background.
+        p.titlebar = egui::Color32::from_gray(120);
+        p.border = egui::Color32::from_gray(90);
+        p.sidebar_border = egui::Color32::from_gray(100);
+        template.set_palette(p).unwrap();
+        let frame = template
+            .compose(CapturedFrame {
+                width: 96,
+                height: 40,
+                rgba: [17, 42, 91, 255].repeat(96 * 40),
+            })
+            .unwrap();
+        assert_eq!(
+            pixel(&frame, 80, TITLE / 2),
+            p.titlebar.to_srgba_unmultiplied()
+        );
+        assert_eq!(
+            pixel(&frame, 0, TITLE + 20),
+            p.border.to_srgba_unmultiplied()
+        );
+        assert_eq!(
+            pixel(&frame, 48, TITLE - 1),
+            p.sidebar_border.to_srgba_unmultiplied()
+        );
+        assert_eq!(pixel(&frame, 48, TITLE + 20), [17, 42, 91, 255]);
     }
 
     #[test]

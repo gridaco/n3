@@ -50,7 +50,8 @@ fn numeric_and_pointer_pivots_share_normalized_centers_at_large_world_offsets() 
         let pointer_world = editor
             .frame
             .display_to_world(editor.selection_pivot().unwrap());
-        let numeric_world = snapshot_pivot(&editor.snapshot(), &editor.frame).unwrap();
+        let numeric_world =
+            snapshot_pivot(&editor.snapshot(), &editor.frame, editor.asset_frames()).unwrap();
         assert_eq!(numeric_world, pointer_world);
         assert!(numeric_world.is_finite());
         assert_eq!(numeric_world.x, 1.0e308);

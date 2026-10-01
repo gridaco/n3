@@ -3,7 +3,7 @@ renderer: macos-metal
 ui-platform: macOS
 app-canvas: 1920x1080, 1 pixel/point, RGBA8Unorm
 media-canvas: 1920x1122, lossless WebP
-frame-template: macos27-light-v3
+frame-template: macos27-themed-v5
 baseline: Light theme; 240-point side panels
 clock: explicit scenario time; no wall clock
 binding: document.new = Command+N (Press)
@@ -15,6 +15,7 @@ binding: preferences.open = Command+, (Press)
 binding: insert.open = Shift+I (Press)
 binding: history.undo = Command+Z (Press)
 binding: history.redo = Shift+Command+Z (Press)
+binding: animation.play-pause = Space (Press)
 binding: ui.toggle = Command+\ (Press)
 binding: notifications.focus = F6 (Press)
 binding: selection.all = Command+A (Press)
@@ -115,6 +116,7 @@ assert: Light is an actual Appearance choice in Preferences
 assert: Choosing Light resolves the application UI to light and saves the preference
 assert: Dark is an actual Appearance choice in Preferences
 assert: Choosing Dark resolves the application UI to dark and saves the preference
+assert: Dark uses neutral gray surfaces with a matching titlebar while accent colors remain separate
 assert: Changing Grid through Preferences writes the same setting used by JSON
 assert: The selected explicit theme is present in settings.json
 assert: A fresh settings controller restores preferences from the saved text
@@ -128,11 +130,11 @@ assert: Reload settings emits an explicit host request
 assert: Invalid JSON leaves active preferences and file contents intact and supplies a visible error
 assert: The user can retry Reload after repairing their settings file
 assert: Settings reload, persistence, and recovery leave document geometry and edit history untouched
-image: assets/settings-dark.webp (79592 bytes)
+image: assets/settings-dark.webp (71624 bytes)
 input: clean
-image: assets/settings-invalid-json.webp (81518 bytes)
+image: assets/settings-invalid-json.webp (88258 bytes)
 input: clean
-image: assets/settings-preferences.webp (71332 bytes)
+image: assets/settings-preferences.webp (77976 bytes)
 input: clean
 
 feature: edit-selection
@@ -163,9 +165,9 @@ assert: Shift-clicking one selected corner removes its selection and immediately
 assert: Selection feedback changes no authored geometry or mesh revision
 assert: Leaving vertex editing clears the component-rendering payload while retaining the object and geometry
 assert: Changing the selection and its colors creates no geometry undo entry
-image: assets/edit-selection-face.webp (569160 bytes)
+image: assets/edit-selection-face.webp (572758 bytes)
 input: tutorial @ 3.621s: focused=true; pointer=280.0,969.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/edit-selection-partial.webp (52546 bytes)
+image: assets/edit-selection-partial.webp (58936 bytes)
 input: tutorial @ 2.181s: focused=true; pointer=300.0,969.0; cursor=Default; held_mouse=[]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: numeric-transforms
@@ -210,11 +212,11 @@ assert: Changing numeric movement from X to Y reuses the amount against the orig
 assert: Toggling the numeric axis off restores the baseline while leaving the session explicitly finishable
 assert: Cancelling an already-restored numeric session adds no geometry change
 assert: All numeric tutorial previews leave the original object scale after undo or cancel
-image: assets/numeric-move.webp (76792 bytes)
+image: assets/numeric-move.webp (83902 bytes)
 input: tutorial @ 0.921s: focused=true; pointer=1640.0,939.0; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=5/600ms; gesture=none; trail=0
-image: assets/numeric-rotate.webp (74470 bytes)
+image: assets/numeric-rotate.webp (81668 bytes)
 input: tutorial @ 0.921s: focused=true; pointer=1640.0,939.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=0/600ms; gesture=none; trail=0
-image: assets/numeric-scale.webp (68748 bytes)
+image: assets/numeric-scale.webp (75928 bytes)
 input: tutorial @ 0.921s: focused=true; pointer=1640.0,939.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=5/600ms; gesture=none; trail=0
 
 feature: snapping
@@ -293,16 +295,18 @@ assert: Escape closes Preferences before returning to viewport interactions
 assert: The snapping example switches its display to millimeters
 assert: Millimeter display preserves the Position field's canonical Auto sensitivity and 0.05 cm interval
 assert: Display changes and snapping preferences add no document edits
-image: assets/snapping-detail-move.webp (454976 bytes)
+image: assets/snapping-detail-move.webp (462936 bytes)
 input: tutorial @ 0.321s: focused=true; pointer=361.0,944.0; cursor=Move; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=X/600ms; gesture=Pinch 1.82×/600ms; trail=2
-image: assets/snapping-grid-move.webp (185732 bytes)
+image: assets/snapping-grid-move.webp (192636 bytes)
 input: tutorial @ 0.321s: focused=true; pointer=361.0,944.0; cursor=Move; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=X/600ms; gesture=none; trail=2
-image: assets/snapping-precise-input.webp (171796 bytes)
-input: tutorial @ 1.261s: focused=true; pointer=295.0,964.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@1787.8,106.0/250ms; released_keys=Enter/250ms; gesture=none; trail=1
-image: assets/snapping-preferences.webp (192814 bytes)
+image: assets/snapping-precise-input.webp (179486 bytes)
+input: tutorial @ 1.261s: focused=true; pointer=295.0,964.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@1787.8,109.0/250ms; released_keys=Enter/250ms; gesture=none; trail=1
+image: assets/snapping-preferences.webp (200792 bytes)
 input: tutorial @ 0.911s: focused=true; pointer=416.2,589.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@360.0,180.0/250ms; released_keys=Enter/250ms; gesture=Pinch 1.82×/10ms; trail=3
 
 feature: workspace
+control: animation.toggle = Tool Dock tab bar → Animation
+control: tool-dock.tabs = Tool Dock tab bar
 control: app.menu = N3
 control: app.file = N3 → File
 control: view = N3 → View
@@ -310,6 +314,8 @@ control: viewport = Viewport
 control: viewport.toolbar = Tools
 control: status-bar = Status bar
 control: viewport.info = Scene information
+control: document.new = N3 → File → New
+control: document.save-as = N3 → File → Save as…
 control: insert = Insert
 control: viewport.empty-insert = Insert a shape
 control: insert.cube = Insert → Cube
@@ -326,19 +332,34 @@ shortcut-replay: history.redo = Shift+Command+Z
 shortcut-replay: history.undo = Command+Z
 shortcut-replay: ui.toggle = Command+\
 value: panel-width = 240
+value: save-as-menu-hint = ⇧⌘S
+value: save-as-windows-hint = Ctrl+Shift+S
 value: status-bar-height = 32
 assert: A fresh workspace starts with Cursor selected
 assert: An empty 3D document shows a centered Insert action
 assert: The empty-state button keeps its bounds when its hover background appears
 assert: The empty-state action opens the existing Insert menu
 assert: The empty-state action disappears after a shape is inserted
-assert: Position has three compact X/Y/Z fields on one row inside Properties (inspector=[[1689.0 8.0] - [1912.0 1041.0]], fields=[[[1767.0 94.0] - [1808.7 118.0]], [[1814.7 94.0] - [1856.3 118.0]], [[1862.3 94.0] - [1904.0 118.0]]], previous_bottom=-inf)
-assert: Scale has three compact X/Y/Z fields on one row inside Properties (inspector=[[1689.0 8.0] - [1912.0 1041.0]], fields=[[[1767.0 122.0] - [1808.7 146.0]], [[1814.7 122.0] - [1856.3 146.0]], [[1862.3 122.0] - [1904.0 146.0]]], previous_bottom=118)
-assert: Rotation has three compact X/Y/Z fields on one row inside Properties (inspector=[[1689.0 8.0] - [1912.0 1041.0]], fields=[[[1767.0 150.0] - [1808.7 174.0]], [[1814.7 150.0] - [1856.3 174.0]], [[1862.3 150.0] - [1904.0 174.0]]], previous_bottom=146)
+assert: Panel roots reach the viewport borders while their section controls retain an inset
+assert: Position has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 97.0] - [1808.7 121.0]], [[1814.7 97.0] - [1856.3 121.0]], [[1862.3 97.0] - [1904.0 121.0]]], previous_bottom=-inf)
+assert: Scale has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 125.0] - [1808.7 149.0]], [[1814.7 125.0] - [1856.3 149.0]], [[1862.3 125.0] - [1904.0 149.0]]], previous_bottom=121)
+assert: Rotation has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 153.0] - [1808.7 177.0]], [[1814.7 153.0] - [1856.3 177.0]], [[1862.3 153.0] - [1904.0 177.0]]], previous_bottom=149)
 assert: Existing primitive controls appear in Shape after Transform
 assert: The documentation layout starts with both side panels exactly 240 points wide
+assert: The Layers border exposes native horizontal resizing
+assert: The Properties border exposes native horizontal resizing
 assert: Dragging the Properties divider makes the right panel wider
+assert: Panel roots reach the viewport borders while their section controls retain an inset
+assert: Position has three compact X/Y/Z fields on one row inside Properties (inspector=[[1628.0 0.0] - [1920.0 1049.0]], fields=[[[1719.3 97.0] - [1776.8 121.0]], [[1782.8 97.0] - [1840.4 121.0]], [[1846.4 97.0] - [1904.0 121.0]]], previous_bottom=-inf)
+assert: Scale has three compact X/Y/Z fields on one row inside Properties (inspector=[[1628.0 0.0] - [1920.0 1049.0]], fields=[[[1719.3 125.0] - [1776.8 149.0]], [[1782.8 125.0] - [1840.4 149.0]], [[1846.4 125.0] - [1904.0 149.0]]], previous_bottom=121)
+assert: Rotation has three compact X/Y/Z fields on one row inside Properties (inspector=[[1628.0 0.0] - [1920.0 1049.0]], fields=[[[1719.3 153.0] - [1776.8 177.0]], [[1782.8 153.0] - [1840.4 177.0]], [[1846.4 153.0] - [1904.0 177.0]]], previous_bottom=149)
+assert: Existing primitive controls appear in Shape after Transform
 assert: Applying a saved layout restores both resized panels without changing the document, selection, or camera
+assert: Panel roots reach the viewport borders while their section controls retain an inset
+assert: Position has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 97.0] - [1808.7 121.0]], [[1814.7 97.0] - [1856.3 121.0]], [[1862.3 97.0] - [1904.0 121.0]]], previous_bottom=-inf)
+assert: Scale has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 125.0] - [1808.7 149.0]], [[1814.7 125.0] - [1856.3 149.0]], [[1862.3 125.0] - [1904.0 149.0]]], previous_bottom=121)
+assert: Rotation has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 153.0] - [1808.7 177.0]], [[1814.7 153.0] - [1856.3 177.0]], [[1862.3 153.0] - [1904.0 177.0]]], previous_bottom=149)
+assert: Existing primitive controls appear in Shape after Transform
 assert: Model tools and scene information float within the viewport
 assert: The Status bar is 32 points tall beneath the viewport
 assert: The floating Insert button leads the vertical tool stack at the viewport's upper left
@@ -356,12 +377,21 @@ assert: The inserted cube has a Box icon in Layers
 assert: The N3 menu is a compact rounded square in the Layers panel header
 assert: Hovering N3Menu preserves its square bounds
 assert: Hovering InsertMenu preserves its square bounds
-assert: Scene stats sit at the viewport's bottom left
+assert: Scene stats sit at the viewport's lower left, aligned above the floating Tool Dock tab bar
+assert: The Tool Dock tab bar floats beneath the scene stats and above the Status bar, with Animation inside the shared tab bar
 assert: File and View are full-width submenus of N3
+assert: A mouse-opened menu focuses its first available row
+assert: Arrow navigation moves focus to View without changing the document
+assert: Right enters File and focuses its first available command
 assert: File actions use the same minimum menu width
-assert: Position has three compact X/Y/Z fields on one row inside Properties (inspector=[[1689.0 8.0] - [1912.0 1041.0]], fields=[[[1767.0 94.0] - [1808.7 118.0]], [[1814.7 94.0] - [1856.3 118.0]], [[1862.3 94.0] - [1904.0 118.0]]], previous_bottom=-inf)
-assert: Scale has three compact X/Y/Z fields on one row inside Properties (inspector=[[1689.0 8.0] - [1912.0 1041.0]], fields=[[[1767.0 122.0] - [1808.7 146.0]], [[1814.7 122.0] - [1856.3 146.0]], [[1862.3 122.0] - [1904.0 146.0]]], previous_bottom=118)
-assert: Rotation has three compact X/Y/Z fields on one row inside Properties (inspector=[[1689.0 8.0] - [1912.0 1041.0]], fields=[[[1767.0 150.0] - [1808.7 174.0]], [[1814.7 150.0] - [1856.3 174.0]], [[1862.3 150.0] - [1904.0 174.0]]], previous_bottom=146)
+assert: Adjacent menu actions share a boundary without an empty hover gap
+assert: Menu hover preserves the padded row bounds
+assert: Left closes only the submenu and returns focus to File
+assert: Escape dismisses the root menu without editing the document
+assert: Panel roots reach the viewport borders while their section controls retain an inset
+assert: Position has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 97.0] - [1808.7 121.0]], [[1814.7 97.0] - [1856.3 121.0]], [[1862.3 97.0] - [1904.0 121.0]]], previous_bottom=-inf)
+assert: Scale has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 125.0] - [1808.7 149.0]], [[1814.7 125.0] - [1856.3 149.0]], [[1862.3 125.0] - [1904.0 149.0]]], previous_bottom=121)
+assert: Rotation has three compact X/Y/Z fields on one row inside Properties (inspector=[[1681.0 0.0] - [1920.0 1049.0]], fields=[[[1767.0 153.0] - [1808.7 177.0]], [[1814.7 153.0] - [1856.3 177.0]], [[1862.3 153.0] - [1904.0 177.0]]], previous_bottom=149)
 assert: Existing primitive controls appear in Shape after Transform
 assert: Double-clicking a Layers row opens inline renaming
 assert: Inline editing keeps the row's text position and height
@@ -377,17 +407,58 @@ assert: Object transform fields also apply immediately
 assert: One Undo restores the object position after a field drag
 assert: Toggle UI hides the chrome and expands the viewport without changing the model or selection
 assert: Repeating Toggle UI restores the workspace with the same document
-image: assets/workspace-empty-3d.webp (508334 bytes)
+image: assets/workspace-empty-3d.webp (515412 bytes)
 input: clean
-image: assets/workspace-hidden-ui.webp (377556 bytes)
+image: assets/workspace-hidden-ui.webp (377288 bytes)
 input: clean
-image: assets/workspace-layout.webp (342286 bytes)
+image: assets/workspace-layout.webp (347916 bytes)
 input: clean
-image: assets/workspace-live-property.webp (326284 bytes)
-input: tutorial @ 1.671s: focused=true; pointer=1809.8,267.0; cursor=ResizeHorizontal; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/600ms; gesture=none; trail=2
-image: assets/workspace-menu.webp (345430 bytes)
+image: assets/workspace-live-property.webp (332284 bytes)
+input: tutorial @ 1.671s: focused=true; pointer=1809.8,257.0; cursor=ResizeHorizontal; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/600ms; gesture=none; trail=2
+image: assets/workspace-menu.webp (353838 bytes)
 input: clean
-image: assets/workspace-transform-layout.webp (342286 bytes)
+image: assets/workspace-transform-layout.webp (347916 bytes)
+input: clean
+
+feature: terminal
+control: tool-dock = Tool Dock
+control: terminal.toggle = Tool Dock tab bar → Terminal
+control: terminal.panel = Terminal panel
+control: terminal.viewport = Terminal contents
+control: terminal.status = Shell session
+control: animation.toggle = Tool Dock tab bar → Animation
+control: tool-dock.tabs = Tool Dock tab bar
+control: tool-dock.close = Tool Dock tab bar → Close Tool Dock
+control: app.menu = N3
+control: preferences.open = N3 → Preferences
+control: preferences.close = Preferences → Close
+control: appearance.theme = Preferences → Theme
+control: appearance.theme.dark = Preferences → Theme → Dark
+assert: The Tool Dock starts closed, including for a nonempty document
+assert: Animation and Terminal are aligned, separate controls in the same Tool Dock tab bar
+assert: Closing the Tool Dock returns its tab bar to the viewport without a second container
+assert: The floating Terminal tab opens Terminal in the Tool Dock
+assert: Terminal connects to a real controlled local shell through the native PTY
+assert: Animation and Terminal are aligned, separate controls in the same Tool Dock tab bar
+assert: The open Tool Dock owns a compact 32-point tab bar with aligned controls and equal 2-point container padding
+assert: Real Terminal input executes printf through the PTY and displays its ANSI output without changing viewport selection, tools, geometry, or camera
+assert: The live Tool Dock upper edge exposes its resize interaction
+assert: Resizing the Tool Dock expands Terminal inside its actual bounds without starting a viewport gesture
+assert: Animation and Terminal are aligned, separate controls in the same Tool Dock tab bar
+assert: The open Tool Dock owns a compact 32-point tab bar with aligned controls and equal 2-point container padding
+assert: Switching to Animation replaces Tool Dock content and preserves its size
+assert: Returning to Terminal and activating its selected tab keeps the same Tool Dock open
+assert: Close dismisses the Tool Dock
+assert: Animation and Terminal are aligned, separate controls in the same Tool Dock tab bar
+assert: Closing the Tool Dock returns its tab bar to the viewport without a second container
+assert: Closing and reopening the Tool Dock retains the running shell and its real output
+assert: Terminal remains available when the application appearance changes to Dark
+assert: Opening, focusing, scrolling, resizing, switching, and closing Tool Dock panels do not alter geometry or add document history
+image: assets/terminal-dark.webp (352142 bytes)
+input: clean
+image: assets/terminal-light.webp (364580 bytes)
+input: clean
+image: assets/terminal-resized.webp (362074 bytes)
 input: clean
 
 feature: toasts
@@ -413,9 +484,9 @@ assert: Hovering preserves reading and action time
 assert: The toast action dispatches ordinary Select all once, dismisses itself, and changes only selection (toast=false, selected=1, document_unchanged=true, camera_unchanged=true)
 assert: A shortcut hint is not repeated during the session
 assert: The hint and its selection action add no undo steps; Undo removes the inserted cube
-image: assets/toasts-shortcut-hint-dark.webp (313814 bytes)
+image: assets/toasts-shortcut-hint-dark.webp (321026 bytes)
 input: clean
-image: assets/toasts-shortcut-hint.webp (328396 bytes)
+image: assets/toasts-shortcut-hint.webp (334008 bytes)
 input: clean
 
 feature: length-units
@@ -495,10 +566,10 @@ assert: Display units are actual options in Preferences
 assert: Escape closes Preferences before returning to viewport interactions
 assert: The chosen display unit becomes active and remains after closing Preferences (requested=Feet, actual=Feet, open=false)
 assert: New preserves the display-unit preference while geometry remains canonical centimeters
-image: assets/length-units-meters.webp (49074 bytes)
-input: tutorial @ 0.321s: focused=true; pointer=1835.5,267.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left released@439.2,464.0/600ms; released_keys=Escape/600ms; gesture=none; trail=1
-image: assets/length-units-millimeters.webp (52216 bytes)
-input: tutorial @ 0.321s: focused=true; pointer=1787.8,267.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left released@439.0,404.0/600ms; released_keys=Escape/600ms; gesture=none; trail=1
+image: assets/length-units-meters.webp (55816 bytes)
+input: tutorial @ 0.321s: focused=true; pointer=1835.5,257.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left released@440.2,452.0/600ms; released_keys=Escape/600ms; gesture=none; trail=1
+image: assets/length-units-millimeters.webp (58982 bytes)
+input: tutorial @ 0.321s: focused=true; pointer=1787.8,257.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left released@440.0,404.0/600ms; released_keys=Escape/600ms; gesture=none; trail=1
 
 feature: 2d
 control: gizmo.planar = Axis gizmo → 2D
@@ -528,11 +599,11 @@ assert: The unfilled Circle's empty center does not select the object
 assert: Clicking the outline selects the Circle
 assert: Entering vertex edit mode preserves the Circle recipe
 assert: Leaving without a vertex edit retains Radius, Vertices, and Fill
-image: assets/2d-circle-filled.webp (82676 bytes)
+image: assets/2d-circle-filled.webp (89420 bytes)
 input: clean
-image: assets/2d-empty.webp (27906 bytes)
+image: assets/2d-empty.webp (34740 bytes)
 input: clean
-image: assets/2d-overview.webp (89806 bytes)
+image: assets/2d-overview.webp (96940 bytes)
 input: clean
 
 feature: 2d-ruler
@@ -699,18 +770,18 @@ assert: A real box selects only two vertices on one side of the rotated cube
 assert: Ruler highlights match the selected geometry's projected bounds and preserve the gaps between separate objects
 assert: Clearing vertex selection removes its highlights and keeps the ruler ticks
 assert: Rulers, view changes and selections do not edit geometry, saved state or document history
-animation: assets/2d-ruler-axis-transition.webp (2625564 bytes)
+animation: assets/2d-ruler-axis-transition.webp (2739864 bytes)
 input: tutorial clip: 41 samples, 35 encoded frames, 1600ms, sample <= 50ms, loops=0
-frame @ 1.881s + 50ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/480ms; gesture=none; trail=0
-frame @ 1.931s + 50ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/430ms; gesture=none; trail=0
-frame @ 1.981s + 50ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/380ms; gesture=none; trail=0
-frame @ 2.031s + 50ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/330ms; gesture=none; trail=0
-frame @ 2.081s + 50ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/280ms; gesture=none; trail=0
-frame @ 2.131s + 50ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/230ms; gesture=none; trail=0
-frame @ 2.181s + 30ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 7/600ms; gesture=none; trail=0
-frame @ 2.211s + 30ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 7/570ms; gesture=none; trail=0
-frame @ 2.241s + 30ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 3/600ms; gesture=none; trail=0
-frame @ 2.271s + 30ms: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 3/570ms; gesture=none; trail=0
+frame @ 1.881s + 50ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/480ms; gesture=none; trail=0
+frame @ 1.931s + 50ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/430ms; gesture=none; trail=0
+frame @ 1.981s + 50ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/380ms; gesture=none; trail=0
+frame @ 2.031s + 50ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/330ms; gesture=none; trail=0
+frame @ 2.081s + 50ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/280ms; gesture=none; trail=0
+frame @ 2.131s + 50ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=2/230ms; gesture=none; trail=0
+frame @ 2.181s + 30ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 7/600ms; gesture=none; trail=0
+frame @ 2.211s + 30ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 7/570ms; gesture=none; trail=0
+frame @ 2.241s + 30ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 3/600ms; gesture=none; trail=0
+frame @ 2.271s + 30ms: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Numpad 3/570ms; gesture=none; trail=0
 frame @ 2.301s + 30ms: focused=true; pointer=1614.0,58.3; cursor=PointingHand; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=Numpad 3/540ms; gesture=none; trail=1
 frame @ 2.331s + 30ms: focused=true; pointer=1614.0,58.3; cursor=PointingHand; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=Numpad 3/510ms; gesture=none; trail=1
 frame @ 2.361s + 30ms: focused=true; pointer=1614.0,58.3; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@1614.0,58.3/600ms; released_keys=Numpad 3/480ms; gesture=none; trail=1
@@ -727,28 +798,28 @@ frame @ 2.691s + 30ms: focused=true; pointer=1614.0,86.0; cursor=Grab; held_mous
 frame @ 2.721s + 40ms: focused=true; pointer=1614.0,86.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@1614.0,86.0/480ms; released_keys=Numpad 3/120ms; gesture=none; trail=1
 frame @ 2.761s + 40ms: focused=true; pointer=1614.0,86.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@1614.0,86.0/440ms; released_keys=Numpad 3/80ms; gesture=none; trail=1
 frame @ 2.801s + 40ms: focused=true; pointer=1614.0,86.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@1614.0,86.0/400ms; released_keys=Numpad 3/40ms; gesture=none; trail=1
-frame @ 2.841s + 30ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/600ms; released_keys=none; gesture=none; trail=1
-frame @ 2.871s + 30ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/570ms; released_keys=none; gesture=none; trail=1
-frame @ 2.901s + 30ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/540ms; released_keys=none; gesture=none; trail=1
-frame @ 2.931s + 30ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/510ms; released_keys=none; gesture=none; trail=1
-frame @ 2.961s + 40ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/480ms; released_keys=none; gesture=none; trail=1
-frame @ 3.001s + 40ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/440ms; released_keys=none; gesture=none; trail=1
-frame @ 3.041s + 40ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/400ms; released_keys=none; gesture=none; trail=1
-frame @ 3.081s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/360ms; released_keys=none; gesture=none; trail=1
-frame @ 3.131s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/310ms; released_keys=none; gesture=none; trail=1
-frame @ 3.181s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/260ms; released_keys=none; gesture=none; trail=1
-frame @ 3.231s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/210ms; released_keys=none; gesture=none; trail=1
-frame @ 3.281s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/160ms; released_keys=none; gesture=none; trail=1
-frame @ 3.331s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/110ms; released_keys=none; gesture=none; trail=1
-frame @ 3.381s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/60ms; released_keys=none; gesture=none; trail=1
-frame @ 3.431s + 50ms: focused=true; pointer=343.0,119.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,119.0/10ms; released_keys=none; gesture=none; trail=1
-image: assets/2d-ruler-hidden.webp (40440 bytes)
+frame @ 2.841s + 30ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/600ms; released_keys=none; gesture=none; trail=1
+frame @ 2.871s + 30ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/570ms; released_keys=none; gesture=none; trail=1
+frame @ 2.901s + 30ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/540ms; released_keys=none; gesture=none; trail=1
+frame @ 2.931s + 30ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/510ms; released_keys=none; gesture=none; trail=1
+frame @ 2.961s + 40ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/480ms; released_keys=none; gesture=none; trail=1
+frame @ 3.001s + 40ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/440ms; released_keys=none; gesture=none; trail=1
+frame @ 3.041s + 40ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/400ms; released_keys=none; gesture=none; trail=1
+frame @ 3.081s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/360ms; released_keys=none; gesture=none; trail=1
+frame @ 3.131s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/310ms; released_keys=none; gesture=none; trail=1
+frame @ 3.181s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/260ms; released_keys=none; gesture=none; trail=1
+frame @ 3.231s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/210ms; released_keys=none; gesture=none; trail=1
+frame @ 3.281s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/160ms; released_keys=none; gesture=none; trail=1
+frame @ 3.331s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/110ms; released_keys=none; gesture=none; trail=1
+frame @ 3.381s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/60ms; released_keys=none; gesture=none; trail=1
+frame @ 3.431s + 50ms: focused=true; pointer=343.0,107.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,107.0/10ms; released_keys=none; gesture=none; trail=1
+image: assets/2d-ruler-hidden.webp (46772 bytes)
 input: clean
-image: assets/2d-ruler-menu.webp (48020 bytes)
+image: assets/2d-ruler-menu.webp (54474 bytes)
 input: clean
-image: assets/2d-ruler-objects.webp (57554 bytes)
+image: assets/2d-ruler-objects.webp (64082 bytes)
 input: tutorial @ 4.751s: focused=true; pointer=1215.9,707.1; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/2d-ruler-vertices.webp (56758 bytes)
+image: assets/2d-ruler-vertices.webp (63248 bytes)
 input: tutorial @ 5.591s: focused=true; pointer=743.3,706.1; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: axis-locks
@@ -852,9 +923,9 @@ assert: Confirm applies the complete transform after camera inspection
 assert: One Undo restores both locked drags across camera navigation while keeping the inspected view
 assert: The cancellation check retains a changed preview through another camera inspection
 assert: Cancel restores the original transform baseline and selection without undoing camera navigation
-image: assets/axis-locks-aligned-nudge.webp (56644 bytes)
+image: assets/axis-locks-aligned-nudge.webp (62824 bytes)
 input: tutorial @ 3.141s: focused=true; pointer=353.0,914.0; cursor=Default; held_mouse=[]; held_keys=[Up]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/axis-locks-drag.webp (70660 bytes)
+image: assets/axis-locks-drag.webp (76818 bytes)
 input: tutorial @ 1.081s: focused=true; pointer=353.0,914.0; cursor=Move; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=2
 
 feature: editing
@@ -1039,21 +1110,21 @@ assert: The next Cancel leaves vertex edit mode while retaining the object selec
 assert: The next Cancel deselects the object and hides object properties and transform handles without changing the document or display-unit preference
 assert: Cancel with no selection or active interaction leaves the document and session unchanged
 assert: Idle Confirm with no selected object is a no-op
-image: assets/editing-insert-menu.webp (416646 bytes)
-input: tutorial @ 7.181s: focused=true; pointer=305.0,167.0; cursor=Default; held_mouse=[]; held_keys=[Shift+I]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/editing-move-handles.webp (411608 bytes)
+image: assets/editing-insert-menu.webp (425026 bytes)
+input: tutorial @ 7.181s: focused=true; pointer=363.0,149.0; cursor=Default; held_mouse=[]; held_keys=[Shift+I]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/editing-move-handles.webp (417100 bytes)
 input: tutorial @ 0.801s: focused=true; pointer=1017.4,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/editing-move-vertices.webp (413374 bytes)
+image: assets/editing-move-vertices.webp (419426 bytes)
 input: tutorial @ 3.641s: focused=true; pointer=1357.2,738.6; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=Enter/600ms; gesture=none; trail=2
-image: assets/editing-no-selection.webp (401940 bytes)
-input: tutorial @ 7.181s: focused=true; pointer=285.0,1004.0; cursor=Default; held_mouse=[]; held_keys=[Escape]; released_mouse=Left drag released@285.0,1004.0/600ms; released_keys=none; gesture=none; trail=2
-image: assets/editing-polyhedron-type.webp (323792 bytes)
+image: assets/editing-no-selection.webp (409350 bytes)
+input: tutorial @ 7.181s: focused=true; pointer=458.5,1006.0; cursor=Default; held_mouse=[]; held_keys=[Escape]; released_mouse=Left drag released@458.5,1006.0/600ms; released_keys=none; gesture=none; trail=2
+image: assets/editing-polyhedron-type.webp (329388 bytes)
 input: clean
-image: assets/editing-primitive-vertices.webp (411514 bytes)
+image: assets/editing-primitive-vertices.webp (417538 bytes)
 input: tutorial @ 2.401s: focused=true; pointer=1265.5,712.2; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1265.5,712.2/600ms; released_keys=Enter/600ms; gesture=none; trail=3
-image: assets/editing-primitive.webp (403976 bytes)
-input: tutorial @ 0.201s: focused=true; pointer=1787.8,267.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,353.0/600ms; released_keys=none; gesture=none; trail=1
-image: assets/editing-scale-handles.webp (407008 bytes)
+image: assets/editing-primitive.webp (410772 bytes)
+input: tutorial @ 0.201s: focused=true; pointer=1787.8,257.0; cursor=ResizeHorizontal; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,287.0/600ms; released_keys=none; gesture=none; trail=1
+image: assets/editing-scale-handles.webp (412620 bytes)
 input: tutorial @ 1.901s: focused=true; pointer=1017.4,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: make-face
@@ -1089,7 +1160,7 @@ assert: A duplicate-face no-op creates no undo entry: one Undo restores the circ
 assert: Redo restores the menu-created face in one step
 assert: The rejection example selects all four corners of the nonplanar closed outline
 assert: A nonplanar outline reports an error and preserves the exact geometry, revision and selection
-animation: assets/make-face-circle.webp (4783720 bytes)
+animation: assets/make-face-circle.webp (4921832 bytes)
 input: tutorial clip: 137 samples, 45 encoded frames, 6850ms, sample <= 50ms, loops=0
 frame @ 0.921s + 50ms: focused=true; pointer=970.0,534.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 0.971s + 50ms: focused=true; pointer=970.0,534.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
@@ -1228,9 +1299,9 @@ frame @ 7.571s + 50ms: focused=true; pointer=1020.0,659.5; cursor=Default; held_
 frame @ 7.621s + 50ms: focused=true; pointer=1020.0,659.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 7.671s + 50ms: focused=true; pointer=1020.0,659.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 7.721s + 50ms: focused=true; pointer=1020.0,659.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/make-face-menu.webp (451824 bytes)
-input: tutorial @ 8.671s: focused=true; pointer=1022.8,604.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Right released@960.0,524.5/300ms; released_keys=Command+Z/300ms; gesture=none; trail=1
-image: assets/make-face-result.webp (310458 bytes)
+image: assets/make-face-menu.webp (455902 bytes)
+input: tutorial @ 8.671s: focused=true; pointer=1071.0,592.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Right released@960.0,524.5/300ms; released_keys=Command+Z/300ms; gesture=none; trail=1
+image: assets/make-face-result.webp (316142 bytes)
 input: tutorial @ 8.371s: focused=true; pointer=1020.0,659.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: object-feedback
@@ -1291,16 +1362,16 @@ assert: Vertex mode suppresses object outlines and hover feedback while retainin
 assert: Vertex mode suppresses object outlines and hover feedback while retaining the edited object and its selected Layers row
 assert: Hover, selection, display toggles and mode changes do not alter geometry, saved state or document history
 assert: Hover, selection, display toggles and mode changes do not alter geometry, saved state or document history
-animation: assets/object-feedback-box-drag-and-release.webp (3985698 bytes)
+animation: assets/object-feedback-box-drag-and-release.webp (4013492 bytes)
 input: tutorial clip: 62 samples, 46 encoded frames, 3100ms, sample <= 50ms, loops=0
-frame @ 1.401s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/600ms; released_keys=none; gesture=none; trail=1
-frame @ 1.451s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/550ms; released_keys=none; gesture=none; trail=1
-frame @ 1.501s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/500ms; released_keys=none; gesture=none; trail=1
-frame @ 1.551s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/450ms; released_keys=none; gesture=none; trail=1
-frame @ 1.601s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/400ms; released_keys=none; gesture=none; trail=1
-frame @ 1.651s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/350ms; released_keys=none; gesture=none; trail=1
-frame @ 1.701s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/300ms; released_keys=none; gesture=none; trail=1
-frame @ 1.751s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,104.0/250ms; released_keys=none; gesture=none; trail=1
+frame @ 1.401s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/600ms; released_keys=none; gesture=none; trail=1
+frame @ 1.451s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/550ms; released_keys=none; gesture=none; trail=1
+frame @ 1.501s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/500ms; released_keys=none; gesture=none; trail=1
+frame @ 1.551s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/450ms; released_keys=none; gesture=none; trail=1
+frame @ 1.601s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/400ms; released_keys=none; gesture=none; trail=1
+frame @ 1.651s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/350ms; released_keys=none; gesture=none; trail=1
+frame @ 1.701s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/300ms; released_keys=none; gesture=none; trail=1
+frame @ 1.751s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.5,102.0/250ms; released_keys=none; gesture=none; trail=1
 frame @ 1.801s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
 frame @ 1.851s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
 frame @ 1.901s + 50ms: focused=true; pointer=754.3,364.0; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
@@ -1355,13 +1426,13 @@ frame @ 4.301s + 50ms: focused=true; pointer=1209.0,732.7; cursor=Default; held_
 frame @ 4.351s + 50ms: focused=true; pointer=1209.0,732.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 4.401s + 50ms: focused=true; pointer=1209.0,732.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 4.451s + 50ms: focused=true; pointer=1209.0,732.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/object-feedback-box-result.webp (514304 bytes)
+image: assets/object-feedback-box-result.webp (521088 bytes)
 input: tutorial @ 4.501s: focused=true; pointer=1209.0,732.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1209.0,732.7/600ms; released_keys=none; gesture=none; trail=3
-image: assets/object-feedback-box-selection.webp (636634 bytes)
+image: assets/object-feedback-box-selection.webp (643150 bytes)
 input: tutorial @ 4.501s: focused=true; pointer=1209.0,732.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
-image: assets/object-feedback-layers.webp (500262 bytes)
-input: tutorial @ 0.801s: focused=true; pointer=119.5,134.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/object-feedback-viewport.webp (498966 bytes)
+image: assets/object-feedback-layers.webp (507292 bytes)
+input: tutorial @ 0.801s: focused=true; pointer=119.5,132.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/object-feedback-viewport.webp (504632 bytes)
 input: tutorial @ 1.401s: focused=true; pointer=1095.6,583.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: selection-keys
@@ -1438,12 +1509,12 @@ assert: Previous selection with no selected vertices starts at the last visible 
 assert: Delete removes selected vertices and every incident face, retaining the object, unselected vertices, other objects and surviving polygon faces without repair
 assert: One Undo restores deleted vertex IDs, positions, incident faces and component selection exactly
 assert: Redo restores the same vertex deletion without generating replacement faces
-image: assets/selection-keys-all-objects.webp (503266 bytes)
-input: tutorial @ 0.801s: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[Command+A]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/selection-keys-delete-vertex.webp (504444 bytes)
+image: assets/selection-keys-all-objects.webp (510350 bytes)
+input: tutorial @ 0.801s: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[Command+A]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/selection-keys-delete-vertex.webp (511152 bytes)
 input: tutorial @ 2.001s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[Delete]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/selection-keys-duplicate.webp (508038 bytes)
-input: tutorial @ 1.401s: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[Command+D]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/selection-keys-duplicate.webp (514006 bytes)
+input: tutorial @ 1.401s: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[Command+D]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: opening-models
 control: app.menu = N3
@@ -1468,8 +1539,684 @@ assert: Z-up displays the source Z direction as vertical
 assert: Z-up changes display orientation without altering display vertices or canonical document geometry
 assert: Z-up can be returned to the initial display orientation
 assert: A successful second load replaces the displayed model and statistics
-image: assets/opening-models.webp (455696 bytes)
+image: assets/opening-models.webp (461330 bytes)
 input: clean
+
+feature: scene-viewer
+control: animation.toggle = Tool Dock tab bar → Animation
+control: tool-dock.close = Tool Dock tab bar → Close Tool Dock
+control: scene.hierarchy = Properties → Scene hierarchy
+control: scene.play = Animation timeline → Play / pause
+control: scene.time = Animation timeline → Time
+control: scene.exposure = Properties → Exposure
+control: scene.diagnostics = Properties → Compatibility
+control: app.menu = N3
+control: app.file = N3 → File
+control: import = N3 → File → Import…
+control: view = N3 → View
+control: shading-pie = Shading
+control: shading-pie.material-preview = Shading → Material Preview
+control: edges = N3 → View → Edges
+control: viewport = Viewport
+control: document.save = N3 → File → Save
+control: document.save-as = N3 → File → Save as…
+control: tool.move = Tools → Move
+shortcut-replay: edit.confirm = Enter
+shortcut-replay: edit.leave = Shift+Enter
+shortcut-replay: history.redo = Shift+Command+Z
+shortcut-replay: history.undo = Command+Z
+shortcut-replay: shading.pie = Z
+shortcut-replay: tool.cursor = V
+shortcut-replay: tool.move = W
+shortcut-replay: transform.axis-x = X
+shortcut-replay: view.frame = Shift+1
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: The real Edges control sets the preview overlay
+assert: Opening a static imported asset leaves animation controls closed by default
+assert: The Animation control explicitly opens the panel for the selected asset
+assert: The GLB example renders the real Water Bottle geometry and its embedded PBR texture channels
+assert: A static scene disables playback and time controls while Material Preview enables Exposure
+assert: Closing the animation panel returns space to the viewport without editing the document
+assert: Expanding the source hierarchy preserves the selected asset placement object
+assert: Exposure adjusts presentation without reevaluating or modifying scene geometry
+assert: Scene inspection, exposure and diagnostics preserve the source and editable-document history
+assert: The real Edges control sets the preview overlay
+assert: The real Edges control sets the preview overlay
+assert: The real Import menu requests the native file-choice boundary exactly once
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Importing the placement example does not reopen animation controls
+assert: Import appends a linked asset beside native geometry in one document
+assert: Moving the asset changes authored placement while retaining its linked source and decoded contents
+assert: Undo restores the asset placement in one history step
+assert: Redo restores placement without reimporting or altering the source
+assert: Entering vertex edit does not silently flatten or modify an imported asset's contents
+assert: The mixed authored document can be saved with its linked asset references
+image: assets/scene-viewer-materials.webp (596864 bytes)
+input: tutorial @ 0.801s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+animation: assets/scene-viewer-placement.webp (2963144 bytes)
+input: tutorial clip: 74 samples, 9 encoded frames, 3700ms, sample <= 50ms, loops=0
+frame @ 1.521s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.571s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.621s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.671s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.721s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.771s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.821s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.871s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.921s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 1.971s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.021s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.071s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.121s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.171s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.221s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/600ms; gesture=none; trail=0
+frame @ 2.271s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/550ms; gesture=none; trail=0
+frame @ 2.321s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/500ms; gesture=none; trail=0
+frame @ 2.371s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/450ms; gesture=none; trail=0
+frame @ 2.421s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/400ms; gesture=none; trail=0
+frame @ 2.471s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/350ms; gesture=none; trail=0
+frame @ 2.521s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/300ms; gesture=none; trail=0
+frame @ 2.571s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/250ms; gesture=none; trail=0
+frame @ 2.621s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/200ms; gesture=none; trail=0
+frame @ 2.671s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/150ms; gesture=none; trail=0
+frame @ 2.721s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/100ms; gesture=none; trail=0
+frame @ 2.771s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=6/50ms; gesture=none; trail=0
+frame @ 2.821s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.871s + 50ms: focused=true; pointer=960.0,524.5; cursor=Move; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.921s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/600ms; gesture=none; trail=0
+frame @ 2.971s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/550ms; gesture=none; trail=0
+frame @ 3.021s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/500ms; gesture=none; trail=0
+frame @ 3.071s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/450ms; gesture=none; trail=0
+frame @ 3.121s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/400ms; gesture=none; trail=0
+frame @ 3.171s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/350ms; gesture=none; trail=0
+frame @ 3.221s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/300ms; gesture=none; trail=0
+frame @ 3.271s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/250ms; gesture=none; trail=0
+frame @ 3.321s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/200ms; gesture=none; trail=0
+frame @ 3.371s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/150ms; gesture=none; trail=0
+frame @ 3.421s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/100ms; gesture=none; trail=0
+frame @ 3.471s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Enter/50ms; gesture=none; trail=0
+frame @ 3.521s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.571s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.621s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/600ms; gesture=none; trail=0
+frame @ 3.671s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/550ms; gesture=none; trail=0
+frame @ 3.721s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/500ms; gesture=none; trail=0
+frame @ 3.771s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/450ms; gesture=none; trail=0
+frame @ 3.821s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/400ms; gesture=none; trail=0
+frame @ 3.871s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/350ms; gesture=none; trail=0
+frame @ 3.921s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/300ms; gesture=none; trail=0
+frame @ 3.971s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/250ms; gesture=none; trail=0
+frame @ 4.021s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/200ms; gesture=none; trail=0
+frame @ 4.071s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/150ms; gesture=none; trail=0
+frame @ 4.121s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/100ms; gesture=none; trail=0
+frame @ 4.171s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Command+Z/50ms; gesture=none; trail=0
+frame @ 4.221s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 4.271s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 4.321s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/600ms; gesture=none; trail=0
+frame @ 4.371s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/550ms; gesture=none; trail=0
+frame @ 4.421s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/500ms; gesture=none; trail=0
+frame @ 4.471s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/450ms; gesture=none; trail=0
+frame @ 4.521s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/400ms; gesture=none; trail=0
+frame @ 4.571s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/350ms; gesture=none; trail=0
+frame @ 4.621s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/300ms; gesture=none; trail=0
+frame @ 4.671s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/250ms; gesture=none; trail=0
+frame @ 4.721s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/200ms; gesture=none; trail=0
+frame @ 4.771s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/150ms; gesture=none; trail=0
+frame @ 4.821s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/100ms; gesture=none; trail=0
+frame @ 4.871s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Shift+Command+Z/50ms; gesture=none; trail=0
+frame @ 4.921s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 4.971s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.021s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.071s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.121s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.171s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+
+feature: animation
+control: animation.toggle = Tool Dock tab bar → Animation
+control: tool-dock.tabs = Tool Dock tab bar
+control: tool-dock.close = Tool Dock tab bar → Close Tool Dock
+control: animation.timeline = Animation timeline
+control: animation.ruler = Animation timeline → Time ruler
+control: animation.fit = Animation timeline → Fit
+control: scene.animation = Animation timeline → Animation
+control: scene.play = Animation timeline → Play / pause
+control: scene.rest = Animation timeline → Rest pose
+control: scene.time = Animation timeline → Time
+control: scene.loop = Animation timeline → Loop
+control: scene.speed = Animation timeline → Speed
+control: shading-pie = Shading
+control: shading-pie.material-preview = Shading → Material Preview
+control: viewport = Viewport
+shortcut-replay: animation.play-pause = Space
+shortcut-replay: cancel = Escape
+shortcut-replay: edit.confirm = Enter
+shortcut-replay: selection.all = Command+A
+shortcut-replay: shading.pie = Z
+shortcut-replay: tool.cursor = V
+shortcut-replay: view.front = 2
+assert: Importing and selecting an animated asset does not open the animation panel
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Animation is a tab in the Tool Dock tab bar, separate from the status bar
+assert: The closed panel exposes a floating tab bar below the scene statistics at the viewport's lower-left
+assert: Animation explicitly opens the panel below the same editor viewport
+assert: Animation is a tab in the Tool Dock tab bar, separate from the status bar
+assert: The open Tool Dock owns a compact 32-point header with centered controls and equal 2-point container padding
+assert: Activating the selected Animation tab keeps the panel open and focuses inspection without seeking, evaluating, or changing the document
+assert: The timeline exposes the real clip's source keys in relative seconds while the viewport remains at Rest pose; joint rotation and vector morph weights retain their channel meaning
+assert: Scrolling over the timeline changes its visible interval without navigating the viewport or changing playback
+assert: Fit restores the full clip interval with its original timing and no pose change (before=TimeRange { start: -0.275, end: 5.775 }, after=Some(TimeRange { start: -0.275, end: 5.775 }), same frame=true, fit=[[418.4 868.7] - [439.1 888.7]])
+assert: Inspecting a live timeline key exposes its metadata without seeking, evaluating a pose, or changing object selection
+assert: Hovering the selected source key opens its real metadata tooltip without changing the pose or playhead
+assert: A held selection box preserves the previous selection and pose until release
+assert: Releasing the box selects the two intersecting source keys
+assert: Shift-box selection adds the third source key without replacing the first two
+assert: Escape cancels the box; the late release neither seeks nor clears the selected asset
+assert: Focused playback shortcut starts the first clip from Rest and changes evaluated geometry while keeping the viewport framing stable
+assert: The same focused playback shortcut pauses and holds the accepted time and exact evaluated frame
+assert: The held ruler drag previews a changed pose through the production evaluator and remains paused
+assert: Releasing the scrub accepts and holds the inspected pose without resuming playback
+assert: The second held scrub previews a different pose before cancellation
+assert: Escape restores the exact pre-scrub playback and pose; releasing afterward cannot commit a cancelled preview
+assert: Rest stops playback and restores the exact cached source pose
+assert: Starting a scrub pauses a previously playing clip
+assert: Focus loss cancels a scrub and restores its exact time, pose, and playing state
+assert: Typing a fractional time selects and evaluates the first clip from Rest while leaving playback paused
+assert: Loop disables repeat playback
+assert: Loop and speed are preview controls that preserve the Rest-pose frame
+assert: Animation inspection, playback, scrubbing, cancellation, Fit, loop, and speed keep the authored document, dirty state, source data, and Undo history unchanged
+assert: Closing the idle panel preserves its accepted preview and leaves the ordinary viewport available
+assert: Animation is a tab in the Tool Dock tab bar, separate from the status bar
+assert: The closed panel exposes a floating tab bar below the scene statistics at the viewport's lower-left
+assert: Importing and selecting an animated asset does not open the animation panel
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Animation is a tab in the Tool Dock tab bar, separate from the status bar
+assert: The closed panel exposes a floating tab bar below the scene statistics at the viewport's lower-left
+assert: Animation explicitly opens the panel below the same editor viewport
+assert: Animation is a tab in the Tool Dock tab bar, separate from the status bar
+assert: The open Tool Dock owns a compact 32-point header with centered controls and equal 2-point container padding
+assert: Activating the selected Animation tab keeps the panel open and focuses inspection without seeking, evaluating, or changing the document
+assert: The timeline exposes the real clip's source keys in relative seconds while the viewport remains at Rest pose; joint rotation and vector morph weights retain their channel meaning
+assert: Scrolling over the timeline changes its visible interval without navigating the viewport or changing playback
+assert: Fit restores the full clip interval with its original timing and no pose change (before=TimeRange { start: -0.2099998712539673, end: 4.409997296333313 }, after=Some(TimeRange { start: -0.2099998712539673, end: 4.409997296333313 }), same frame=true, fit=[[418.4 868.7] - [439.1 888.7]])
+assert: Focused playback shortcut starts the first clip from Rest and changes evaluated geometry while keeping the viewport framing stable
+assert: The same focused playback shortcut pauses and holds the accepted time and exact evaluated frame
+assert: The held ruler drag previews a changed pose through the production evaluator and remains paused
+assert: Releasing the scrub accepts and holds the inspected pose without resuming playback
+assert: Rest stops playback and restores the exact cached source pose
+assert: Loop disables repeat playback
+assert: Loop and speed are preview controls that preserve the Rest-pose frame
+assert: Animation inspection, playback, scrubbing, cancellation, Fit, loop, and speed keep the authored document, dirty state, source data, and Undo history unchanged
+assert: Closing the idle panel preserves its accepted preview and leaves the ordinary viewport available
+assert: Animation is a tab in the Tool Dock tab bar, separate from the status bar
+assert: The closed panel exposes a floating tab bar below the scene statistics at the viewport's lower-left
+animation: assets/animation-box-selection.webp (691548 bytes)
+input: tutorial clip: 136 samples, 76 encoded frames, 6800ms, sample <= 50ms, loops=0
+frame @ 2.721s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.771s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.821s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.871s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.921s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 2.971s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.021s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.071s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.121s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.171s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.221s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.271s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.321s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.371s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.421s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.471s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 3.521s + 50ms: focused=true; pointer=661.6,943.7; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
+frame @ 3.571s + 50ms: focused=true; pointer=670.4,945.3; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=2
+frame @ 3.621s + 50ms: focused=true; pointer=679.2,946.9; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
+frame @ 3.671s + 50ms: focused=true; pointer=688.0,948.4; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=4
+frame @ 3.721s + 50ms: focused=true; pointer=696.8,950.0; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=5
+frame @ 3.771s + 50ms: focused=true; pointer=705.6,951.6; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=6
+frame @ 3.821s + 50ms: focused=true; pointer=714.4,953.1; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=7
+frame @ 3.871s + 50ms: focused=true; pointer=723.2,954.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=8
+frame @ 3.921s + 50ms: focused=true; pointer=732.0,956.3; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=9
+frame @ 3.971s + 50ms: focused=true; pointer=740.8,957.9; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=10
+frame @ 4.021s + 50ms: focused=true; pointer=749.6,959.4; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=11
+frame @ 4.071s + 50ms: focused=true; pointer=758.4,961.0; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 4.121s + 50ms: focused=true; pointer=767.2,962.6; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=13
+frame @ 4.171s + 50ms: focused=true; pointer=776.0,964.1; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=14
+frame @ 4.221s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.271s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.321s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.371s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.421s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.471s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.521s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.571s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.621s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.671s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=15
+frame @ 4.721s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/600ms; released_keys=none; gesture=none; trail=15
+frame @ 4.771s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/550ms; released_keys=none; gesture=none; trail=15
+frame @ 4.821s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/500ms; released_keys=none; gesture=none; trail=15
+frame @ 4.871s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/450ms; released_keys=none; gesture=none; trail=15
+frame @ 4.921s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/400ms; released_keys=none; gesture=none; trail=15
+frame @ 4.971s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/350ms; released_keys=none; gesture=none; trail=15
+frame @ 5.021s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/300ms; released_keys=none; gesture=none; trail=15
+frame @ 5.071s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/250ms; released_keys=none; gesture=none; trail=15
+frame @ 5.121s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/200ms; released_keys=none; gesture=none; trail=15
+frame @ 5.171s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/150ms; released_keys=none; gesture=none; trail=15
+frame @ 5.221s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/100ms; released_keys=none; gesture=none; trail=15
+frame @ 5.271s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@784.8,965.7/50ms; released_keys=none; gesture=none; trail=15
+frame @ 5.321s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.371s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.421s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.471s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.521s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.571s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.621s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.671s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.721s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.771s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.821s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.871s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.921s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 5.971s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 6.021s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 6.071s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 6.121s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 6.171s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 6.221s + 50ms: focused=true; pointer=784.8,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 6.271s + 50ms: focused=true; pointer=852.0,943.7; cursor=Default; held_mouse=[Left down]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=1
+frame @ 6.321s + 50ms: focused=true; pointer=854.8,945.9; cursor=Default; held_mouse=[Left down]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=2
+frame @ 6.371s + 50ms: focused=true; pointer=857.6,948.1; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=3
+frame @ 6.421s + 50ms: focused=true; pointer=860.4,950.3; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=4
+frame @ 6.471s + 50ms: focused=true; pointer=863.2,952.5; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=5
+frame @ 6.521s + 50ms: focused=true; pointer=866.0,954.7; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=6
+frame @ 6.571s + 50ms: focused=true; pointer=868.8,956.9; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=7
+frame @ 6.621s + 50ms: focused=true; pointer=871.6,959.1; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=8
+frame @ 6.671s + 50ms: focused=true; pointer=874.4,961.3; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=9
+frame @ 6.721s + 50ms: focused=true; pointer=877.2,963.5; cursor=Default; held_mouse=[Left drag]; held_keys=[Shift]; released_mouse=none; released_keys=none; gesture=none; trail=10
+frame @ 6.771s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/600ms; released_keys=none; gesture=none; trail=11
+frame @ 6.821s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/550ms; released_keys=none; gesture=none; trail=11
+frame @ 6.871s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/500ms; released_keys=none; gesture=none; trail=11
+frame @ 6.921s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/450ms; released_keys=none; gesture=none; trail=11
+frame @ 6.971s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/400ms; released_keys=none; gesture=none; trail=11
+frame @ 7.021s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/350ms; released_keys=none; gesture=none; trail=11
+frame @ 7.071s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/300ms; released_keys=none; gesture=none; trail=11
+frame @ 7.121s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/250ms; released_keys=none; gesture=none; trail=11
+frame @ 7.171s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/200ms; released_keys=none; gesture=none; trail=11
+frame @ 7.221s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/150ms; released_keys=none; gesture=none; trail=11
+frame @ 7.271s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/100ms; released_keys=none; gesture=none; trail=11
+frame @ 7.321s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/50ms; released_keys=none; gesture=none; trail=11
+frame @ 7.371s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.421s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.471s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.521s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.571s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.621s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.671s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.721s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.771s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.821s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.871s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.921s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 7.971s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.021s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.071s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.121s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.171s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.221s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.271s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 8.321s + 50ms: focused=true; pointer=852.0,943.7; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
+frame @ 8.371s + 50ms: focused=true; pointer=855.1,946.2; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=2
+frame @ 8.421s + 50ms: focused=true; pointer=858.2,948.6; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
+frame @ 8.471s + 50ms: focused=true; pointer=861.3,951.1; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=4
+frame @ 8.521s + 50ms: focused=true; pointer=864.4,953.5; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=5
+frame @ 8.571s + 50ms: focused=true; pointer=867.5,955.9; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=6
+frame @ 8.621s + 50ms: focused=true; pointer=870.7,958.4; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=7
+frame @ 8.671s + 50ms: focused=true; pointer=873.8,960.8; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=8
+frame @ 8.721s + 50ms: focused=true; pointer=876.9,963.3; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=9
+frame @ 8.771s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/600ms; released_keys=Escape/600ms; gesture=none; trail=10
+frame @ 8.821s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/550ms; released_keys=Escape/550ms; gesture=none; trail=10
+frame @ 8.871s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/500ms; released_keys=Escape/500ms; gesture=none; trail=10
+frame @ 8.921s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/450ms; released_keys=Escape/450ms; gesture=none; trail=10
+frame @ 8.971s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/400ms; released_keys=Escape/400ms; gesture=none; trail=10
+frame @ 9.021s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/350ms; released_keys=Escape/350ms; gesture=none; trail=10
+frame @ 9.071s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/300ms; released_keys=Escape/300ms; gesture=none; trail=10
+frame @ 9.121s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/250ms; released_keys=Escape/250ms; gesture=none; trail=10
+frame @ 9.171s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/200ms; released_keys=Escape/200ms; gesture=none; trail=10
+frame @ 9.221s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/150ms; released_keys=Escape/150ms; gesture=none; trail=10
+frame @ 9.271s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/100ms; released_keys=Escape/100ms; gesture=none; trail=10
+frame @ 9.321s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@880.0,965.7/50ms; released_keys=Escape/50ms; gesture=none; trail=10
+frame @ 9.371s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 9.421s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 9.471s + 50ms: focused=true; pointer=880.0,965.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/animation-inspection.webp (111620 bytes)
+input: tutorial @ 2.421s: focused=true; pointer=770.8,954.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+animation: assets/animation-morphs.webp (8442736 bytes)
+input: tutorial clip: 131 samples, 67 encoded frames, 6550ms, sample <= 50ms, loops=0
+frame @ 19.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 19.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 19.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 19.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 19.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.621s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.671s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.721s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 20.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/600ms; gesture=none; trail=0
+frame @ 20.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/550ms; gesture=none; trail=0
+frame @ 20.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/500ms; gesture=none; trail=0
+frame @ 20.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/450ms; gesture=none; trail=0
+frame @ 20.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/400ms; gesture=none; trail=0
+frame @ 21.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/350ms; gesture=none; trail=0
+frame @ 21.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/300ms; gesture=none; trail=0
+frame @ 21.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/250ms; gesture=none; trail=0
+frame @ 21.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/200ms; gesture=none; trail=0
+frame @ 21.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/150ms; gesture=none; trail=0
+frame @ 21.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/100ms; gesture=none; trail=0
+frame @ 21.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/50ms; gesture=none; trail=0
+frame @ 21.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.621s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.671s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.721s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 21.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/600ms; gesture=none; trail=0
+frame @ 22.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/550ms; gesture=none; trail=0
+frame @ 22.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/500ms; gesture=none; trail=0
+frame @ 22.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/450ms; gesture=none; trail=0
+frame @ 22.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/400ms; gesture=none; trail=0
+frame @ 22.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/350ms; gesture=none; trail=0
+frame @ 22.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/300ms; gesture=none; trail=0
+frame @ 22.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/250ms; gesture=none; trail=0
+frame @ 22.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/200ms; gesture=none; trail=0
+frame @ 22.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/150ms; gesture=none; trail=0
+frame @ 22.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/100ms; gesture=none; trail=0
+frame @ 22.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/50ms; gesture=none; trail=0
+frame @ 22.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.621s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.671s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.721s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 22.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 23.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 23.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 23.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 23.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 23.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 23.271s + 50ms: focused=true; pointer=842.2,878.7; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
+frame @ 23.321s + 50ms: focused=true; pointer=876.8,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=2
+frame @ 23.371s + 50ms: focused=true; pointer=911.5,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
+frame @ 23.421s + 50ms: focused=true; pointer=946.1,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=4
+frame @ 23.471s + 50ms: focused=true; pointer=980.7,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=5
+frame @ 23.521s + 50ms: focused=true; pointer=1015.4,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=6
+frame @ 23.571s + 50ms: focused=true; pointer=1050.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=7
+frame @ 23.621s + 50ms: focused=true; pointer=1084.7,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=8
+frame @ 23.671s + 50ms: focused=true; pointer=1119.3,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=9
+frame @ 23.721s + 50ms: focused=true; pointer=1153.9,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=10
+frame @ 23.771s + 50ms: focused=true; pointer=1188.6,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=11
+frame @ 23.821s + 50ms: focused=true; pointer=1223.2,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 23.871s + 50ms: focused=true; pointer=1257.9,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=13
+frame @ 23.921s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/600ms; released_keys=none; gesture=none; trail=14
+frame @ 23.971s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/550ms; released_keys=none; gesture=none; trail=14
+frame @ 24.021s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/500ms; released_keys=none; gesture=none; trail=14
+frame @ 24.071s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/450ms; released_keys=none; gesture=none; trail=14
+frame @ 24.121s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/400ms; released_keys=none; gesture=none; trail=14
+frame @ 24.171s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/350ms; released_keys=none; gesture=none; trail=14
+frame @ 24.221s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/300ms; released_keys=none; gesture=none; trail=14
+frame @ 24.271s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/250ms; released_keys=none; gesture=none; trail=14
+frame @ 24.321s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/200ms; released_keys=none; gesture=none; trail=14
+frame @ 24.371s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/150ms; released_keys=none; gesture=none; trail=14
+frame @ 24.421s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/100ms; released_keys=none; gesture=none; trail=14
+frame @ 24.471s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/50ms; released_keys=none; gesture=none; trail=14
+frame @ 24.521s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.571s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.621s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.671s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.721s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.771s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.821s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.871s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.921s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 24.971s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.021s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.071s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.121s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.171s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.221s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.271s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.321s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.371s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.421s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.471s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 25.521s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/600ms; released_keys=none; gesture=none; trail=1
+frame @ 25.571s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/550ms; released_keys=none; gesture=none; trail=1
+frame @ 25.621s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/500ms; released_keys=none; gesture=none; trail=1
+frame @ 25.671s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/450ms; released_keys=none; gesture=none; trail=1
+frame @ 25.721s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/400ms; released_keys=none; gesture=none; trail=1
+frame @ 25.771s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/350ms; released_keys=none; gesture=none; trail=1
+frame @ 25.821s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/300ms; released_keys=none; gesture=none; trail=1
+frame @ 25.871s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/250ms; released_keys=none; gesture=none; trail=1
+frame @ 25.921s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/200ms; released_keys=none; gesture=none; trail=1
+frame @ 25.971s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/150ms; released_keys=none; gesture=none; trail=1
+frame @ 26.021s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/100ms; released_keys=none; gesture=none; trail=1
+frame @ 26.071s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@604.5,835.0/50ms; released_keys=none; gesture=none; trail=1
+frame @ 26.121s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 26.171s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 26.221s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 26.271s + 50ms: focused=true; pointer=604.5,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/animation-panel-closed.webp (73320 bytes)
+input: clean
+image: assets/animation-panel-open.webp (92732 bytes)
+input: clean
+animation: assets/animation-skinning.webp (2924020 bytes)
+input: tutorial clip: 178 samples, 94 encoded frames, 8900ms, sample <= 50ms, loops=0
+frame @ 10.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.621s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.671s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.721s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 10.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/600ms; gesture=none; trail=0
+frame @ 11.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/550ms; gesture=none; trail=0
+frame @ 11.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/500ms; gesture=none; trail=0
+frame @ 11.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/450ms; gesture=none; trail=0
+frame @ 11.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/400ms; gesture=none; trail=0
+frame @ 11.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/350ms; gesture=none; trail=0
+frame @ 11.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/300ms; gesture=none; trail=0
+frame @ 11.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/250ms; gesture=none; trail=0
+frame @ 11.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/200ms; gesture=none; trail=0
+frame @ 11.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/150ms; gesture=none; trail=0
+frame @ 11.621s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/100ms; gesture=none; trail=0
+frame @ 11.671s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/50ms; gesture=none; trail=0
+frame @ 11.721s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 11.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/600ms; gesture=none; trail=0
+frame @ 12.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/550ms; gesture=none; trail=0
+frame @ 12.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/500ms; gesture=none; trail=0
+frame @ 12.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/450ms; gesture=none; trail=0
+frame @ 12.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/400ms; gesture=none; trail=0
+frame @ 12.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/350ms; gesture=none; trail=0
+frame @ 12.621s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/300ms; gesture=none; trail=0
+frame @ 12.671s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/250ms; gesture=none; trail=0
+frame @ 12.721s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/200ms; gesture=none; trail=0
+frame @ 12.771s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/150ms; gesture=none; trail=0
+frame @ 12.821s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/100ms; gesture=none; trail=0
+frame @ 12.871s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Space/50ms; gesture=none; trail=0
+frame @ 12.921s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 12.971s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.021s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.071s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.121s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.171s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.221s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.271s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.321s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.371s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.421s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.471s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.521s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.571s + 50ms: focused=true; pointer=262.9,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 13.621s + 50ms: focused=true; pointer=842.2,878.7; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
+frame @ 13.671s + 50ms: focused=true; pointer=876.8,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=2
+frame @ 13.721s + 50ms: focused=true; pointer=911.5,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
+frame @ 13.771s + 50ms: focused=true; pointer=946.1,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=4
+frame @ 13.821s + 50ms: focused=true; pointer=980.7,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=5
+frame @ 13.871s + 50ms: focused=true; pointer=1015.4,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=6
+frame @ 13.921s + 50ms: focused=true; pointer=1050.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=7
+frame @ 13.971s + 50ms: focused=true; pointer=1084.7,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=8
+frame @ 14.021s + 50ms: focused=true; pointer=1119.3,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=9
+frame @ 14.071s + 50ms: focused=true; pointer=1153.9,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=10
+frame @ 14.121s + 50ms: focused=true; pointer=1188.6,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=11
+frame @ 14.171s + 50ms: focused=true; pointer=1223.2,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 14.221s + 50ms: focused=true; pointer=1257.9,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=13
+frame @ 14.271s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/600ms; released_keys=none; gesture=none; trail=14
+frame @ 14.321s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/550ms; released_keys=none; gesture=none; trail=14
+frame @ 14.371s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/500ms; released_keys=none; gesture=none; trail=14
+frame @ 14.421s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/450ms; released_keys=none; gesture=none; trail=14
+frame @ 14.471s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/400ms; released_keys=none; gesture=none; trail=14
+frame @ 14.521s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/350ms; released_keys=none; gesture=none; trail=14
+frame @ 14.571s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/300ms; released_keys=none; gesture=none; trail=14
+frame @ 14.621s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/250ms; released_keys=none; gesture=none; trail=14
+frame @ 14.671s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/200ms; released_keys=none; gesture=none; trail=14
+frame @ 14.721s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/150ms; released_keys=none; gesture=none; trail=14
+frame @ 14.771s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/100ms; released_keys=none; gesture=none; trail=14
+frame @ 14.821s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1292.5,878.7/50ms; released_keys=none; gesture=none; trail=14
+frame @ 14.871s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 14.921s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 14.971s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.021s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.071s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.121s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.171s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.221s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.271s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.321s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.371s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.421s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.471s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.521s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.571s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.621s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.671s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.721s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.771s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.821s + 50ms: focused=true; pointer=1292.5,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 15.871s + 50ms: focused=true; pointer=1418.2,878.7; cursor=Default; held_mouse=[Left down]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=1
+frame @ 15.921s + 50ms: focused=true; pointer=1353.4,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=2
+frame @ 15.971s + 50ms: focused=true; pointer=1288.7,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
+frame @ 16.021s + 50ms: focused=true; pointer=1224.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=4
+frame @ 16.071s + 50ms: focused=true; pointer=1159.2,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=5
+frame @ 16.121s + 50ms: focused=true; pointer=1094.5,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=6
+frame @ 16.171s + 50ms: focused=true; pointer=1029.7,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=7
+frame @ 16.221s + 50ms: focused=true; pointer=965.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=8
+frame @ 16.271s + 50ms: focused=true; pointer=900.3,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=9
+frame @ 16.321s + 50ms: focused=true; pointer=835.5,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=10
+frame @ 16.371s + 50ms: focused=true; pointer=770.8,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=11
+frame @ 16.421s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 16.471s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 16.521s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 16.571s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=12
+frame @ 16.621s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/600ms; released_keys=Escape/600ms; gesture=none; trail=12
+frame @ 16.671s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/550ms; released_keys=Escape/550ms; gesture=none; trail=12
+frame @ 16.721s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/500ms; released_keys=Escape/500ms; gesture=none; trail=12
+frame @ 16.771s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/450ms; released_keys=Escape/450ms; gesture=none; trail=12
+frame @ 16.821s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/400ms; released_keys=Escape/400ms; gesture=none; trail=12
+frame @ 16.871s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/350ms; released_keys=Escape/350ms; gesture=none; trail=12
+frame @ 16.921s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/300ms; released_keys=Escape/300ms; gesture=none; trail=12
+frame @ 16.971s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/250ms; released_keys=Escape/250ms; gesture=none; trail=12
+frame @ 17.021s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/200ms; released_keys=Escape/200ms; gesture=none; trail=12
+frame @ 17.071s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/150ms; released_keys=Escape/150ms; gesture=none; trail=12
+frame @ 17.121s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/100ms; released_keys=Escape/100ms; gesture=none; trail=12
+frame @ 17.171s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@706.0,878.7/50ms; released_keys=Escape/50ms; gesture=none; trail=12
+frame @ 17.221s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.271s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.321s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.371s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.421s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.471s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.521s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.571s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.621s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.671s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.721s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.771s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.821s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.871s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.921s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 17.971s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.021s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.071s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.121s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.171s + 50ms: focused=true; pointer=706.0,878.7; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.221s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/600ms; released_keys=none; gesture=none; trail=1
+frame @ 18.271s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/550ms; released_keys=none; gesture=none; trail=1
+frame @ 18.321s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/500ms; released_keys=none; gesture=none; trail=1
+frame @ 18.371s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/450ms; released_keys=none; gesture=none; trail=1
+frame @ 18.421s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/400ms; released_keys=none; gesture=none; trail=1
+frame @ 18.471s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/350ms; released_keys=none; gesture=none; trail=1
+frame @ 18.521s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/300ms; released_keys=none; gesture=none; trail=1
+frame @ 18.571s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/250ms; released_keys=none; gesture=none; trail=1
+frame @ 18.621s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/200ms; released_keys=none; gesture=none; trail=1
+frame @ 18.671s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/150ms; released_keys=none; gesture=none; trail=1
+frame @ 18.721s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/100ms; released_keys=none; gesture=none; trail=1
+frame @ 18.771s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@541.2,835.0/50ms; released_keys=none; gesture=none; trail=1
+frame @ 18.821s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.871s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.921s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+frame @ 18.971s + 50ms: focused=true; pointer=541.2,835.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: navigation
 control: app.menu = N3
@@ -1533,6 +2280,7 @@ assert: Releasing an orbit drag does not open a context menu or change geometry
 assert: Idle Confirm returns the navigation walkthrough to object mode
 assert: Right-button movement within four logical pixels does not move the camera
 assert: A right-button release within four logical pixels opens the viewport context menu without camera movement
+assert: Context-menu rows use the same minimum width as dropdown menus
 assert: Frame all in the viewport context menu frames the document and closes the menu
 assert: Crossing the right-drag threshold starts orbiting
 assert: A drag that crossed the threshold cannot become a context click by returning to its start
@@ -1725,17 +2473,17 @@ assert: 2D pinch, wheel and Command-scroll magnify around the cursor with the ru
 assert: 2D pinch, wheel and Command-scroll magnify around the cursor with the ruler visible or hidden
 assert: 2D pinch, wheel and Command-scroll magnify around the cursor with the ruler visible or hidden
 assert: Releasing Command restores 2D panning during the scroll gesture
-image: assets/navigation-aligned-trackpad.webp (46266 bytes)
+image: assets/navigation-aligned-trackpad.webp (53482 bytes)
 input: tutorial @ 2.001s: focused=true; pointer=970.0,534.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=Scroll +18.0, -12.0 Point/600ms; trail=0
-image: assets/navigation-context-menu.webp (465902 bytes)
-input: tutorial @ 1.281s: focused=true; pointer=376.8,870.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/navigation-frame-key.webp (463400 bytes)
+image: assets/navigation-context-menu.webp (469014 bytes)
+input: tutorial @ 1.281s: focused=true; pointer=425.0,882.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/navigation-frame-key.webp (470520 bytes)
 input: tutorial @ 4.861s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[Shift+1]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/navigation-mouse-orbit.webp (483092 bytes)
+image: assets/navigation-mouse-orbit.webp (489428 bytes)
 input: tutorial @ 0.681s: focused=true; pointer=331.0,994.0; cursor=Default; held_mouse=[Right drag]; held_keys=[]; released_mouse=none; released_keys=Escape/120ms; gesture=Pinch 1.16×/120ms; trail=2
-image: assets/navigation-view-menu.webp (449206 bytes)
-input: tutorial @ 5.461s: focused=true; pointer=343.0,239.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/navigation.webp (48262 bytes)
+image: assets/navigation-view-menu.webp (466214 bytes)
+input: tutorial @ 5.461s: focused=true; pointer=343.0,203.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/navigation.webp (54712 bytes)
 input: clean
 
 feature: local-view
@@ -1776,13 +2524,13 @@ assert: The Local View transition finishes on the explicit guide clock
 assert: In vertex edit mode Local View isolates the whole edited object without requiring a vertex selection
 assert: The Local View transition finishes on the explicit guide clock
 assert: Leaving Local View in vertex edit mode restores the scene without editing the mesh
-image: assets/local-view-all.webp (519972 bytes)
+image: assets/local-view-all.webp (525836 bytes)
 input: tutorial @ 0.921s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/local-view-isolated.webp (335284 bytes)
+image: assets/local-view-isolated.webp (342520 bytes)
 input: tutorial @ 1.041s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Slash/480ms; gesture=none; trail=0
-image: assets/local-view-restored.webp (517300 bytes)
+image: assets/local-view-restored.webp (524546 bytes)
 input: tutorial @ 1.161s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=Slash/480ms; gesture=none; trail=0
-animation: assets/local-view-transition.webp (3809092 bytes)
+animation: assets/local-view-transition.webp (3878546 bytes)
 input: tutorial clip: 59 samples, 15 encoded frames, 2790ms, sample <= 50ms, loops=0
 frame @ 1.761s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 1.811s + 50ms: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
@@ -1948,10 +2696,10 @@ assert: The final fit target is one selected vertex
 assert: The requested view finishes on the explicit scenario clock
 assert: Fitting one vertex centers it while retaining the existing zoom
 assert: Preset keys, orbit steps, projection changes and fitting never edit geometry, saved state, selection, or document history
-image: assets/view-keys-object-fit.webp (362612 bytes)
+image: assets/view-keys-object-fit.webp (370122 bytes)
 input: tutorial @ 4.401s: focused=true; pointer=962.5,540.3; cursor=Default; held_mouse=[]; held_keys=[Shift+2]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/view-keys-vertex-fit.webp (108744 bytes)
-input: tutorial @ 5.241s: focused=true; pointer=258.0,1031.0; cursor=Default; held_mouse=[]; held_keys=[Shift+2]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/view-keys-vertex-fit.webp (116320 bytes)
+input: tutorial @ 5.241s: focused=true; pointer=433.5,1031.0; cursor=Default; held_mouse=[]; held_keys=[Shift+2]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: view-pie
 control: view-pie = View
@@ -1968,8 +2716,10 @@ shortcut-replay: edit.confirm = Enter
 shortcut-replay: edit.leave = Shift+Enter
 shortcut-replay: history.undo = Command+Z
 shortcut-replay: selection.next = Tab
+shortcut-replay: view.front = 2
 assert: The pie example starts with one selected cube
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: Every live pie choice occupies its documented compass position
 assert: Every live pie choice occupies its documented compass position
 assert: Every live pie choice occupies its documented compass position
@@ -1979,71 +2729,93 @@ assert: Every live pie choice occupies its documented compass position
 assert: Every live pie choice occupies its documented compass position
 assert: The enabled choice is part of the actual view pie
 assert: Hovering a pie choice while the view-pie key is held does not change the camera
+assert: Sector help is demonstrated away from its button
+assert: Waiting for sector help keeps the held pie open without applying the view
 assert: Releasing the view-pie key closes the view pie
 assert: Returning to the opening point before release cancels without changing the view
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
+assert: A pie opened near the viewport edge extends over the sidebar
+assert: The enabled choice is part of the actual view pie
+assert: Releasing the view-pie key closes the view pie
+assert: Releasing over a sidebar choice applies its view
+assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: Releasing the view-pie key closes the view pie
 assert: The empty southwest slot has no camera action
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: Cancel cancels the pie without changing the camera or deselecting the object
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing the view-pie key after Cancel cannot commit the cancelled choice
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: A direction choice waits for the held key to be released
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over the choice reaches its named orthographic direction with the current transition settings
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: A direction choice waits for the held key to be released
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over the choice reaches its named orthographic direction with the current transition settings
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: A direction choice waits for the held key to be released
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over the choice reaches its named orthographic direction with the current transition settings
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: A direction choice waits for the held key to be released
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over the choice reaches its named orthographic direction with the current transition settings
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: A direction choice waits for the held key to be released
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over the choice reaches its named orthographic direction with the current transition settings
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: A direction choice waits for the held key to be released
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over the choice reaches its named orthographic direction with the current transition settings
 assert: The real middle-button pan leaves the selected cube away from screen center
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: Releasing the view-pie key closes the view pie
 assert: The southeast choice fits the selected cube while retaining direction and projection
 assert: Using the pie preserves the selected object and persistent tool
 assert: Vertex edit mode starts with no selected components
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: Frame selection is disabled when the current editing context has no selection
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over disabled Frame selection leaves the camera unchanged
 assert: The vertex pie example selects one visible vertex
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: The enabled choice is part of the actual view pie
 assert: Releasing the view-pie key closes the view pie
 assert: In vertex edit mode the pie frames the selected component and retains that selection
 assert: The final object-mode example has no selection
 assert: Holding the view-pie key over the viewport opens the view pie
+assert: The open pie identifies itself as View
 assert: Frame selection is disabled when the current editing context has no selection
 assert: Releasing the view-pie key closes the view pie
 assert: Releasing over disabled Frame selection leaves the camera unchanged
 assert: An existing viewport popup keeps the view-pie key and prevents the pie from opening
 assert: Using or cancelling the pie creates no document undo step or dirty-state change
-image: assets/view-pie-open.webp (348338 bytes)
-input: tutorial @ 0.801s: focused=true; pointer=855.0,449.5; cursor=PointingHand; held_mouse=[]; held_keys=[Backtick]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/view-pie-help.webp (360582 bytes)
+input: tutorial @ 1.551s: focused=true; pointer=909.6,492.0; cursor=PointingHand; held_mouse=[]; held_keys=[Backtick]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/view-pie-open.webp (353548 bytes)
+input: tutorial @ 0.801s: focused=true; pointer=819.5,434.0; cursor=PointingHand; held_mouse=[]; held_keys=[Backtick]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: xray
 control: app.menu = N3
@@ -2089,7 +2861,7 @@ assert: Orbiting with X-ray exposes eight selected, visibly separated front and 
 assert: The X-ray checkbox lives in the actual View menu
 assert: The View menu has closed before viewport input resumes
 assert: Disabling X-ray through its menu preserves every selected rear vertex
-assert: After closing the View menu, the viewport X-ray shortcut enables X-ray (focus=None, pointer=Some([960.0 524.5]), interacting=false)
+assert: After closing the View menu, the viewport X-ray shortcut enables X-ray (focus=Some(Id::new("n3.viewport.keyboard_focus")), pointer=Some([960.0 524.5]), interacting=false)
 assert: Wireframe retains the independent X-ray state and through-selection policy (shading=Wireframe, xray=true, candidates=8, selected={1, 2, 3, 4, 5, 6, 7, 8}, expected={1, 2, 3, 4, 5, 6, 7, 8})
 assert: Disabling X-ray in Wireframe restores occlusion for picking without changing shading or selection
 assert: Front view enters 2D navigation with rulers before selecting
@@ -2113,7 +2885,7 @@ assert: The same object box with X-ray on reaches the fully occluded rear object
 assert: Local View excludes the other object even when X-ray is enabled
 assert: Select All with X-ray respects Local View's object scope
 assert: X-ray vertex selection stays inside the one edited primitive and changes no geometry
-animation: assets/xray-box-selection.webp (17785406 bytes)
+animation: assets/xray-box-selection.webp (17974758 bytes)
 input: tutorial clip: 205 samples, 134 encoded frames, 10220ms, sample <= 50ms, loops=0
 frame @ 0.921s + 50ms: focused=true; pointer=970.0,534.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 0.971s + 50ms: focused=true; pointer=970.0,534.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
@@ -2320,19 +3092,20 @@ frame @ 10.941s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held
 frame @ 10.991s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 11.041s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 11.091s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/xray-menu.webp (677618 bytes)
-input: tutorial @ 11.991s: focused=true; pointer=119.0,89.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.0,89.0/350ms; released_keys=none; gesture=none; trail=1
-image: assets/xray-selection-retained.webp (570172 bytes)
-input: tutorial @ 12.591s: focused=true; pointer=343.0,425.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/xray-solid.webp (687874 bytes)
+image: assets/xray-menu.webp (692304 bytes)
+input: tutorial @ 11.991s: focused=true; pointer=119.0,83.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.0,83.0/350ms; released_keys=none; gesture=none; trail=1
+image: assets/xray-selection-retained.webp (574034 bytes)
+input: tutorial @ 12.591s: focused=true; pointer=343.0,341.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/xray-solid.webp (691930 bytes)
 input: tutorial @ 11.741s: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/xray-wireframe.webp (704336 bytes)
-input: tutorial @ 13.191s: focused=true; pointer=855.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/xray-wireframe.webp (708506 bytes)
+input: tutorial @ 13.191s: focused=true; pointer=782.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: shading
 control: shading-pie = Shading
 control: shading-pie.solid = Shading → Solid
 control: shading-pie.wireframe = Shading → Wireframe
+control: shading-pie.material-preview = Shading → Material Preview
 control: viewport = Viewport
 shortcut-replay: cancel = Escape
 shortcut-replay: edit.confirm = Enter
@@ -2349,23 +3122,51 @@ shortcut-replay: view.front = 2
 assert: The shading example begins with one selected cube in the default Solid view
 assert: The cube has twelve authored boundaries and six quads, not triangulation diagonals
 assert: Holding the shading shortcut with the Cursor tool opens the shading pie
-assert: Wireframe is the left choice, Solid is the right choice, and hovering keeps the current shading
+assert: The open pie identifies itself as Shading
+assert: Wireframe is left, Solid is right, Material Preview is below, and hovering keeps the current shading
+assert: Shading help is demonstrated away from its button
+assert: Waiting for sector help keeps the shading pie open without changing the mode
 assert: Hovering an enabled shading choice waits for key release before applying it
 assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
 assert: Wireframe changes viewport shading without changing the Solid edge preference, geometry, selection, camera, or dirty state
 assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
 assert: Returning to the opening point before release cancels the shading choice
 assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
 assert: Cancel closes the shading pie without applying the hovered choice or clearing selection
 assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
 assert: Hovering an enabled shading choice waits for key release before applying it
 assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
 assert: Returning to Solid restores its unchanged ordinary edge-display preference
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: The shading pie can extend over the sidebar
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Material Preview is available for native meshes without adding or changing their material data
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: The empty upper direction cancels without choosing an unimplemented Rendered mode
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
 assert: In a transform tool the shading key belongs only to the Z-axis lock
 assert: In a transform tool the shading key belongs only to the Z-axis lock
 assert: In a transform tool the shading key belongs only to the Z-axis lock
 assert: The front-facing cube exposes four selectable front vertices in Solid mode
 assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
 assert: Hovering an enabled shading choice waits for key release before applying it
 assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
 assert: Wireframe still limits vertex picking to the same visible front vertices
@@ -2375,12 +3176,36 @@ assert: Cycling vertices in Wireframe never selects an occluded rear corner
 assert: Cycling vertices in Wireframe never selects an occluded rear corner
 assert: Cycling vertices in Wireframe never selects an occluded rear corner
 assert: Shading changes and selection feedback add no document history entry
-image: assets/shading-pie.webp (337186 bytes)
-input: tutorial @ 0.801s: focused=true; pointer=855.0,524.5; cursor=PointingHand; held_mouse=[]; held_keys=[Z]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/shading-solid.webp (334094 bytes)
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: The comparison uses the actual Water Bottle asset and its imported texture maps
+assert: Solid inspection shading disables the material-preview Exposure control
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Material Preview visibly changes the same imported geometry from Solid inspection shading to its materials
+assert: The material comparison changes only viewport shading while preserving the exact source resources, evaluated geometry, exposure, placement, selection, and camera
+assert: Holding the shading shortcut with the Cursor tool opens the shading pie
+assert: The open pie identifies itself as Shading
+assert: Hovering an enabled shading choice waits for key release before applying it
+assert: Releasing the shading shortcut applies the pointed-at mode and closes the pie
+assert: Returning to Solid restores the same inspection pixels without modifying the imported material
+assert: Switching imported assets between shading modes creates no undo entry
+image: assets/shading-imported-solid.webp (538848 bytes)
+input: tutorial @ 2.871s: focused=true; pointer=280.0,1004.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/shading-material-preview.webp (595726 bytes)
+input: tutorial @ 3.471s: focused=true; pointer=280.0,1004.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/shading-pie-help.webp (357588 bytes)
+input: tutorial @ 1.551s: focused=true; pointer=900.0,524.5; cursor=PointingHand; held_mouse=[]; held_keys=[Z]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/shading-pie.webp (346592 bytes)
+input: tutorial @ 0.801s: focused=true; pointer=782.0,524.5; cursor=PointingHand; held_mouse=[]; held_keys=[Z]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/shading-solid.webp (339728 bytes)
 input: tutorial @ 0.801s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/shading-wireframe.webp (548722 bytes)
-input: tutorial @ 1.401s: focused=true; pointer=855.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/shading-wireframe.webp (554628 bytes)
+input: tutorial @ 2.151s: focused=true; pointer=782.0,524.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: hand-tool
 control: app.menu = N3
@@ -2454,22 +3279,22 @@ assert: Cancelling the original gesture restores its starting document and selec
 assert: The focus-loss check begins during an active hand pan
 assert: Losing window focus clears the held hand-tool state and active hand pan
 assert: Returning focus does not resume the hand pan or turn the old pointer release into selection
-image: assets/hand-tool-drag.webp (343616 bytes)
+image: assets/hand-tool-drag.webp (349702 bytes)
 input: tutorial @ 4.101s: focused=true; pointer=973.0,515.5; cursor=Grabbing; held_mouse=[Left drag]; held_keys=[Space]; released_mouse=none; released_keys=none; gesture=none; trail=2
-animation: assets/hand-tool-pan-and-release.webp (6297162 bytes)
+animation: assets/hand-tool-pan-and-release.webp (6412866 bytes)
 input: tutorial clip: 66 samples, 48 encoded frames, 3300ms, sample <= 50ms, loops=0
-frame @ 0.201s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/600ms; released_keys=Tab/600ms; gesture=none; trail=1
-frame @ 0.251s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/550ms; released_keys=Tab/550ms; gesture=none; trail=1
-frame @ 0.301s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/500ms; released_keys=Tab/500ms; gesture=none; trail=1
-frame @ 0.351s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/450ms; released_keys=Tab/450ms; gesture=none; trail=1
-frame @ 0.401s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/400ms; released_keys=Tab/400ms; gesture=none; trail=1
-frame @ 0.451s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/350ms; released_keys=Tab/350ms; gesture=none; trail=1
-frame @ 0.501s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/300ms; released_keys=Tab/300ms; gesture=none; trail=1
-frame @ 0.551s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/250ms; released_keys=Tab/250ms; gesture=none; trail=1
-frame @ 0.601s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/200ms; released_keys=Tab/200ms; gesture=none; trail=1
-frame @ 0.651s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@258.0,1031.0/150ms; released_keys=Tab/150ms; gesture=none; trail=1
-frame @ 0.701s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=Left released@258.0,1031.0/100ms; released_keys=none; gesture=none; trail=1
-frame @ 0.751s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=Left released@258.0,1031.0/50ms; released_keys=none; gesture=none; trail=1
+frame @ 0.201s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/600ms; released_keys=Tab/600ms; gesture=none; trail=1
+frame @ 0.251s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/550ms; released_keys=Tab/550ms; gesture=none; trail=1
+frame @ 0.301s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/500ms; released_keys=Tab/500ms; gesture=none; trail=1
+frame @ 0.351s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/450ms; released_keys=Tab/450ms; gesture=none; trail=1
+frame @ 0.401s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/400ms; released_keys=Tab/400ms; gesture=none; trail=1
+frame @ 0.451s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/350ms; released_keys=Tab/350ms; gesture=none; trail=1
+frame @ 0.501s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/300ms; released_keys=Tab/300ms; gesture=none; trail=1
+frame @ 0.551s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/250ms; released_keys=Tab/250ms; gesture=none; trail=1
+frame @ 0.601s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/200ms; released_keys=Tab/200ms; gesture=none; trail=1
+frame @ 0.651s + 50ms: focused=true; pointer=915.0,549.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@433.5,1031.0/150ms; released_keys=Tab/150ms; gesture=none; trail=1
+frame @ 0.701s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=Left released@433.5,1031.0/100ms; released_keys=none; gesture=none; trail=1
+frame @ 0.751s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=Left released@433.5,1031.0/50ms; released_keys=none; gesture=none; trail=1
 frame @ 0.801s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 0.851s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 0.901s + 50ms: focused=true; pointer=915.0,549.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=none; released_keys=none; gesture=none; trail=0
@@ -2524,7 +3349,7 @@ frame @ 3.301s + 50ms: focused=true; pointer=1040.0,511.5; cursor=Default; held_
 frame @ 3.351s + 50ms: focused=true; pointer=1040.0,511.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1040.0,511.5/250ms; released_keys=none; gesture=none; trail=25
 frame @ 3.401s + 50ms: focused=true; pointer=1040.0,511.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1040.0,511.5/200ms; released_keys=none; gesture=none; trail=25
 frame @ 3.451s + 50ms: focused=true; pointer=1040.0,511.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1040.0,511.5/150ms; released_keys=none; gesture=none; trail=25
-image: assets/hand-tool-ready.webp (337320 bytes)
+image: assets/hand-tool-ready.webp (343952 bytes)
 input: tutorial @ 4.101s: focused=true; pointer=935.0,539.5; cursor=Grab; held_mouse=[]; held_keys=[Space]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: orbit-tool
@@ -2597,7 +3422,7 @@ assert: Releasing the hand-tool key while the orbit modifier remains held does n
 assert: Pressing the hand-tool key during a temporary orbit preserves the original gesture owner
 assert: Releasing the orbit modifier while the hand-tool key remains held stops orbit without handing the press to panning
 assert: Temporary navigation and cancelled editor gestures add no document undo entry
-animation: assets/orbit-tool-leave-alignment.webp (7565178 bytes)
+animation: assets/orbit-tool-leave-alignment.webp (7686220 bytes)
 input: tutorial clip: 97 samples, 42 encoded frames, 4850ms, sample <= 50ms, loops=0
 frame @ 0.921s + 50ms: focused=true; pointer=915.0,554.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 0.971s + 50ms: focused=true; pointer=915.0,554.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
@@ -2696,7 +3521,7 @@ frame @ 5.571s + 50ms: focused=true; pointer=1050.0,511.5; cursor=Default; held_
 frame @ 5.621s + 50ms: focused=true; pointer=1050.0,511.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 5.671s + 50ms: focused=true; pointer=1050.0,511.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 5.721s + 50ms: focused=true; pointer=1050.0,511.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/orbit-tool-ready.webp (51018 bytes)
+image: assets/orbit-tool-ready.webp (58188 bytes)
 input: tutorial @ 0.921s: focused=true; pointer=915.0,554.5; cursor=AllScroll; held_mouse=[]; held_keys=[Option]; released_mouse=none; released_keys=none; gesture=none; trail=0
 
 feature: gizmo
@@ -2859,19 +3684,19 @@ assert: Escape closes Preferences before returning to viewport interactions
 assert: The toolbar Preferences control opens the same window with the same settings
 assert: Escape closes Preferences before returning to viewport interactions
 assert: Closing Preferences hides all settings controls
-image: assets/gizmo-aligned.webp (40240 bytes)
+image: assets/gizmo-aligned.webp (46610 bytes)
 input: clean
-image: assets/gizmo-context-menu.webp (43770 bytes)
-input: tutorial @ 10.331s: focused=true; pointer=1687.1,118.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/gizmo-dot-navigation.webp (42944 bytes)
+image: assets/gizmo-context-menu.webp (50778 bytes)
+input: tutorial @ 10.331s: focused=true; pointer=1725.0,118.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
+image: assets/gizmo-dot-navigation.webp (49740 bytes)
 input: tutorial @ 4.241s: focused=true; pointer=1632.0,67.0; cursor=Grab; held_mouse=[]; held_keys=[]; released_mouse=Left drag released@1632.0,67.0/480ms; released_keys=Period/480ms; gesture=none; trail=3
-image: assets/gizmo-drag.webp (297632 bytes)
+image: assets/gizmo-drag.webp (304280 bytes)
 input: tutorial @ 8.671s: focused=true; pointer=1465.2,120.2; cursor=Grabbing; held_mouse=[Left drag]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=3
-image: assets/gizmo-hover.webp (454874 bytes)
-input: tutorial @ 7.831s: focused=true; pointer=1635.2,75.2; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,353.0/600ms; released_keys=none; gesture=Pinch 1.11×/120ms; trail=1
-image: assets/gizmo-navigation-mode.webp (425702 bytes)
+image: assets/gizmo-hover.webp (461574 bytes)
+input: tutorial @ 7.831s: focused=true; pointer=1635.2,75.2; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@343.0,287.0/600ms; released_keys=none; gesture=Pinch 1.11×/120ms; trail=1
+image: assets/gizmo-navigation-mode.webp (430732 bytes)
 input: tutorial @ 5.561s: focused=true; pointer=1615.0,132.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-animation: assets/gizmo-orbit-and-align.webp (10732450 bytes)
+animation: assets/gizmo-orbit-and-align.webp (10900054 bytes)
 input: tutorial clip: 64 samples, 55 encoded frames, 3200ms, sample <= 50ms, loops=0
 frame @ 0.801s + 50ms: focused=true; pointer=1614.0,79.0; cursor=Grab; held_mouse=[]; held_keys=[]; released_mouse=Left released@1651.0,132.0/600ms; released_keys=none; gesture=none; trail=1
 frame @ 0.851s + 50ms: focused=true; pointer=1614.0,79.0; cursor=Grab; held_mouse=[]; held_keys=[]; released_mouse=Left released@1651.0,132.0/550ms; released_keys=none; gesture=none; trail=1
@@ -2937,11 +3762,11 @@ frame @ 3.801s + 50ms: focused=true; pointer=1617.8,85.6; cursor=PointingHand; h
 frame @ 3.851s + 50ms: focused=true; pointer=1617.8,85.6; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@1617.8,85.6/50ms; released_keys=none; gesture=none; trail=1
 frame @ 3.901s + 50ms: focused=true; pointer=1617.8,85.6; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 3.951s + 50ms: focused=true; pointer=1617.8,85.6; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/gizmo-orbit.webp (455696 bytes)
+image: assets/gizmo-orbit.webp (461330 bytes)
 input: clean
-image: assets/gizmo-projection-orthographic.webp (481746 bytes)
+image: assets/gizmo-projection-orthographic.webp (488184 bytes)
 input: tutorial @ 0.801s: focused=true; pointer=1651.0,132.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=Left released@1651.0,132.0/600ms; released_keys=none; gesture=none; trail=1
-image: assets/gizmo-projection-perspective.webp (460050 bytes)
+image: assets/gizmo-projection-perspective.webp (467158 bytes)
 input: tutorial @ 0.801s: focused=true; pointer=1651.0,132.0; cursor=PointingHand; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/gizmo-settings.webp (379014 bytes)
+image: assets/gizmo-settings.webp (385570 bytes)
 input: clean

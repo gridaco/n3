@@ -50,7 +50,7 @@ fn view_pie_respects_real_numeric_field_and_popup_ownership() {
     .unwrap();
     let field = s.ctx.memory(|memory| memory.focused());
     assert!(field.is_some() && field != Some(crate::shortcuts::viewport_focus_id()));
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(35., -35.);
+    let empty = s.empty_viewport_point().unwrap();
     s.frame(
         vec![Event::PointerMoved(empty), key(Key::Backtick, true)],
         Duration::ZERO,
@@ -142,7 +142,7 @@ fn view_pie_cannot_take_over_pointer_selection_navigation_or_transforms() {
         PointerButton::Secondary,
         PointerButton::Middle,
     ] {
-        let start = s.state.viewport_ui_rect.left_bottom() + egui::vec2(40., -40.);
+        let start = s.empty_viewport_point().unwrap();
         let end = start + egui::vec2(25., -15.);
         let pose = s.state.camera.view_projection(s.state.aspect());
         // Even a trigger delivered in the pointer-down batch cannot steal it.

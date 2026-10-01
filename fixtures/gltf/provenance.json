@@ -1,0 +1,91 @@
+{
+  "source": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "commit": "f36bfdabd1031c3cf6689a50570b8cdf3678b49c",
+  "downloaded": "2026-09-30",
+  "files": [
+    {
+      "path": "AnimatedMorphCube/LICENSE.md",
+      "source_path": "Models/AnimatedMorphCube/LICENSE.md",
+      "bytes": 781,
+      "sha256": "158a0614b84cd26077483730bd105ee62d5a8db2a7e4267db911c77a2ee0717c"
+    },
+    {
+      "path": "AnimatedMorphCube/glTF/AnimatedMorphCube.bin",
+      "source_path": "Models/AnimatedMorphCube/glTF/AnimatedMorphCube.bin",
+      "bytes": 4284,
+      "sha256": "4aba93918adba56c1cc688a38c527bc647e26f2c386802e119b4d01b7250dd23"
+    },
+    {
+      "path": "AnimatedMorphCube/glTF/AnimatedMorphCube.gltf",
+      "source_path": "Models/AnimatedMorphCube/glTF/AnimatedMorphCube.gltf",
+      "bytes": 4621,
+      "sha256": "0b910ed4b52fd9fbb565911fc7f9f285edb0f30fa4913a93143466d439d1092e"
+    },
+    {
+      "path": "AnimatedMorphCube/metadata.json",
+      "source_path": "Models/AnimatedMorphCube/metadata.json",
+      "bytes": 717,
+      "sha256": "53ec35a6148f1fa25936f092a050d821590f597cc3f67050e1b3a9812be4e572"
+    },
+    {
+      "path": "SimpleSkin/LICENSE.md",
+      "source_path": "Models/SimpleSkin/LICENSE.md",
+      "bytes": 773,
+      "sha256": "92caa6f47943c19aaaf413af6e2c201d8dbeebf91e643166edf63b262f988c38"
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin.gltf",
+      "source_path": "Models/SimpleSkin/glTF/SimpleSkin.gltf",
+      "bytes": 2386,
+      "sha256": "8d92e9888340eb98e82a65a1f8b037d9a1d9f09e5fd0b6ba6d40fd93700b3239"
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_animation.bin",
+      "source_path": "Models/SimpleSkin/glTF/SimpleSkin_animation.bin",
+      "bytes": 240,
+      "sha256": "ff21b1bc3d0abbe53f7665060ec6c22d873b6e85a7669171a2b6b8ae01c39347"
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_geometry.bin",
+      "source_path": "Models/SimpleSkin/glTF/SimpleSkin_geometry.bin",
+      "bytes": 168,
+      "sha256": "35f0ca6bc07976c0aadc163d4737758989cfcc9870a99800004c4478fe698b63"
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_inverseBindMatrices.bin",
+      "source_path": "Models/SimpleSkin/glTF/SimpleSkin_inverseBindMatrices.bin",
+      "bytes": 128,
+      "sha256": "5844ab221cd2ad367420a248f6387b46e5f8498604427730a37ee96b4d4ec599"
+    },
+    {
+      "path": "SimpleSkin/glTF/SimpleSkin_skinningData.bin",
+      "source_path": "Models/SimpleSkin/glTF/SimpleSkin_skinningData.bin",
+      "bytes": 320,
+      "sha256": "413bc8a8c0da673df767874e6f05f0b00c9261756a08586b9d555bd5535414b5"
+    },
+    {
+      "path": "SimpleSkin/metadata.json",
+      "source_path": "Models/SimpleSkin/metadata.json",
+      "bytes": 683,
+      "sha256": "4b55cd46f47884119db596f29fc8026ac01af65009503495abf380d0f9bc8600"
+    },
+    {
+      "path": "WaterBottle/LICENSE.md",
+      "source_path": "Models/WaterBottle/LICENSE.md",
+      "bytes": 774,
+      "sha256": "33cddcace3d46b3dec14275eff753c5879d5c55462a1bdce7981db4a5adb9a6b"
+    },
+    {
+      "path": "WaterBottle/glTF-Binary/WaterBottle.glb",
+      "source_path": "Models/WaterBottle/glTF-Binary/WaterBottle.glb",
+      "bytes": 8966700,
+      "sha256": "b337e526fd6a162013c2984aeec163f5fbb4f717252724dfc3f3458bd51df94b"
+    },
+    {
+      "path": "WaterBottle/metadata.json",
+      "source_path": "Models/WaterBottle/metadata.json",
+      "bytes": 645,
+      "sha256": "f7d3aa4783d4e81f135855e0ece0b45bf4e529dca5ba60b3878d3115c2773a35"
+    }
+  ]
+}

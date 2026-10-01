@@ -1,11 +1,37 @@
-//! Native text persistence, independent of dialogs and rendering.
-use crate::document::Document;
+//! Native document loading and persistence, independent of dialogs and rendering.
+//! Pure JSON encoding/decoding stays with the versioned N3 document schema.
+use crate::document::{Document, MAX_BYTES};
 use std::{
     fs,
-    io::Write,
+    io::{Read, Write},
     path::Path,
     sync::atomic::{AtomicU64, Ordering},
 };
+pub(super) fn read_text(path: &Path) -> Result<String, String> {
+    let file = fs::File::open(path).map_err(|e| format!("Cannot open {}: {e}", path.display()))?;
+    let mut text = String::new();
+    file.take(MAX_BYTES + 1)
+        .read_to_string(&mut text)
+        .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
+    if text.len() as u64 > MAX_BYTES {
+        return Err("File exceeds the 64 MiB input limit".into());
+    }
+    Ok(text)
+}
+
+/// Open native JSON or import an OBJ, selected by its case-insensitive extension.
+pub(crate) fn load_path(path: &Path) -> Result<Document, String> {
+    if path
+        .extension()
+        .and_then(|s| s.to_str())
+        .is_some_and(|s| s.eq_ignore_ascii_case("obj"))
+    {
+        super::obj::load_path(path)
+    } else {
+        Document::from_json(&read_text(path)?)
+    }
+}
+
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 pub fn is_native_path(path: &Path) -> bool {
@@ -27,7 +53,12 @@ pub fn save(
     if !is_native_path(path) {
         return Err("Native documents must use the .n3.json extension.".into());
     }
-    let bytes = document.to_json()?.into_bytes();
+    // Rebase a serialization snapshot, never the editor's working document or
+    // history. Live asset references are absolute; saved references are portable
+    // relative paths when the destination and source share a filesystem root.
+    let bytes = super::linked::snapshot_for_save(document, path)?
+        .to_json()?
+        .into_bytes();
     let check = || -> Result<(), String> {
         match fs::read(path) {
             Ok(current) => {
@@ -126,6 +157,7 @@ mod tests {
         doc.insert_primitive(crate::document::PrimitiveKind::Cube)
             .unwrap();
         let first = save(&path, &doc, None, false).unwrap();
+        assert_eq!(load_path(&path).unwrap(), doc);
         assert_eq!(
             Document::from_json(std::str::from_utf8(&first).unwrap()).unwrap(),
             doc

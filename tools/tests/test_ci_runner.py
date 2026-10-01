@@ -62,7 +62,7 @@ class CIRunnerTests(unittest.TestCase):
         arguments = self.command(["docs", "check"])
         mounts = self.mounts(arguments)
         self.assertIn(["type=bind", f"source={self.root}", "target=/workspace", "readonly"], mounts)
-        self.assertEqual(len(mounts), 4)
+        self.assertEqual(len(mounts), 6)
         self.assertFalse(any("target=/workspace/docs/guide" in mount for mount in mounts))
         self.assertEqual(arguments[arguments.index("--user") + 1], "501:20")
         self.assertIn("npm_config_cache=/n3-cache/home/.npm", arguments)
@@ -71,14 +71,21 @@ class CIRunnerTests(unittest.TestCase):
                 "type=bind", f"source={self.root / '.cache/ci/linux-amd64' / name}",
                 f"target=/n3-cache/{name}",
             ], mounts)
+        for name in ("passwd", "group"):
+            self.assertIn([
+                "type=bind", f"source={self.root / '.cache/ci/linux-amd64' / name}",
+                f"target=/etc/{name}", "readonly",
+            ], mounts)
 
-    def test_update_adds_only_the_guide_as_a_writable_source_mount(self):
+    def test_update_writes_only_secondary_receipt_and_ignored_review_captures(self):
         checked = self.mounts(self.command(["docs", "check"]))
         updated = self.mounts(self.command(["docs", "update"]))
-        self.assertEqual(updated[:-1], checked)
-        self.assertEqual(updated[-1], [
-            "type=bind", f"source={self.root / 'docs/guide'}", "target=/workspace/docs/guide",
-        ])
+        self.assertEqual(updated[:-2], checked)
+        for mount, relative in zip(updated[-2:], ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe")):
+            self.assertEqual(mount, [
+                "type=bind", f"source={self.root / relative}", f"target=/workspace/{relative}",
+            ])
+        self.assertFalse(any("target=/workspace/docs/guide" in mount for mount in updated))
 
     def test_test_arguments_are_passed_literally_and_never_interpolated_into_shell(self):
         supplied = ["filter with spaces", "--", "--exact", "$(touch sentinel);`false`"]
@@ -132,6 +139,8 @@ class CIRunnerTests(unittest.TestCase):
             if arguments[1] == "run":
                 for name in ("cargo", "target", "home"):
                     self.assertTrue((self.root / ".cache/ci/linux-amd64" / name).is_dir())
+                for name, content in runner.identity_files(runner.os.getuid(), runner.os.getgid()).items():
+                    self.assertEqual((self.root / ".cache/ci/linux-amd64" / name).read_text(), content)
                 self.assertIn("npm_config_cache=/n3-cache/home/.npm", arguments)
                 self.assertFalse(any("target=/workspace/node_modules" in mount for mount in self.mounts(arguments)))
             return subprocess.CompletedProcess(arguments, 0)
@@ -140,6 +149,75 @@ class CIRunnerTests(unittest.TestCase):
         with contextlib.redirect_stdout(output), patch.object(runner.subprocess, "run", side_effect=docker):
             self.assertEqual(runner.main(["ci"], root=self.root), 0)
         self.assertEqual(calls, ["build", "run"])
+
+    def test_identity_files_resolve_host_ids_without_colliding_with_root(self):
+        for uid, gid in ((501, 20), (1001, 123), (0, 0), (0, 20), (501, 0)):
+            with self.subTest(uid=uid, gid=gid):
+                files = runner.identity_files(uid, gid)
+                passwd = [line.split(":") for line in files["passwd"].splitlines()]
+                groups = [line.split(":") for line in files["group"].splitlines()]
+                self.assertEqual(len({row[0] for row in passwd}), len(passwd))
+                self.assertEqual(len({row[2] for row in passwd}), len(passwd))
+                self.assertEqual(len({row[0] for row in groups}), len(groups))
+                self.assertEqual(len({row[2] for row in groups}), len(groups))
+                user = next(row for row in passwd if row[2] == str(uid))
+                self.assertEqual(user[3], str(gid))
+                self.assertEqual(user[5:], ["/n3-cache/home", "/bin/sh"])
+                self.assertTrue(any(row[2] == str(gid) for row in groups))
+                command = runner.container_command(self.root, self.identity, False, None, uid, gid)
+                self.assertEqual(command[command.index("--user") + 1], f"{uid}:{gid}")
+
+    def test_runner_prepares_isolated_identity_files_before_container_without_root_fallback(self):
+        def docker(arguments, **kwargs):
+            if arguments[1] == "run":
+                self.assertEqual(arguments[arguments.index("--user") + 1], "1001:123")
+                cache = self.root / ".cache/ci/linux-amd64"
+                self.assertIn("n3:x:1001:123:N3 CI:/n3-cache/home:/bin/sh\n", (cache / "passwd").read_text())
+                self.assertIn("n3:x:123:\n", (cache / "group").read_text())
+            return subprocess.CompletedProcess(arguments, 0)
+
+        with contextlib.redirect_stdout(io.StringIO()), patch.object(runner.os, "getuid", return_value=1001), patch.object(runner.os, "getgid", return_value=123), patch.object(runner.subprocess, "run", side_effect=docker):
+            self.assertEqual(runner.main(["test"], root=self.root), 0)
+        runner.prepare_identity_files(self.root, 501, 20)
+        passwd = (self.root / ".cache/ci/linux-amd64/passwd").read_text()
+        self.assertIn("n3:x:501:20:", passwd)
+        self.assertNotIn("1001:123", passwd)
+
+    def test_identity_file_symlinks_fail_without_overwriting_the_target(self):
+        cache = self.root / ".cache/ci/linux-amd64"
+        cache.mkdir(parents=True)
+        unrelated = self.root / "unrelated.txt"
+        unrelated.write_text("preserve this file")
+        (cache / "passwd").symlink_to(unrelated)
+        with self.assertRaises(runner.RunnerError):
+            runner.prepare_identity_files(self.root, 501, 20)
+        self.assertEqual(unrelated.read_text(), "preserve this file")
+
+    def test_secondary_update_creates_receipt_and_review_directories_before_run(self):
+        destinations = ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe")
+
+        def docker(arguments, **kwargs):
+            if arguments[1] == "run":
+                for relative in destinations:
+                    self.assertTrue((self.root / relative).is_dir())
+            return subprocess.CompletedProcess(arguments, 0)
+
+        with contextlib.redirect_stdout(io.StringIO()), patch.object(runner.subprocess, "run", side_effect=docker):
+            self.assertEqual(runner.main(["docs", "update"], root=self.root), 0)
+
+    def test_secondary_update_rejects_symlinked_writable_destinations_before_docker(self):
+        for relative in ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe", ".cache/docs"):
+            with self.subTest(relative=relative):
+                destination = self.root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.is_dir():
+                    destination.rmdir()
+                destination.symlink_to(self.root / "docs/guide", target_is_directory=True)
+                result, run, output = self.invoke(["docs", "update"], [])
+                self.assertEqual(result, 1)
+                run.assert_not_called()
+                self.assertIn("requires a real", output)
+                destination.unlink()
 
     def test_missing_docker_and_signal_status_fail_visibly(self):
         result, _, output = self.invoke(["ci"], [FileNotFoundError("docker is unavailable")])

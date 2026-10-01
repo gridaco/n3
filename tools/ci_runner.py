@@ -85,6 +85,33 @@ def build_command(root, identity):
     ]
 
 
+def identity_files(uid, gid):
+    """Resolve the exact host identity inside the image without root fallback."""
+    if uid < 0 or gid < 0:
+        raise RunnerError("The CI container requires nonnegative host uid/gid values.")
+    # The PTY backend resolves its effective uid with getpwuid_r even when a
+    # shell is explicitly configured. Numeric Docker users need a passwd entry.
+    if uid == 0:
+        passwd = f"root:x:0:{gid}:N3 CI:/n3-cache/home:/bin/sh\n"
+    else:
+        passwd = "root:x:0:0:root:/root:/bin/sh\n"
+        passwd += f"n3:x:{uid}:{gid}:N3 CI:/n3-cache/home:/bin/sh\n"
+    group = "root:x:0:\n"
+    if gid != 0:
+        group += f"n3:x:{gid}:\n"
+    return {"passwd": passwd, "group": group}
+
+
+def prepare_identity_files(root, uid, gid):
+    cache = root / ".cache/ci/linux-amd64"
+    cache.mkdir(parents=True, exist_ok=True)
+    for name, content in identity_files(uid, gid).items():
+        destination = cache / name
+        if any(path.is_symlink() for path in (destination, *destination.parents) if root in path.parents):
+            raise RunnerError("CI identity files must stay in a real repository-local cache.")
+        destination.write_text(content, encoding="utf-8")
+
+
 def container_command(root, identity, update, command, uid, gid):
     cache = root / ".cache/ci/linux-amd64"
     arguments = [
@@ -98,12 +125,21 @@ def container_command(root, identity, update, command, uid, gid):
                 "type=bind", f"source={cache / name}", f"target=/n3-cache/{name}"
             ),
         ])
-    if update:
+    for name in ("passwd", "group"):
         arguments.extend([
             "--mount", mount(
-                "type=bind", f"source={root / 'docs/guide'}", "target=/workspace/docs/guide"
+                "type=bind", f"source={cache / name}", f"target=/etc/{name}", "readonly"
             ),
         ])
+    if update:
+        # The secondary renderer records exact digests and local review media;
+        # the canonical native guide stays read-only in every container mode.
+        for relative in ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe"):
+            arguments.extend([
+                "--mount", mount(
+                    "type=bind", f"source={root / relative}", f"target=/workspace/{relative}"
+                ),
+            ])
     for value in (
         "CARGO_HOME=/n3-cache/cargo",
         "CARGO_TARGET_DIR=/n3-cache/target",
@@ -141,6 +177,15 @@ def main(argv=None, *, root=ROOT):
         root = Path(root).resolve()
         if update and ((root / "docs/guide").is_symlink() or not (root / "docs/guide").is_dir()):
             raise RunnerError("docs update requires a real docs/guide directory in this checkout.")
+        if update:
+            for relative in ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe"):
+                destination = root / relative
+                if (destination.exists() and not destination.is_dir()) or any(
+                    path.is_symlink()
+                    for path in (destination, *destination.parents)
+                    if root in path.parents
+                ):
+                    raise RunnerError(f"docs update requires a real {relative} directory in this checkout.")
         identity = image_identity(root)
         print(f"N3 CI environment: {PLATFORM}, n3-ci:{identity}", flush=True)
         result = subprocess.run(build_command(root, identity), cwd=root, check=False)
@@ -148,8 +193,13 @@ def main(argv=None, *, root=ROOT):
             return status(result.returncode)
         for name in ("cargo", "target", "home"):
             (root / ".cache/ci/linux-amd64" / name).mkdir(parents=True, exist_ok=True)
+        uid, gid = os.getuid(), os.getgid()
+        prepare_identity_files(root, uid, gid)
+        if update:
+            for relative in ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe"):
+                (root / relative).mkdir(parents=True, exist_ok=True)
         result = subprocess.run(
-            container_command(root, identity, update, command, os.getuid(), os.getgid()),
+            container_command(root, identity, update, command, uid, gid),
             cwd=root, check=False,
         )
         return status(result.returncode)

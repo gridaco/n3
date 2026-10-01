@@ -1,6 +1,6 @@
 //! The shared keyboard policy. Hosts supply egui events and execute host effects;
 //! they do not maintain their own keymaps or decide which editor context wins.
-use super::bindings::{self, Trigger};
+use super::bindings::{self, Scope, Trigger};
 use crate::{
     camera::View,
     editor::Tool,
@@ -10,8 +10,11 @@ use egui::{Context, Event, Key, Modifiers};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Command {
+    Scene(crate::scene_view::Action),
     New,
     Open,
+    Import,
+    Insert(crate::document::PrimitiveKind),
     OpenPreferences,
     InsertMenu,
     Save {
@@ -21,6 +24,10 @@ pub enum Command {
     Undo,
     Redo,
     ToggleUi,
+    ToggleAnimationPanel,
+    ToggleTerminalPanel,
+    CloseToolDock,
+    ToggleAnimationPlayback,
     FocusToasts,
     SelectAll,
     DuplicateSelection,
@@ -56,6 +63,7 @@ pub enum Command {
     ToggleProjection,
     SetShading(crate::render::shading::ShadingMode),
     ToggleXray,
+    ToggleEdges,
     TogglePlanarNavigation,
     ToggleRuler2D,
     ToggleLocalView,
@@ -74,6 +82,7 @@ pub enum HostEffect {
     #[default]
     None,
     Open,
+    Import,
     Quit,
     CancelNavigation,
     NavigationContextChanged,
@@ -186,7 +195,22 @@ pub fn claim_viewport_input(ctx: &Context) {
 
 pub fn viewport_input_claimed(ctx: &Context) -> bool {
     let id = viewport_input_claim_id(ctx);
-    ctx.data(|data| data.get_temp::<u64>(id)) == Some(ctx.cumulative_frame_nr())
+    let suppression_id = viewport_input_suppression_id(ctx);
+    let frame = Some(ctx.cumulative_frame_nr());
+    ctx.data(|data| data.get_temp::<u64>(id)) == frame
+        || ctx.data(|data| data.get_temp::<u64>(suppression_id)) == frame
+}
+
+fn viewport_input_suppression_id(ctx: &Context) -> egui::Id {
+    egui::Id::new("n3.viewport.input_suppression").with(ctx.viewport_id())
+}
+
+/// Suppress viewport commands through this frame without moving keyboard focus.
+/// Other hosts, such as the animation timeline, retain their own focused widget.
+pub fn suppress_viewport_input(ctx: &Context) {
+    let frame = ctx.cumulative_frame_nr();
+    let id = viewport_input_suppression_id(ctx);
+    ctx.data_mut(|data| data.insert_temp(id, frame));
 }
 
 fn retain_captured_viewport_focus(ctx: &Context) {
@@ -250,7 +274,8 @@ impl egui::Plugin for ViewportFocus {
 
     fn on_begin_pass(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx();
-        if viewport_input_claimed(ctx) {
+        let claim_id = viewport_input_claim_id(ctx);
+        if ctx.data(|data| data.get_temp::<u64>(claim_id)) == Some(ctx.cumulative_frame_nr()) {
             retain_captured_viewport_focus(ctx);
             return;
         }
@@ -304,11 +329,25 @@ fn resolve(key: Key, modifiers: Modifiers, owner: KeyboardOwner) -> Option<Comma
     bindings::BINDINGS.iter().find_map(|binding| {
         (binding.trigger == Trigger::Press
             && (!owner.text || binding.over_text)
-            && (!binding.viewport_only || owner.viewport)
+            && match binding.scope {
+                Scope::Editor => true,
+                Scope::Viewport => owner.viewport,
+                Scope::Timeline => false,
+            }
             && binding.matches_key(key, modifiers))
         .then_some(binding.command)
         .flatten()
     })
+}
+
+fn command_allowed_over_text(command: &Command) -> bool {
+    // Focus may change during a UI pass or its layout retry. Use the same
+    // catalog policy for queued commands as for initial resolution; a separate
+    // allowlist previously lost Preferences at the final ownership check.
+    matches!(command, Command::EndNudge { .. })
+        || bindings::BINDINGS
+            .iter()
+            .any(|binding| binding.over_text && binding.command.as_ref() == Some(command))
 }
 
 fn arrow_direction(key: Key) -> Option<(i8, i8)> {
@@ -424,8 +463,7 @@ fn resolve_number(event: NumberKeyEvent, owner: KeyboardOwner) -> Option<Command
         return None;
     }
     bindings::BINDINGS.iter().find_map(|binding| {
-        binding
-            .matches_number(event.key, event.modifiers)
+        (binding.scope != Scope::Timeline && binding.matches_number(event.key, event.modifiers))
             .then_some(binding.command)
             .flatten()
     })
@@ -651,18 +689,7 @@ impl ShortcutFrame {
         } else if owner.text {
             // A late field on a layout retry owns the entire frame. Keep only
             // the application shortcuts that `resolve` permits over fields.
-            self.commands.retain(|command| {
-                matches!(
-                    command,
-                    Command::New
-                        | Command::Open
-                        | Command::OpenPreferences
-                        | Command::Save { .. }
-                        | Command::Quit
-                        | Command::ToggleUi
-                        | Command::EndNudge { .. }
-                )
-            });
+            self.commands.retain(command_allowed_over_text);
         }
         if claimed {
             self.commands.clear();
@@ -841,17 +868,7 @@ impl ShortcutFrame {
         if !self.context.input(|input| input.focused) || owner.popup || owner.modal {
             self.commands.clear();
         } else if owner.text {
-            self.commands.retain(|command| {
-                matches!(
-                    command,
-                    Command::New
-                        | Command::Open
-                        | Command::Save { .. }
-                        | Command::Quit
-                        | Command::ToggleUi
-                        | Command::EndNudge { .. }
-                )
-            });
+            self.commands.retain(command_allowed_over_text);
         }
         if !transform_keys_available(owner) {
             let id = period_tap_id(&self.context);

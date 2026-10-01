@@ -3,7 +3,6 @@ use crate::{
     controls::{self, Control, Trace},
     doc_capture::Capture,
     doc_input::VirtualInput,
-    document,
     keyboard_input::{NumberKey, NumberKeyEvent},
     navigation_events::{self, Event as NavigationEvent},
     shortcuts::{HostEffect, ShortcutFrame},
@@ -14,6 +13,7 @@ mod artifacts;
 pub(crate) mod capture;
 mod features;
 pub(crate) mod input;
+mod renderer_baseline;
 mod shortcut_replay;
 pub use artifacts::run;
 use artifacts::{insert, validate_path};
@@ -25,6 +25,11 @@ use std::{
     time::Duration,
 };
 
+#[path = "scenarios/animation.rs"]
+mod animation_inspection;
+#[cfg(test)]
+#[path = "tests/animation_tests.rs"]
+mod animation_tests;
 #[cfg(test)]
 #[path = "tests/axis_lock_tests.rs"]
 mod axis_lock_tests;
@@ -53,6 +58,12 @@ mod make_face;
 #[cfg(test)]
 #[path = "tests/make_face_input_tests.rs"]
 mod make_face_input_tests;
+#[cfg(test)]
+#[path = "tests/menu_action_tests.rs"]
+mod menu_action_tests;
+#[cfg(test)]
+#[path = "tests/menu_keyboard_tests.rs"]
+mod menu_keyboard_tests;
 #[path = "scenarios/navigation.rs"]
 mod navigation;
 #[cfg(test)]
@@ -71,6 +82,11 @@ mod orbit_tool;
 mod orbit_tool_tests;
 #[path = "scenarios/2d_ruler.rs"]
 mod ruler_2d;
+#[path = "scenarios/scene_viewer.rs"]
+mod scene_viewer;
+#[cfg(test)]
+#[path = "tests/scene_viewer_input_tests.rs"]
+mod scene_viewer_input_tests;
 #[path = "scenarios/selection_keys.rs"]
 mod selection_keys;
 #[path = "scenarios/settings.rs"]
@@ -82,11 +98,19 @@ mod shading;
 mod shading_tests;
 #[path = "scenarios/snapping.rs"]
 mod snapping;
+#[path = "scenarios/terminal.rs"]
+mod terminal;
+#[cfg(test)]
+#[path = "tests/terminal_tests.rs"]
+mod terminal_tests;
 #[cfg(test)]
 #[path = "tests/toast_tests.rs"]
 mod toast_tests;
 #[path = "scenarios/toasts.rs"]
 mod toasts;
+#[cfg(test)]
+#[path = "tests/tool_dock_tests.rs"]
+mod tool_dock_tests;
 #[path = "scenarios/2d.rs"]
 mod two_d;
 #[path = "scenarios/view_keys.rs"]
@@ -104,7 +128,7 @@ mod xray;
 #[path = "tests/xray_input_tests.rs"]
 mod xray_input_tests;
 
-mod annotations;
+pub(crate) mod annotations;
 
 mod tutorial;
 pub use tutorial::ClipSpec;
@@ -187,6 +211,9 @@ pub struct Session<'a> {
     number_keys_down: BTreeSet<NumberKey>,
     uploaded_revision: u64,
     show_inputs: bool,
+    /// Observed production dispatch only; supplying a dialog result is a
+    /// separate explicit fixture boundary and never a consequence of recording.
+    host_effects: Vec<HostEffect>,
     annotations: Vec<annotations::Annotation>,
     recorder: Option<tutorial::Recorder>,
     animations: BTreeSet<String>,
@@ -226,6 +253,7 @@ impl<'a> Session<'a> {
             number_keys_down: BTreeSet::new(),
             uploaded_revision: u64::MAX,
             show_inputs: true,
+            host_effects: Vec::new(),
             annotations: Vec::new(),
             recorder: None,
             animations: BTreeSet::new(),
@@ -404,7 +432,7 @@ impl<'a> Session<'a> {
             let context = ui.ctx().clone();
             let ctx = &context;
             shortcuts.begin_pass(ctx);
-            open |= self.state.ui(ui);
+            self.state.ui(ui);
             shortcuts
                 .collect_with_transform(ctx, self.state.transform_keyboard_context(ctx, false));
             self.cursor = ctx.output(|output| output.cursor_icon);
@@ -431,7 +459,14 @@ impl<'a> Session<'a> {
             .into_iter()
             .chain(shortcuts.commands())
         {
-            open |= self.state.dispatch(command, &self.ctx, false) == HostEffect::Open;
+            let effect = self.state.dispatch(command, &self.ctx, false);
+            open |= effect == HostEffect::Open;
+            if matches!(
+                effect,
+                HostEffect::Open | HostEffect::Import | HostEffect::Quit
+            ) {
+                self.host_effects.push(effect);
+            }
             if egui::Popup::is_any_open(&self.ctx) {
                 // Match native ownership when a command opens a popup.
                 break;
@@ -448,7 +483,10 @@ impl<'a> Session<'a> {
             .inspect_err(|_| output.textures_delta.clear())?;
         if self.uploaded_revision != self.state.mesh_revision {
             if let Some(mesh) = &self.state.mesh {
-                self.capture.scene.set_mesh(&self.capture.device, mesh);
+                self.capture
+                    .scene
+                    .set_mesh(&self.capture.device, mesh)
+                    .inspect_err(|_| output.textures_delta.clear())?;
             } else {
                 self.capture.scene.clear_mesh();
             }
@@ -476,7 +514,7 @@ impl<'a> Session<'a> {
         self.capture
             .scene
             .set_transform_gizmo(&self.capture.queue, gizmo);
-        self.capture.render(
+        self.capture.render_with_assets(
             &self.ctx,
             output,
             self.state.viewport,
@@ -488,6 +526,8 @@ impl<'a> Session<'a> {
             self.state.z_up,
             crate::theme::Palette::new(self.state.resolved_theme(), self.state.accent_color)
                 .workbench_viewport,
+            &self.state.placed_scenes(),
+            &self.state.editor.frame,
         )?;
         Ok(open)
     }
@@ -498,19 +538,103 @@ impl<'a> Session<'a> {
         self.frame(Vec::new(), Duration::ZERO)?;
         Ok(())
     }
+    pub fn take_host_effects(&mut self) -> Vec<HostEffect> {
+        std::mem::take(&mut self.host_effects)
+    }
     pub fn load_fixture(&mut self, name: &str) -> Result<()> {
         if Path::new(name).file_name().and_then(|s| s.to_str()) != Some(name) {
             return Err("Fixture must be a filename".into());
         }
         let path = root().join("fixtures/obj").join(name);
-        let document = document::load(&path)?;
+        let document = crate::asset_io::document::load_path(&path)?;
         self.state.install_document(path, document)?;
         self.settle()
+    }
+    /// Fixture setup uses the production scene loader and workspace installation.
+    /// The relative path preserves glTF's external-resource directory structure.
+    pub fn load_scene_fixture(&mut self, relative: &str) -> Result<()> {
+        let path = self.scene_fixture_path(relative)?;
+        let loaded = crate::asset_io::load(&path)?;
+        self.state.install_loaded_document(path, loaded)?;
+        if let Some(object) = self.state.editor.document.objects.first() {
+            self.state.editor.select_object(object.id)?;
+        }
+        self.settle()
+    }
+    /// File-choice fixture boundary for Import. Illustrated menu actions still
+    /// open the real control before supplying the chosen file through this path.
+    pub fn import_scene_fixture(&mut self, relative: &str) -> Result<()> {
+        let path = self.scene_fixture_path(relative)?;
+        let loaded = crate::asset_io::load(&path)?;
+        self.state.import_loaded_document(loaded)?;
+        self.settle()
+    }
+    fn scene_fixture_path(&self, relative: &str) -> Result<PathBuf> {
+        validate_path(relative)?;
+        let fixture_root = root()
+            .join("fixtures/gltf")
+            .canonicalize()
+            .map_err(|error| format!("Cannot resolve scene fixtures: {error}"))?;
+        let path = fixture_root
+            .join(relative)
+            .canonicalize()
+            .map_err(|error| format!("Cannot resolve scene fixture {relative}: {error}"))?;
+        if !path.starts_with(&fixture_root) {
+            return Err("Scene fixture must stay inside fixtures/gltf".into());
+        }
+        Ok(path)
     }
     pub fn witness(&mut self, control: Control) -> Result<()> {
         let path = self.trace.path(control)?;
         self.bindings.insert(control, path);
         Ok(())
+    }
+    /// Find a fixture's empty viewport background without assuming a corner is
+    /// unoccupied UI. Probe deterministically from the former lower-left inset,
+    /// then across/beyond live overlays and rendered geometry. This reads the
+    /// settled frame and production picker; it does not move input, advance the
+    /// clock, clear selection, or manufacture the intended interaction state.
+    pub fn empty_viewport_point(&mut self) -> Result<egui::Pos2> {
+        self.trace.validate()?;
+        let viewport = self.state.viewport.shrink(18.0);
+        if !viewport.is_positive() {
+            return Err("The viewport is too small to target empty background".into());
+        }
+        // A bounded fixture search, not application hit-testing policy. Keep
+        // the current UI and geometry authoritative, and fail if this framing
+        // does not provide a usable background point for the described action.
+        for row in 0..=8 {
+            for column in 0..=8 {
+                let point = egui::pos2(
+                    egui::lerp(viewport.x_range(), column as f32 / 8.0),
+                    egui::lerp(viewport.y_range(), 1.0 - row as f32 / 8.0),
+                );
+                let covered = self.trace.controls.iter().any(|(control, observed)| {
+                    *control != Control::Viewport && observed.rect.contains(point)
+                }) || self
+                    .state
+                    .tool_dock
+                    .floating_tabs_rect
+                    .is_some_and(|rect| rect.contains(point));
+                if covered || self.ctx.layer_id_at(point) != Some(egui::LayerId::background()) {
+                    continue;
+                }
+                if self
+                    .state
+                    .editor
+                    .object_at(
+                        point,
+                        self.state.viewport,
+                        &self.state.camera,
+                        self.state.z_up,
+                    )?
+                    .is_none()
+                {
+                    return Ok(point);
+                }
+            }
+        }
+        Err("The current fixture framing has no unobstructed empty viewport target".into())
     }
     fn target(&mut self, control: Control) -> Result<egui::Pos2> {
         self.witness(control)?;

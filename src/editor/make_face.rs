@@ -14,7 +14,8 @@ impl Editor {
     /// Cheap interaction eligibility, not a promise that the selected topology
     /// forms a valid face. The command reports geometric rejection explicitly.
     pub fn can_make_face(&self) -> bool {
-        self.edit_mode
+        self.can_edit()
+            && self.edit_mode
             && self.selected_objects.len() == 1
             && self.selected_object.is_some()
             && self.selected_vertices.len() >= 3
@@ -28,6 +29,7 @@ impl Editor {
     /// this action must never enter it while another interaction owns history.
     /// No-op/rejected attempts leave source recipes, redo, and selection intact.
     pub fn make_face(&mut self) -> Result<bool, String> {
+        self.require_write()?;
         if self.is_interacting() || self.numeric.is_some() || self.transform_axis.is_some() {
             return Err("Apply or cancel the current interaction before making a face.".into());
         }

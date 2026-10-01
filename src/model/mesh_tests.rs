@@ -223,6 +223,7 @@ fn load_text(text: &str) -> Result<MeshData, String> {
             continue;
         }
         let first_vertex = output.vertices.len() as u32;
+        let first_edge = output.edges.len() as u32;
         let positions: Vec<DVec3> = mesh
             .positions
             .as_chunks::<3>()
@@ -314,6 +315,8 @@ fn load_text(text: &str) -> Result<MeshData, String> {
         output.object_ranges.push(ObjectRange {
             object: object as u64 + 1,
             triangles: first_vertex..output.vertices.len() as u32,
+            edges: first_edge..output.edges.len() as u32,
+            loose_edges: output.edges.len() as u32..output.edges.len() as u32,
         });
     }
     if source_face != output.face_count || output.vertices.is_empty() {

@@ -1,5 +1,5 @@
-//! Derived rendering buffers and polygon triangulation. Application import and
-//! authoring data live in document.rs. Legacy parser regressions are test-only.
+//! Derived rendering buffers and polygon triangulation. Authored data lives in
+//! document.rs; external format parsing belongs to asset_io.
 
 use glam::{DVec2, DVec3};
 
@@ -15,6 +15,10 @@ pub struct ObjectRange {
     pub object: u64,
     /// Vertex indices into `MeshData::vertices`, ready for a triangle-list draw.
     pub triangles: std::ops::Range<u32>,
+    /// Derived edge-buffer ranges for any object, including immutable assets.
+    /// Unlike EditObjectTopology, these do not imply authoring vertex IDs.
+    pub edges: std::ops::Range<u32>,
+    pub loose_edges: std::ops::Range<u32>,
 }
 
 /// Authored topology identities alongside derived GPU buffers. These are

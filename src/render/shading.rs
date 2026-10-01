@@ -5,6 +5,7 @@ pub enum ShadingMode {
     #[default]
     Solid,
     Wireframe,
-    // TODO: Add material preview and rendered modes with the future material
-    // and lighting pipeline; neither is an alternate name for this solid view.
+    MaterialPreview,
+    // TODO: A Rendered mode needs an explicit scene-lighting/output contract;
+    // Material Preview is the current supported realtime material inspection.
 }

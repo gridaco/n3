@@ -19,7 +19,7 @@ fn batched_locked_double_click_commits_and_unlocks_without_selecting_or_entering
         let position = if on_surface {
             s.state.viewport.center()
         } else {
-            s.state.viewport_ui_rect.left_bottom() + egui::vec2(25.0, -25.0)
+            s.empty_viewport_point().unwrap()
         };
         // Exactly two clicks: a third click after confirmation legitimately
         // belongs to ordinary selection again.
@@ -436,6 +436,13 @@ fn pending_move_blocks_document_actions_allows_navigation_and_preferences_keeps_
     assert!(s.trace.get(Control::ViewMenu).unwrap().enabled);
     s.click(Control::ViewMenu).unwrap();
     assert!(!s.trace.get(Control::LocalViewMenu).unwrap().enabled);
+    tap(&mut s, Key::Escape, Modifiers::NONE);
+    assert!(
+        egui::Popup::is_any_open(&s.ctx),
+        "Escape closes only the View submenu"
+    );
+    assert!(s.trace.get(Control::LocalViewMenu).is_err());
+    assert_eq!(s.state.editor.document, preview);
     tap(&mut s, Key::Escape, Modifiers::NONE);
     assert!(!egui::Popup::is_any_open(&s.ctx));
     assert!(s.trace.get(Control::Projection).unwrap().enabled);

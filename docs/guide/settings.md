@@ -20,7 +20,8 @@ highlight color, or <code>Preferences → Reset accent</code> to restore N3's de
 N3 may adjust the displayed accent's lightness for contrast; the saved color stays the
 chosen `#RRGGBB` value.
 The viewport background follows the theme; mesh lighting and materials do not
-change. Axis and error colors keep their own meanings.
+change. Dark uses neutral gray surfaces. Accent highlights, axis colors, and
+error colors keep their own meanings.
 Under Viewport, <code>Preferences → Z-up</code> displays the source Z axis vertically for the
 current view. It does not alter geometry and resets when you open or create a document.
 

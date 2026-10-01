@@ -4,6 +4,10 @@ FROM rust:1.98.1-slim-bookworm@sha256:dacc9e51f252243eb59d2fb4cb4ad8b0d3f607b6a8
 FROM node:24.14.0-bookworm-slim@sha256:4bd6219054c8bebcd26a66bfd8ca0bd6e1024b4b97474c59bb7ee3bbcbef4fe8 AS node
 FROM ubuntu:24.04@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4
 
+# The minimal Ubuntu image has no CA bundle. Bootstrap trust from the pinned
+# Rust image before contacting the HTTPS snapshot; APT still verifies signatures.
+COPY --from=rust /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
 # Snapshot fixes Mesa, LLVM and their dependencies instead of following runner updates.
 RUN apt-get update --snapshot 20260928T000000Z \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \

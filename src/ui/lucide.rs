@@ -32,22 +32,28 @@ pub(crate) enum Icon {
     Cylinder,
     Cone,
     Torus,
+    RectangleHorizontal,
+    Circle,
     ScanBox,
+    ChevronRight,
 }
 
 impl Icon {
     fn codepoint(self) -> char {
         match self {
-            Self::MousePointer2 => '\u{e1c3}', // mouse-pointer-2
-            Self::Move3d => '\u{e2e5}',        // move-3d
-            Self::Rotate3d => '\u{e2ea}',      // rotate-3d
-            Self::Scale3d => '\u{e2eb}',       // scale-3d
-            Self::X => '\u{e1b2}',             // x
-            Self::Box => '\u{e061}',           // box
-            Self::Cylinder => '\u{e525}',      // cylinder
-            Self::Cone => '\u{e523}',          // cone
-            Self::Torus => '\u{e52f}',         // torus
-            Self::ScanBox => '\u{e720}',       // scan-box
+            Self::MousePointer2 => '\u{e1c3}',       // mouse-pointer-2
+            Self::Move3d => '\u{e2e5}',              // move-3d
+            Self::Rotate3d => '\u{e2ea}',            // rotate-3d
+            Self::Scale3d => '\u{e2eb}',             // scale-3d
+            Self::X => '\u{e1b2}',                   // x
+            Self::Box => '\u{e061}',                 // box
+            Self::Cylinder => '\u{e525}',            // cylinder
+            Self::Cone => '\u{e523}',                // cone
+            Self::Torus => '\u{e52f}',               // torus
+            Self::RectangleHorizontal => '\u{e376}', // rectangle-horizontal
+            Self::Circle => '\u{e076}',              // circle
+            Self::ScanBox => '\u{e720}',             // scan-box
+            Self::ChevronRight => '\u{e06f}',        // chevron-right
         }
     }
 
@@ -108,7 +114,10 @@ mod tests {
                     Icon::Cylinder,
                     Icon::Cone,
                     Icon::Torus,
+                    Icon::RectangleHorizontal,
+                    Icon::Circle,
                     Icon::ScanBox,
+                    Icon::ChevronRight,
                 ] {
                     assert!(fonts.has_glyph(&font_id, icon.codepoint()), "{icon:?}");
                 }

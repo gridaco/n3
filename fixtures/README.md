@@ -67,3 +67,9 @@ Open it in N3 from the repository root, or drag the file onto its viewport:
 ```sh
 just run fixtures/obj/suzanne.obj
 ```
+
+## glTF scene fixtures
+
+[glTF fixtures](gltf/README.md) cover embedded PBR textures, external-resource
+skinning, and morph animation through the read-only scene viewer. Their upstream
+revision, licenses, and exact bytes are recorded separately from the OBJ fixtures.

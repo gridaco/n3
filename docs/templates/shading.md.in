@@ -1,20 +1,46 @@
-# Solid and Wireframe
+# Viewport shading
 
 With the Cursor tool ({{shortcut:tool.cursor}}), move the pointer over
 {{control:viewport}} and hold {{shortcut:shading.pie}}. Point left at
-{{control:shading-pie.wireframe}} or right at {{control:shading-pie.solid}}, then
-release the key to apply your choice. No click is needed.
+{{control:shading-pie.wireframe}}, right at {{control:shading-pie.solid}}, or down
+at {{control:shading-pie.material-preview}}, then release the key to apply your
+choice. No click is needed.
+The **Shading** name appears above the center, and the current mode is marked.
+The buttons face a circular opening and extend outward from it.
+The ring's highlighted segment follows the pointer's direction, including empty sectors.
+Pause in a sector to see its tooltip,
+even when the pointer is outside its button.
+The pie stays inside the window and can extend over the side panels when opened
+near a viewport edge.
 
 {{image:shading-pie}}
 
-**Solid** shows shaded surfaces. This is the default view.
+{{image:shading-pie-help}}
+
+**Solid** shows opaque surfaces with neutral inspection shading. This is the
+default view, including for imported assets. It keeps surface shape readable
+without using imported textures, transparency, or material lighting.
 
 {{image:shading-solid}}
 
 **Wireframe** shows the mesh's polygon boundaries, including rear edges, without
 filled surfaces. It does not add diagonals across the original polygons.
+Imported triangle meshes show their existing triangle boundaries.
 
 {{image:shading-wireframe}}
+
+**Material Preview** displays imported materials and texture maps with studio
+lighting. Native meshes keep their editor material until material authoring is
+available. Here is the same imported water bottle in Solid:
+
+{{image:shading-imported-solid}}
+
+And in Material Preview, with the same geometry, selection, and camera:
+
+{{image:shading-material-preview}}
+
+Material Preview is for inspection; it is not a final render. A Rendered mode is
+not available yet.
 
 Wireframe is a display mode. With [X-ray](xray.md) off, vertex selection still
 uses the visible surface; rear vertices do not become selectable through the
@@ -23,12 +49,14 @@ not change geometry, selection, the camera, or undo history. The ordinary edge
 display preference for Solid remains unchanged.
 
 Hovering a choice does not apply it yet. Return to the opening point before
-releasing to cancel, or press {{shortcut:cancel}}.
+releasing to cancel, point into the empty upper direction, or press
+{{shortcut:cancel}}.
 
 In Move ({{shortcut:tool.move}}), Rotate ({{shortcut:tool.rotate}}), and Scale
 ({{shortcut:tool.scale}}), {{shortcut:transform.axis-z}} remains the Z-axis lock
 and never opens this pie, even with no selection. Switch to Cursor first.
 Text fields, open menus, and active gestures keep their own input.
 
-See [editing geometry](editing.md) or [reading vertex selections](edit-selection.md).
+See [imported assets](scene-viewer.md), [editing geometry](editing.md), or
+[reading vertex selections](edit-selection.md).
 [Back to guide](README.md).

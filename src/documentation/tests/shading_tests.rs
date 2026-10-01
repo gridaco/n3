@@ -134,8 +134,11 @@ fn shading_release_applies_once_without_document_history_or_navigation_changes()
     let revision = s.state.editor.revision;
     let selected = s.state.editor.selected_objects.clone();
     let pose = s.state.camera.view_projection(s.state.aspect());
+    s.state.show_edges = false;
+    assert!(s.state.editor.set_xray(true));
     for (choice, expected) in [
         (Control::PieWireframe, ShadingMode::Wireframe),
+        (Control::PieMaterialPreview, ShadingMode::MaterialPreview),
         (Control::PieSolid, ShadingMode::Solid),
     ] {
         let before = s.state.shading;
@@ -157,9 +160,31 @@ fn shading_release_applies_once_without_document_history_or_navigation_changes()
         assert_eq!(s.state.editor.revision, revision);
         assert_eq!(s.state.editor.selected_objects, selected);
         assert_eq!(s.state.camera.view_projection(s.state.aspect()), pose);
+        assert!(!s.state.show_edges);
+        assert!(s.state.editor.xray_enabled());
     }
     assert!(s.state.editor.undo());
     assert_eq!(s.state.editor.document, baseline);
+}
+
+#[test]
+fn shading_guide_replays_three_modes_and_witnesses_actual_imported_material_change() {
+    let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT)).unwrap();
+    let mut s = Session::new(&mut capture).unwrap();
+    super::shading::run(&mut s).unwrap();
+    let page = super::artifacts::render_template(
+        include_str!("../../../docs/templates/shading.md.in"),
+        &s.bindings,
+        &s.values,
+        &s.images,
+        &s.animations,
+    )
+    .unwrap();
+    assert!(!page.contains("{{"));
+    assert_eq!(s.images.len(), 6);
+    assert!(page.contains("shading-pie-help.webp"));
+    assert!(s.animations.is_empty());
+    assert_eq!(s.state.shading, ShadingMode::Solid);
 }
 
 #[test]
@@ -216,7 +241,7 @@ fn shading_respects_text_popup_and_pointer_gesture_ownership() {
     .unwrap();
     let field = s.ctx.memory(|memory| memory.focused());
     assert!(field.is_some() && field != Some(viewport_focus_id()));
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(35.0, -35.0);
+    let empty = s.empty_viewport_point().unwrap();
     s.frame(vec![Event::PointerMoved(empty)], Duration::ZERO)
         .unwrap();
     s.shortcut_down("shading.pie").unwrap();

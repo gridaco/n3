@@ -230,7 +230,7 @@ fn insert_shortcut_leaves_active_pointer_gestures_and_transform_preview_untouche
         PointerButton::Secondary,
         PointerButton::Middle,
     ] {
-        let start = s.state.viewport_ui_rect.left_bottom() + egui::vec2(40., -40.);
+        let start = s.empty_viewport_point().unwrap();
         s.frame(
             vec![Event::PointerMoved(start), pointer(start, held, true)],
             Duration::ZERO,

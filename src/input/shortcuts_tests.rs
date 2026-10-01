@@ -1122,6 +1122,65 @@ fn preferences_shortcut_is_global_but_respects_popup_ownership_and_modifiers() {
 }
 
 #[test]
+fn application_bindings_survive_registered_field_and_timeline_focus_at_final_dispatch() {
+    for timeline in [false, true] {
+        for binding in bindings::BINDINGS
+            .iter()
+            .filter(|binding| binding.over_text)
+        {
+            let ctx = Context::default();
+            let focus_id = if timeline {
+                crate::input::timeline_input::timeline_focus_id()
+            } else {
+                egui::Id::new("registered-application-shortcut-field")
+            };
+            let mut text = String::new();
+            let mut control = |ui: &mut egui::Ui| {
+                if timeline {
+                    ui.interact(
+                        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 100.0)),
+                        focus_id,
+                        egui::Sense::click(),
+                    )
+                } else {
+                    ui.add(egui::TextEdit::singleline(&mut text).id(focus_id))
+                }
+            };
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                control(ui).request_focus();
+            })
+            .textures_delta
+            .clear();
+            let mut shortcuts = ShortcutFrame::new(&ctx);
+            ctx.run_ui(
+                egui::RawInput {
+                    events: vec![key(binding.key().unwrap(), binding.modifiers)],
+                    ..Default::default()
+                },
+                |ui| {
+                    shortcuts.begin_pass(ui.ctx());
+                    control(ui);
+                    shortcuts.collect(ui.ctx());
+                    if ui.ctx().current_pass_index() == 0 {
+                        ui.ctx()
+                            .request_discard("Test registered shortcut owner through layout retry");
+                    }
+                },
+            )
+            .textures_delta
+            .clear();
+            assert_eq!(ctx.memory(|memory| memory.focused()), Some(focus_id));
+            assert_eq!(
+                shortcuts.commands(),
+                vec![binding.command.unwrap()],
+                "{} timeline={timeline}",
+                binding.id
+            );
+        }
+    }
+}
+
+#[test]
 fn ui_toggle_is_a_global_command_without_a_plain_backslash_binding() {
     for owner in [
         KeyboardOwner {
@@ -2273,6 +2332,13 @@ fn documented_bindings_dispatch_their_registered_commands_and_respect_ownership(
         ..Default::default()
     };
     for binding in BINDINGS {
+        if binding.scope == bindings::Scope::Timeline {
+            assert_eq!(
+                resolve(binding.key().unwrap(), binding.modifiers, viewport),
+                None
+            );
+            continue;
+        }
         let actual = match (binding.trigger, binding.input) {
             (Trigger::Press, BindingInput::Key(key)) => resolve(key, binding.modifiers, viewport),
             (Trigger::Press, BindingInput::Number(key)) => {

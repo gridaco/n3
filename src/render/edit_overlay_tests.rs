@@ -44,6 +44,8 @@ fn quad_mesh(occluder: bool) -> MeshData {
         mesh.object_ranges.push(ObjectRange {
             object,
             triangles: triangles.clone(),
+            edges: edge_start..edge_start + 8,
+            loose_edges: edge_start..edge_start,
         });
         mesh.edit_topology.push(EditObjectTopology {
             object,
@@ -158,7 +160,10 @@ fn edit_overlay_tints_whole_polygons_and_interpolates_original_edges_without_reu
     let ctx = egui::Context::default();
     let mut camera = Camera::default();
     camera.set_view(crate::camera::View::Front);
-    capture.scene.set_mesh(&capture.device, &quad_mesh(false));
+    capture
+        .scene
+        .set_mesh(&capture.device, &quad_mesh(false))
+        .unwrap();
     let none = frame(&mut capture, &ctx, &camera, selection(&[]), false, false);
     let partial = frame(
         &mut capture,
@@ -239,7 +244,10 @@ fn edit_overlay_is_depth_tested_source_up_aware_and_clears_on_mesh_replacement()
         } else {
             crate::camera::View::Front
         });
-        capture.scene.set_mesh(&capture.device, &quad_mesh(false));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quad_mesh(false))
+            .unwrap();
         let base = frame(
             &mut capture,
             &ctx,
@@ -260,7 +268,10 @@ fn edit_overlay_is_depth_tested_source_up_aware_and_clears_on_mesh_replacement()
             base, selected,
             "Selection follows the same source-up transform as the mesh"
         );
-        capture.scene.set_mesh(&capture.device, &quad_mesh(true));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quad_mesh(true))
+            .unwrap();
         let hidden_base = frame(
             &mut capture,
             &ctx,
@@ -301,7 +312,10 @@ fn edit_overlay_is_depth_tested_source_up_aware_and_clears_on_mesh_replacement()
                 z_up
             )
         );
-        capture.scene.set_mesh(&capture.device, &quad_mesh(false));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quad_mesh(false))
+            .unwrap();
         assert_eq!(
             base,
             frame(
@@ -364,10 +378,13 @@ fn edit_edge_width_scales_for_retina_and_near_plane_clipping_does_not_flip_ribbo
         false,
         false,
     );
-    capture.scene.set_mesh(
-        &capture.device,
-        &line_mesh([-0.8, 0.0, 0.0], [0.8, 0.0, 0.0]),
-    );
+    capture
+        .scene
+        .set_mesh(
+            &capture.device,
+            &line_mesh([-0.8, 0.0, 0.0], [0.8, 0.0, 0.0]),
+        )
+        .unwrap();
     let normal = frame(
         &mut capture,
         &ctx,
@@ -406,10 +423,13 @@ fn edit_edge_width_scales_for_retina_and_near_plane_clipping_does_not_flip_ribbo
     capture.scene.set_pixel_scale(1.0);
     camera.toggle_projection();
     let eye = camera.eye();
-    capture.scene.set_mesh(
-        &capture.device,
-        &line_mesh([0.0, 0.0, eye.z + 0.1], [0.2, 0.0, eye.z + 0.2]),
-    );
+    capture
+        .scene
+        .set_mesh(
+            &capture.device,
+            &line_mesh([0.0, 0.0, eye.z + 0.1], [0.2, 0.0, eye.z + 0.2]),
+        )
+        .unwrap();
     assert_eq!(
         blank,
         frame(
@@ -422,10 +442,13 @@ fn edit_edge_width_scales_for_retina_and_near_plane_clipping_does_not_flip_ribbo
         ),
         "Edges entirely behind the perspective eye never render"
     );
-    capture.scene.set_mesh(
-        &capture.device,
-        &line_mesh([-0.02, 0.0, eye.z - 0.1], [0.2, 0.0, eye.z + 0.1]),
-    );
+    capture
+        .scene
+        .set_mesh(
+            &capture.device,
+            &line_mesh([-0.02, 0.0, eye.z - 0.1], [0.2, 0.0, eye.z + 0.1]),
+        )
+        .unwrap();
     let crossing = frame(
         &mut capture,
         &ctx,

@@ -289,7 +289,7 @@ impl EditOverlay {
         let mut object_edges = Vec::new();
         self.object_edge_ranges.clear();
         self.loose_edge_ranges.clear();
-        for object in &self.topology {
+        for object in &mesh.object_ranges {
             let start = object_edges.len() as u32;
             for edge in mesh.edges[object.edges.start as usize..object.edges.end as usize]
                 .as_chunks::<2>()

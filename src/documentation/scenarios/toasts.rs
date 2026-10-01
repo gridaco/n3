@@ -12,7 +12,8 @@ fn unfamiliar_key(s: &mut Session<'_>) -> Result<()> {
 pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.click(Control::InsertMenu)?;
     s.click(Control::InsertCube)?;
-    s.click_at(s.state.viewport_ui_rect.left_bottom() + egui::vec2(20., -20.))?;
+    let empty = s.empty_viewport_point()?;
+    s.click_at(empty)?;
     let document = s.state.editor.document.clone();
     let camera = s.state.camera.view_projection(s.state.aspect());
     s.require(
@@ -52,7 +53,8 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
 
     // Keyboard access starts from the viewport. Escape returns without taking
     // the editor's ordinary deselect/cancel path in this same input frame.
-    s.click_at(s.state.viewport_ui_rect.left_bottom() + egui::vec2(20., -20.))?;
+    let empty = s.empty_viewport_point()?;
+    s.click_at(empty)?;
     let previous_focus = s.ctx.memory(|memory| memory.focused());
     s.shortcut("notifications.focus")?;
     let focused = s.ctx.memory(|memory| memory.focused());

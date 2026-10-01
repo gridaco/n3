@@ -8,6 +8,10 @@ save it as an N3 document to keep your edits. A successful open fits the model
 into the viewport automatically. The current document remains visible while
 you choose a file; opening a file replaces it and updates the geometry counts.
 
+For glTF/GLB models with materials and animation, see
+[imported assets](scene-viewer.md). They use the same document and viewport;
+their placement is editable while their contents remain read-only.
+
 This example shows **bracket.obj**, with **12
 vertices**, **8 polygon faces**, and
 **20 display triangles**. Polygon faces may become

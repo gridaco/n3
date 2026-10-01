@@ -129,8 +129,11 @@ OS, and its static frame and bindings stay fixed. The manifest records the
 renderer profile. Exact checks reject mismatched profiles rather than silently
 skipping images; changing the baseline renderer requires intentional regeneration
 and review. Do not add image tolerances, automatic updates, or missing-adapter
-skips. The current Metal baseline does not establish Linux pixel equivalence;
-keep that CI gate explicit without obstructing local iteration. Use `just test`
+skips. The published Metal guide and exact lavapipe receipt are separate:
+`just ci-docs update` writes ignored Linux review captures and the receipt, keeps
+the guide read-only, and requires visual review followed by `just ci-docs check`.
+The receipt pins every generated artifact and the complete published guide;
+it does not establish cross-renderer pixel equivalence. Use `just test`
 for the full native suite and `just test-metal` for focused capture checks.
 For skill or hand-authored contributor-doc changes alone, validate instructions
 and links; unchanged app/media output does not require regeneration.

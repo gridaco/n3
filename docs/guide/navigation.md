@@ -26,6 +26,9 @@ logical pixels** to open the viewport menu without moving the camera. It offers
 <code>Viewport → Frame all</code> and <code>Viewport → Preferences</code>. Once a right
 drag crosses that distance, releasing opens no menu, even if the pointer has
 returned to its starting point.
+Context menus use the same flat rows and hover feedback as dropdown menus.
+Their shortcut hints appear beside the commands, including selection, framing,
+and Preferences. Commands become available as the selection and editing mode change.
 
 ![navigation context menu](assets/navigation-context-menu.webp)
 

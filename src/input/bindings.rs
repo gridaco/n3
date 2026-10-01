@@ -37,6 +37,16 @@ pub(crate) enum Trigger {
     Hold,
 }
 
+/// Proven keyboard owners, not a gesture or intent framework. Editor bindings
+/// retain their existing ownership rules; timeline bindings are resolved only
+/// by the timeline host's router.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Scope {
+    Editor,
+    Viewport,
+    Timeline,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Binding {
     pub id: &'static str,
@@ -45,7 +55,7 @@ pub struct Binding {
     pub(crate) command: Option<Command>,
     pub(crate) trigger: Trigger,
     pub(crate) over_text: bool,
-    pub(crate) viewport_only: bool,
+    pub(crate) scope: Scope,
     // These existing allowances are intentional. Space wins over held Option;
     // Option orbit may coexist with Shift. New/Open/Quit also accept Shift.
     allow_shift: bool,
@@ -66,7 +76,7 @@ impl Binding {
             command: Some(command),
             trigger: Trigger::Press,
             over_text: false,
-            viewport_only: false,
+            scope: Scope::Editor,
             allow_shift: false,
             allow_alt: false,
         }
@@ -79,7 +89,12 @@ impl Binding {
     }
 
     const fn viewport(mut self) -> Self {
-        self.viewport_only = true;
+        self.scope = Scope::Viewport;
+        self
+    }
+
+    const fn timeline(mut self) -> Self {
+        self.scope = Scope::Timeline;
         self
     }
 
@@ -102,7 +117,7 @@ impl Binding {
             command: None,
             trigger: Trigger::Hold,
             over_text: false,
-            viewport_only: false,
+            scope: Scope::Editor,
             allow_shift,
             allow_alt,
         }
@@ -218,6 +233,13 @@ pub(crate) const BINDINGS: &[Binding] = &[
     key!("insert.open", I, Modifiers::SHIFT, Command::InsertMenu),
     key!("history.undo", Z, Modifiers::MAC_CMD, Command::Undo),
     key!("history.redo", Z, SHIFT_COMMAND, Command::Redo),
+    key!(
+        "animation.play-pause",
+        Space,
+        Modifiers::NONE,
+        Command::ToggleAnimationPlayback
+    )
+    .timeline(),
     key!(
         "ui.toggle",
         Backslash,

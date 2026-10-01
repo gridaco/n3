@@ -91,6 +91,10 @@ cargo +args:
 check *args:
     cargo check --locked "$@"
 
+# Browse production UI components, or capture their deterministic internal evidence.
+workbench *args:
+    cargo run --locked -- --workbench "$@"
+
 # Format Rust and authored documentation/configuration.
 fmt: fmt-rust fmt-docs
 

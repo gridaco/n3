@@ -15,6 +15,8 @@ mod edit_overlay;
 use edit_overlay::EditOverlay;
 #[path = "gizmo_overlay.rs"]
 mod gizmo_overlay;
+pub(crate) use super::placed_scenes::PlacedScene;
+use super::placed_scenes::PlacedScenes;
 use super::shading::ShadingMode;
 use super::transform_gizmo::GizmoVertex;
 use gizmo_overlay::GizmoOverlay;
@@ -58,6 +60,8 @@ pub struct SceneRenderer {
     pub width: u32,
     pub height: u32,
     multisample_view: wgpu::TextureView,
+    multisample_srgb: wgpu::TextureView,
+    assets: PlacedScenes,
     depth_view: wgpu::TextureView,
     uniform_buffer: wgpu::Buffer,
     uniform_group: wgpu::BindGroup,
@@ -85,6 +89,7 @@ pub struct SceneRenderer {
 
 impl SceneRenderer {
     pub fn clear_mesh(&mut self) {
+        self.assets.clear();
         self.triangle_buffer = None;
         self.edge_buffer = None;
         self.triangle_vertex_count = 0;
@@ -102,7 +107,8 @@ impl SceneRenderer {
     pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
         let width = width.max(1);
         let height = height.max(1);
-        let (view, multisample_view, depth_view) = attachments(device, width, height);
+        let (view, multisample_view, multisample_srgb, depth_view) =
+            attachments(device, width, height);
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("n3 viewport camera and orientation"),
             size: size_of::<Uniforms>() as u64,
@@ -137,7 +143,14 @@ impl SceneRenderer {
         });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("n3 viewport lighting and grid"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("viewport.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                concat!(
+                    include_str!("inspection.wgsl"),
+                    "\n",
+                    include_str!("viewport.wgsl")
+                )
+                .into(),
+            ),
         });
 
         let make_pipeline = |label: &'static str,
@@ -200,6 +213,8 @@ impl SceneRenderer {
             width,
             height,
             multisample_view,
+            multisample_srgb,
+            assets: PlacedScenes::default(),
             depth_view,
             uniform_buffer,
             uniform_group,
@@ -304,13 +319,40 @@ impl SceneRenderer {
         if (width, height) == (self.width, self.height) {
             return;
         }
-        (self.view, self.multisample_view, self.depth_view) = attachments(device, width, height);
+        (
+            self.view,
+            self.multisample_view,
+            self.multisample_srgb,
+            self.depth_view,
+        ) = attachments(device, width, height);
         self.outline.resize(device, width, height);
         self.width = width;
         self.height = height;
     }
 
-    pub fn set_mesh(&mut self, device: &wgpu::Device, mesh: &MeshData) {
+    pub fn set_assets(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        assets: &[PlacedScene],
+        frame: &crate::document::DisplayFrame,
+    ) -> Result<(), String> {
+        self.assets.set(device, queue, assets, frame)
+    }
+
+    /// Proxy geometry expands imported triangle indices into separate vertices
+    /// and edge endpoints. Its buffers must fit independently of the indexed
+    /// imported draws, before either renderer publishes a candidate.
+    pub(crate) fn validate_mesh(device: &wgpu::Device, mesh: &MeshData) -> Result<(), String> {
+        mesh_upload_budget(
+            mesh.vertices.len(),
+            mesh.edges.len(),
+            device.limits().max_buffer_size,
+        )
+    }
+
+    pub fn set_mesh(&mut self, device: &wgpu::Device, mesh: &MeshData) -> Result<(), String> {
+        Self::validate_mesh(device, mesh)?;
         self.triangle_vertex_count = mesh.vertices.len() as u32;
         self.edge_vertex_count = mesh.edges.len() as u32;
         let upload = |label: &'static str, vertices: &[Vertex]| {
@@ -326,12 +368,12 @@ impl SceneRenderer {
         self.edge_buffer = upload("n3 original polygon edge vertices", &mesh.edges);
         self.object_ranges.clone_from(&mesh.object_ranges);
         self.edge_ranges = mesh
-            .edit_topology
+            .object_ranges
             .iter()
             .map(|object| (object.object, object.edges.clone()))
             .collect();
         self.loose_edge_ranges = mesh
-            .edit_topology
+            .object_ranges
             .iter()
             .filter(|object| !object.loose_edges.is_empty())
             .map(|object| (object.object, object.loose_edges.clone()))
@@ -339,6 +381,7 @@ impl SceneRenderer {
         self.outline
             .set_ranges(&self.object_ranges, self.visible_objects.as_ref());
         self.edit.set_mesh(device, mesh);
+        Ok(())
     }
 
     pub fn set_edit_selection(&mut self, device: &wgpu::Device, selection: EditSelection) {
@@ -380,8 +423,34 @@ impl SceneRenderer {
         encoder: &mut wgpu::CommandEncoder,
         camera: &Camera,
         options: ViewportRenderOptions,
-    ) {
+    ) -> Result<(), String> {
         let model = crate::orientation::display_rotation(options.z_up);
+        self.assets.prepare_view(
+            queue,
+            camera,
+            [self.width, self.height],
+            model,
+            options.background,
+            self.visible_objects.as_ref(),
+        )?;
+        let native_visible = if self.assets.is_empty()
+            || options.xray
+            || options.shading == ShadingMode::Wireframe
+        {
+            self.visible_objects.clone()
+        } else {
+            let asset_ids: BTreeSet<_> = self.assets.ids().collect();
+            Some(
+                self.object_ranges
+                    .iter()
+                    .filter(|range| {
+                        !asset_ids.contains(&range.object)
+                            && object_is_visible(self.visible_objects.as_ref(), range.object)
+                    })
+                    .map(|range| range.object)
+                    .collect(),
+            )
+        };
         let uniforms = Uniforms {
             view_projection: camera
                 .view_projection(self.width as f32 / self.height as f32)
@@ -424,18 +493,14 @@ impl SceneRenderer {
                         b: f64::from(options.background.b()) / 255.0,
                         a: 1.0,
                     }),
-                    store: if self.gizmo.active() {
-                        wgpu::StoreOp::Store
-                    } else {
-                        wgpu::StoreOp::Discard
-                    },
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: &self.depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Discard,
+                    store: wgpu::StoreOp::Store,
                 }),
                 stencil_ops: None,
             }),
@@ -461,7 +526,7 @@ impl SceneRenderer {
             for range in triangle_draw_ranges(
                 self.triangle_vertex_count,
                 &self.object_ranges,
-                self.visible_objects.as_ref(),
+                native_visible.as_ref(),
             ) {
                 pass.draw(range, 0..1);
             }
@@ -473,15 +538,50 @@ impl SceneRenderer {
                 for range in triangle_draw_ranges(
                     self.triangle_vertex_count,
                     &self.object_ranges,
-                    self.visible_objects.as_ref(),
+                    native_visible.as_ref(),
                 ) {
                     pass.draw(range, 0..1);
                 }
             }
         }
+        let imported = !self.assets.is_empty();
+        if imported {
+            drop(pass);
+            {
+                let mut imported_pass =
+                    self.continue_pass(encoder, "n3 imported opaque geometry", true);
+                self.assets.draw(
+                    &mut imported_pass,
+                    camera.view_projection(self.width as f32 / self.height as f32) * model,
+                    self.visible_objects.as_ref(),
+                    false,
+                    options.shading,
+                    options.xray,
+                );
+            }
+            pass = self.continue_pass(encoder, "n3 shared grid", false);
+            pass.set_bind_group(0, &self.uniform_group, &[]);
+        }
         if !wireframe && !options.xray && options.show_grid {
             pass.set_pipeline(&self.grid_pipeline);
             pass.draw(0..6, 0..1);
+        }
+        if imported && options.shading == ShadingMode::MaterialPreview && !options.xray {
+            drop(pass);
+            {
+                let mut imported_pass =
+                    self.continue_pass(encoder, "n3 imported transparent geometry", true);
+                self.assets.draw(
+                    &mut imported_pass,
+                    camera.view_projection(self.width as f32 / self.height as f32) * model,
+                    self.visible_objects.as_ref(),
+                    true,
+                    ShadingMode::MaterialPreview,
+                    false,
+                );
+            }
+            pass = self.continue_pass(encoder, "n3 shared editor feedback", false);
+            pass.set_bind_group(0, &self.uniform_group, &[]);
         }
         let edit_visible = self
             .edit_selection_object
@@ -534,6 +634,11 @@ impl SceneRenderer {
                 // Standalone edges are geometry, not the optional overlay on
                 // solid faces. Hide only the latter with the edge preference.
                 for (object, edges) in &self.loose_edge_ranges {
+                    // Imported lines use their evaluated buffer in Solid and
+                    // Material Preview; this pass supplies native loose edges.
+                    if self.assets.contains(*object) {
+                        continue;
+                    }
                     if !object_is_visible(self.visible_objects.as_ref(), *object) {
                         continue;
                     }
@@ -543,13 +648,20 @@ impl SceneRenderer {
                         }
                     }
                 }
-            } else if let Some(visible) = &self.visible_objects {
+            } else if self.visible_objects.is_some() || !self.assets.is_empty() {
                 for (object, edges) in &self.edge_ranges {
-                    if !visible.contains(object) {
+                    if !object_is_visible(self.visible_objects.as_ref(), *object) {
                         continue;
                     }
+                    let mut edges = edges.clone();
+                    if self.assets.contains(*object)
+                        && let Some((_, loose)) =
+                            self.loose_edge_ranges.iter().find(|(id, _)| id == object)
+                    {
+                        edges.end = edges.end.min(loose.start);
+                    }
                     for ordinary in self.edit.ordinary_edge_ranges(self.edge_vertex_count) {
-                        if let Some(range) = range_intersection(edges, &ordinary) {
+                        if let Some(range) = range_intersection(&edges, &ordinary) {
                             pass.draw(range, 0..1);
                         }
                     }
@@ -581,6 +693,95 @@ impl SceneRenderer {
             &self.view,
             &self.depth_view,
         );
+        Ok(())
+    }
+
+    fn continue_pass<'a>(
+        &self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        label: &str,
+        srgb: bool,
+    ) -> wgpu::RenderPass<'a> {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some(label),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: if srgb {
+                    &self.multisample_srgb
+                } else {
+                    &self.multisample_view
+                },
+                depth_slice: None,
+                resolve_target: if srgb { None } else { Some(&self.view) },
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        })
+    }
+}
+
+fn mesh_upload_budget(vertices: usize, edges: usize, max_buffer_size: u64) -> Result<(), String> {
+    for (label, count) in [("triangle", vertices), ("edge", edges)] {
+        u32::try_from(count)
+            .map_err(|_| format!("The viewport {label} proxy exceeds its draw-count limit."))?;
+        let bytes = (count as u64)
+            .checked_mul(size_of::<Vertex>() as u64)
+            .ok_or_else(|| format!("The viewport {label} proxy buffer size overflowed."))?;
+        if bytes > max_buffer_size {
+            return Err(format!(
+                "The viewport {label} proxy requires {bytes} bytes; this GPU supports at most {max_buffer_size} bytes per buffer."
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod mesh_upload_tests {
+    use super::*;
+
+    #[test]
+    fn imported_proxy_expansion_is_checked_without_allocating_geometry() {
+        // Two million indexed triangles can share only three source vertices.
+        // Their 12-million-endpoint edge proxy still exceeds a 256 MiB buffer.
+        let limit = 256 * 1024 * 1024;
+        assert!(
+            mesh_upload_budget(6_000_000, 12_000_000, limit)
+                .unwrap_err()
+                .contains("edge proxy")
+        );
+        assert!(
+            mesh_upload_budget(12_000_000, 0, limit)
+                .unwrap_err()
+                .contains("triangle proxy")
+        );
+        let exact = 24 * size_of::<Vertex>() as u64;
+        assert!(mesh_upload_budget(24, 24, exact).is_ok());
+        assert!(mesh_upload_budget(24, 25, exact).is_err());
+        assert!(mesh_upload_budget(0, 0, 0).is_ok());
+    }
+
+    #[test]
+    fn proxy_draw_counts_cannot_wrap_even_with_an_unlimited_buffer_budget() {
+        let overflow = u32::MAX as usize + 1;
+        assert!(
+            mesh_upload_budget(overflow, 0, u64::MAX)
+                .unwrap_err()
+                .contains("draw-count")
+        );
+        assert!(mesh_upload_budget(0, overflow, u64::MAX).is_err());
     }
 }
 
@@ -680,6 +881,8 @@ mod local_view_tests {
             mesh.object_ranges.push(ObjectRange {
                 object,
                 triangles: triangles.clone(),
+                edges: edges_start..edges_start + 8,
+                loose_edges: edges_start..edges_start,
             });
             mesh.edit_topology.push(EditObjectTopology {
                 object,
@@ -751,7 +954,10 @@ mod local_view_tests {
         let ctx = egui::Context::default();
         let mut camera = Camera::default();
         camera.set_view(View::Front);
-        capture.scene.set_mesh(&capture.device, &quads(true));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(true))
+            .unwrap();
         capture.scene.set_highlights(ObjectHighlights {
             selected: BTreeSet::from([17]),
             hovered: Some(99),
@@ -781,14 +987,20 @@ mod local_view_tests {
         ));
         assert_ne!(full, isolated, "The foreground occluder must disappear");
 
-        capture.scene.set_mesh(&capture.device, &quads(false));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(false))
+            .unwrap();
         assert_eq!(
             isolated,
             frame(&mut capture, &ctx, &camera),
             "Isolated surfaces, edges, face tint, and object outline match a one-object scene"
         );
 
-        capture.scene.set_mesh(&capture.device, &quads(true));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(true))
+            .unwrap();
         capture.scene.set_visible_objects(Some(&BTreeSet::new()));
         let empty = frame(&mut capture, &ctx, &camera);
         capture.scene.clear_mesh();
@@ -797,7 +1009,10 @@ mod local_view_tests {
             frame(&mut capture, &ctx, &camera),
             "An empty filter must also hide edit chrome and object outlines"
         );
-        capture.scene.set_mesh(&capture.device, &quads(true));
+        capture
+            .scene
+            .set_mesh(&capture.device, &quads(true))
+            .unwrap();
         capture.scene.set_edit_selection(
             &capture.device,
             EditSelection {
@@ -815,10 +1030,14 @@ mod local_view_tests {
             ObjectRange {
                 object: 17,
                 triangles: 0..6,
+                edges: 0..0,
+                loose_edges: 0..0,
             },
             ObjectRange {
                 object: 99,
                 triangles: 6..12,
+                edges: 0..0,
+                loose_edges: 0..0,
             },
         ];
         assert_eq!(
@@ -1162,43 +1381,66 @@ fn attachments(
     device: &wgpu::Device,
     width: u32,
     height: u32,
-) -> (wgpu::TextureView, wgpu::TextureView, wgpu::TextureView) {
-    let make_view = |label: &'static str, format, sample_count, usage| {
-        device
-            .create_texture(&wgpu::TextureDescriptor {
-                label: Some(label),
-                size: wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count,
-                dimension: wgpu::TextureDimension::D2,
-                format,
-                usage,
-                view_formats: &[],
-            })
-            .create_view(&wgpu::TextureViewDescriptor::default())
+) -> (
+    wgpu::TextureView,
+    wgpu::TextureView,
+    wgpu::TextureView,
+    wgpu::TextureView,
+) {
+    let texture = |label, format, sample_count, usage, view_formats: &[wgpu::TextureFormat]| {
+        device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(label),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage,
+            view_formats,
+        })
     };
+    let resolved = texture(
+        "n3 viewport resolved color",
+        COLOR_FORMAT,
+        1,
+        wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_SRC,
+        &[],
+    );
+    // Both views refer to the same samples. Workbench shaders encode their
+    // historical gamma output; PBR uses hardware SRGB conversion for linear
+    // blending. This is attachment reuse, never compositing finished images.
+    let color = texture(
+        "n3 shared viewport MSAA",
+        COLOR_FORMAT,
+        SAMPLE_COUNT,
+        wgpu::TextureUsages::RENDER_ATTACHMENT,
+        &[wgpu::TextureFormat::Rgba8UnormSrgb],
+    );
+    let srgb = color.create_view(&wgpu::TextureViewDescriptor {
+        format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
+        ..Default::default()
+    });
+    let depth = texture(
+        "n3 shared viewport depth",
+        DEPTH_FORMAT,
+        SAMPLE_COUNT,
+        wgpu::TextureUsages::RENDER_ATTACHMENT,
+        &[],
+    );
     (
-        make_view(
-            "n3 viewport resolved color",
-            COLOR_FORMAT,
-            1,
-            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        ),
-        make_view(
-            "n3 viewport 4x color",
-            COLOR_FORMAT,
-            SAMPLE_COUNT,
-            wgpu::TextureUsages::RENDER_ATTACHMENT,
-        ),
-        make_view(
-            "n3 viewport 4x depth",
-            DEPTH_FORMAT,
-            SAMPLE_COUNT,
-            wgpu::TextureUsages::RENDER_ATTACHMENT,
-        ),
+        resolved.create_view(&Default::default()),
+        color.create_view(&Default::default()),
+        srgb,
+        depth.create_view(&Default::default()),
     )
 }
+
+#[cfg(test)]
+#[path = "unified_tests.rs"]
+mod unified_tests;

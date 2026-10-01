@@ -1,7 +1,7 @@
 use super::{Result, Session, pointer};
 use crate::{
     controls::Control,
-    document::{self, Geometry, Object, PolyhedronType, PrimitiveKind},
+    document::{Geometry, Object, PolyhedronType, PrimitiveKind},
     document_io,
     editor::Tool,
 };
@@ -185,7 +185,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.click_path(&[Control::N3Menu, Control::FileMenu, Control::Save])?;
     let primitive_path = scratch.0.join("Getting started.n3.json");
     save_requested(s, primitive_path.clone())?;
-    let reopened = document::load(&primitive_path)?;
+    let reopened = crate::asset_io::document::load_path(&primitive_path)?;
     s.require(
         reopened == primitive_document,
         "Saving and reopening preserves the exact primitive parameters and object transform",
@@ -246,7 +246,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         s.state.editor.edit_mode && object(s, id)? == changed,
         "Double-clicking a primitive enters vertex editing without conversion",
     )?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(20.0, -20.0);
+    let empty = s.empty_viewport_point()?;
     double_click(s, empty)?;
     s.require(
         !s.state.editor.edit_mode
@@ -310,7 +310,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
 
     // Selection and transformation both use the same actual pointer path as
     // the editor. Geometry is inspected only to choose a visible tutorial target.
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(20.0, -20.0);
+    let empty = s.empty_viewport_point()?;
     s.click_at(empty)?;
     s.require(
         s.state.editor.edit_mode && s.state.editor.selected_vertices.is_empty(),
@@ -452,7 +452,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         s.state.editor.edit_mode && s.state.editor.selected_object == Some(id),
         "Double-clicking mesh surface away from vertices stays in vertex mode",
     )?;
-    let empty = s.state.viewport_ui_rect.left_bottom() + egui::vec2(20.0, -20.0);
+    let empty = s.empty_viewport_point()?;
     double_click(s, empty)?;
     s.require(
         !s.state.editor.edit_mode
@@ -548,9 +548,9 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     )?;
     let edited_path = scratch.0.join("Edited mesh.n3.json");
     save_requested(s, edited_path.clone())?;
-    let reopened = document::load(&edited_path)?;
+    let reopened = crate::asset_io::document::load_path(&edited_path)?;
     s.require(
-        reopened == after_move && document::load(&scratch.0.join("Getting started.n3.json"))? == primitive_document,
+        reopened == after_move && crate::asset_io::document::load_path(&scratch.0.join("Getting started.n3.json"))? == primitive_document,
         "Save as preserves editable vertex IDs, positions, faces and transforms without replacing the earlier primitive document",
     )?;
 
@@ -824,7 +824,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             && s.state.editor.document == saved && !s.state.is_dirty(),
         "Cancel discards the active transform and restores the saved geometry before clearing selection",
     )?;
-    let marquee_start = s.state.viewport_ui_rect.left_bottom() + egui::vec2(20.0, -20.0);
+    let marquee_start = s.empty_viewport_point()?;
     let marquee_end = marquee_start + egui::vec2(25.0, -25.0);
     s.frame(
         vec![egui::Event::PointerMoved(marquee_start)],

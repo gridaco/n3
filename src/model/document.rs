@@ -4,9 +4,7 @@
 //! Input/display conversions do not alter document units or authored numbers.
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fs::File,
-    io::Read,
-    path::Path,
+    sync::Arc,
 };
 
 use glam::{DMat4, DQuat, DVec3};
@@ -21,9 +19,9 @@ type Result<T> = std::result::Result<T, String>;
 // This version also fixes primitive evaluation recipes. A recipe change that
 // changes evaluated geometry requires a document migration or a version bump.
 pub const VERSION: u32 = 1;
-const MAX_BYTES: u64 = 64 * 1024 * 1024;
-const MAX_OBJECTS: usize = 10_000;
-const MAX_VERTICES: usize = 1_000_000;
+pub(crate) const MAX_BYTES: u64 = 64 * 1024 * 1024;
+pub(crate) const MAX_OBJECTS: usize = 10_000;
+pub(crate) const MAX_VERTICES: usize = 1_000_000;
 const MAX_CORNERS: usize = 2_000_000;
 pub(crate) const MAX_FACE_CORNERS: usize = 4096;
 const MAX_POLYGON_WORK: usize = 50_000_000;
@@ -118,6 +116,32 @@ impl Transform {
 pub enum Geometry {
     Primitive(Primitive),
     Mesh(EditableMesh),
+    /// Linked immutable content. Placement belongs to the object; imported
+    /// vertex attributes, materials and animation never enter edit history.
+    Asset(AssetInstance),
+}
+
+/// Additive v1 geometry variant. Existing documents retain their exact schema;
+/// older binaries reject this unknown variant rather than losing linked data.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssetInstance {
+    pub source: String,
+    pub scene: usize,
+}
+
+/// Runtime-only evaluated resources, shared by duplicate placements and excluded
+/// from serialization, authored topology, snapshots and undo history.
+pub(crate) type AssetFrames = BTreeMap<AssetInstance, Arc<crate::scene::EvaluatedScene>>;
+
+impl AssetInstance {
+    fn validate(&self) -> Result<()> {
+        if self.source.trim().is_empty() || self.source.contains('\0') || self.source.len() > 16_384
+        {
+            return Err("Asset source must be a nonempty path of at most 16384 bytes without NUL characters.".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -673,7 +697,7 @@ fn check_edge_budget(count: usize, corners: &mut usize) -> Result<()> {
     Ok(())
 }
 
-fn check_budget(count: usize, corners: &mut usize, work: &mut usize) -> Result<()> {
+pub(crate) fn check_budget(count: usize, corners: &mut usize, work: &mut usize) -> Result<()> {
     if !(3..=MAX_FACE_CORNERS).contains(&count) {
         return Err(format!(
             "Polygons must contain 3–{MAX_FACE_CORNERS} distinct vertices"
@@ -748,6 +772,10 @@ impl Document {
         match &object.geometry {
             Geometry::Primitive(p) => p.evaluate(),
             Geometry::Mesh(m) => Ok(m.clone()),
+            Geometry::Asset(_) => Err(
+                "Linked asset contents are read-only; only their object placement can be edited."
+                    .into(),
+            ),
         }
     }
 
@@ -794,6 +822,28 @@ impl Document {
         Ok(id)
     }
 
+    #[cfg(test)]
+    pub fn insert_asset(&mut self, source: AssetInstance, name: String) -> Result<u64> {
+        let id = self
+            .objects
+            .iter()
+            .map(|object| object.id)
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or("Object ID space exhausted")?;
+        self.transact(|document| {
+            document.objects.push(Object {
+                id,
+                name,
+                transform: Transform::default(),
+                geometry: Geometry::Asset(source),
+            });
+            Ok(())
+        })?;
+        Ok(id)
+    }
+
     pub fn validate(&self) -> Result<()> {
         if self.version != VERSION {
             return Err(format!(
@@ -814,6 +864,10 @@ impl Document {
                 return Err("Object IDs must be nonzero and unique".into());
             }
             object.transform.validate()?;
+            if let Geometry::Asset(asset) = &object.geometry {
+                asset.validate()?;
+                continue;
+            }
             let mesh = self.eval_object(object.id)?;
             vertices = vertices
                 .checked_add(mesh.vertices.len())
@@ -877,7 +931,17 @@ impl Document {
         Ok(text)
     }
 
+    #[cfg(test)]
     pub fn render_mesh(&self, frame: &DisplayFrame) -> Result<MeshData> {
+        self.render_mesh_with_assets(frame, &AssetFrames::new())
+    }
+
+    pub(crate) fn render_mesh_with_assets(
+        &self,
+        frame: &DisplayFrame,
+        assets: &AssetFrames,
+    ) -> Result<MeshData> {
+        super::asset_geometry::validate_budget(self, assets)?;
         self.validate()?;
         frame.validate()?;
         let mut output = MeshData {
@@ -895,6 +959,26 @@ impl Document {
         let mut all_points = Vec::new();
         let mut warped = 0;
         for object in &self.objects {
+            if let Geometry::Asset(asset) = &object.geometry {
+                if let Some(evaluated) = assets.get(asset) {
+                    crate::scene::display_limits::validate_display(
+                        DVec3::from_array(frame.center),
+                        frame.scale,
+                        object.transform.matrix(),
+                        evaluated,
+                    )?;
+                    let geometry = super::asset_geometry::AssetGeometry::new(object, evaluated)?;
+                    geometry.append_render(frame, object.id, &mut output)?;
+                    all_points.extend(geometry.into_framing_points(object));
+                } else {
+                    output.warnings.push(format!(
+                        "Linked asset '{}' is unavailable; its placement remains in the document.",
+                        object.name
+                    ));
+                    all_points.push(DVec3::from_array(object.transform.translation));
+                }
+                continue;
+            }
             let first_vertex = output.vertices.len() as u32;
             let first_edge = output.edges.len() as u32;
             let mesh = self.eval_object(object.id)?;
@@ -977,6 +1061,8 @@ impl Document {
             output.object_ranges.push(ObjectRange {
                 object: object.id,
                 triangles: first_vertex..output.vertices.len() as u32,
+                edges: first_edge..output.edges.len() as u32,
+                loose_edges: topology.loose_edges.clone(),
             });
             topology.edges.end = output.edges.len() as u32;
             output.edit_topology.push(topology);
@@ -990,7 +1076,11 @@ impl Document {
                 "{warped} non-planar polygon(s) use projected triangulation."
             ));
         }
-        if !self.objects.is_empty() {
+        if self
+            .objects
+            .iter()
+            .any(|object| !matches!(object.geometry, Geometry::Asset(_)))
+        {
             output.warnings.push("Geometry documents use generated flat normals; OBJ materials, UVs and authored normals are not retained.".into());
         }
         Ok(output)
@@ -1014,10 +1104,29 @@ impl Default for DisplayFrame {
 
 impl DisplayFrame {
     pub fn from_document(document: &Document) -> Result<Self> {
+        Self::from_document_with_assets(document, &AssetFrames::new())
+    }
+
+    pub(crate) fn from_document_with_assets(
+        document: &Document,
+        assets: &AssetFrames,
+    ) -> Result<Self> {
+        super::asset_geometry::validate_budget(document, assets)?;
         document.validate()?;
         let mut points = Vec::new();
         for object in &document.objects {
             let matrix = object.transform.matrix();
+            if let Geometry::Asset(asset) = &object.geometry {
+                if let Some(evaluated) = assets.get(asset) {
+                    points.extend(
+                        super::asset_geometry::AssetGeometry::new(object, evaluated)?
+                            .into_framing_points(object),
+                    );
+                } else {
+                    points.push(DVec3::from_array(object.transform.translation));
+                }
+                continue;
+            }
             points.extend(
                 document
                     .eval_object(object.id)?
@@ -1054,211 +1163,6 @@ impl DisplayFrame {
     pub fn display_to_world(&self, point: DVec3) -> DVec3 {
         point / self.scale + DVec3::from_array(self.center)
     }
-}
-
-fn read_text(path: &Path) -> Result<String> {
-    let file = File::open(path).map_err(|e| format!("Cannot open {}: {e}", path.display()))?;
-    let mut text = String::new();
-    file.take(MAX_BYTES + 1)
-        .read_to_string(&mut text)
-        .map_err(|e| format!("Cannot read {}: {e}", path.display()))?;
-    if text.len() as u64 > MAX_BYTES {
-        return Err("File exceeds the 64 MiB input limit".into());
-    }
-    Ok(text)
-}
-
-/// Open native JSON or import an OBJ, selected by its case-insensitive extension.
-pub fn load(path: &Path) -> Result<Document> {
-    if path
-        .extension()
-        .and_then(|s| s.to_str())
-        .is_some_and(|s| s.eq_ignore_ascii_case("obj"))
-    {
-        import_obj(path)
-    } else {
-        Document::from_json(&read_text(path)?)
-    }
-}
-
-/// Preserve OBJ position indices and source polygons. Each object owns its
-/// referenced vertices; equal coordinates are never welded. Unreferenced source
-/// vertices belong to the first nonempty object, so no position is discarded.
-/// A source position shared across OBJ groups becomes one owned vertex in each.
-/// OBJ provides no canonical length metadata: raw coordinates are kept exactly
-/// and interpreted as centimeters, without guessing or applying a scale factor.
-/// Non-surface records
-/// (materials, UVs, normals, lines and points) are outside this importer.
-pub fn import_obj(path: &Path) -> Result<Document> {
-    let name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("Imported object");
-    parse_obj(&read_text(path)?, name)
-}
-
-fn parse_obj(text: &str, default_name: &str) -> Result<Document> {
-    let mut positions = Vec::<[f64; 3]>::new();
-    let mut groups: Vec<(String, Vec<Face>)> = vec![(default_name.into(), Vec::new())];
-    let mut normal_count = 0usize;
-    let mut uv_count = 0usize;
-    let mut face_id = 0u64;
-    let mut corners = 0usize;
-    let mut work = 0usize;
-    for (line_index, line) in text.lines().enumerate() {
-        let body = line.split('#').next().unwrap_or("").trim();
-        let mut fields = body.split_whitespace();
-        let Some(record) = fields.next() else {
-            continue;
-        };
-        let fail = |message: String| format!("OBJ line {}: {message}", line_index + 1);
-        match record {
-            "v" | "vn" | "vt" => {
-                let values: Vec<f64> = fields
-                    .map(|s| {
-                        s.parse::<f64>()
-                            .map_err(|_| fail("Invalid coordinate".into()))
-                    })
-                    .collect::<Result<_>>()?;
-                if values.iter().any(|v| !v.is_finite()) {
-                    return Err(fail("Coordinates must be finite".into()));
-                }
-                match record {
-                    "v" => {
-                        if !(3..=7).contains(&values.len()) {
-                            return Err(fail("A vertex requires XYZ coordinates".into()));
-                        }
-                        if positions.len() >= MAX_VERTICES {
-                            return Err(fail("OBJ exceeds the vertex limit".into()));
-                        }
-                        positions.push([values[0], values[1], values[2]]);
-                    }
-                    "vn" => {
-                        if values.len() != 3 {
-                            return Err(fail("A normal requires three coordinates".into()));
-                        }
-                        normal_count += 1;
-                    }
-                    _ => {
-                        if !(1..=3).contains(&values.len()) {
-                            return Err(fail(
-                                "Texture coordinates require one to three values".into(),
-                            ));
-                        }
-                        uv_count += 1;
-                    }
-                }
-                if normal_count > MAX_VERTICES || uv_count > MAX_VERTICES {
-                    return Err(fail("OBJ exceeds the attribute limit".into()));
-                }
-            }
-            "o" | "g" => {
-                let name = fields.collect::<Vec<_>>().join(" ");
-                let name = if name.is_empty() {
-                    default_name.to_owned()
-                } else {
-                    name
-                };
-                if groups.last().is_some_and(|(_, faces)| faces.is_empty()) {
-                    groups.last_mut().unwrap().0 = name;
-                } else {
-                    if groups.len() >= MAX_OBJECTS {
-                        return Err(fail("OBJ exceeds the object limit".into()));
-                    }
-                    groups.push((name, Vec::new()));
-                }
-            }
-            "f" => {
-                let mut vertices = Vec::new();
-                for corner in fields {
-                    let indices: Vec<_> = corner.split('/').collect();
-                    if indices.len() > 3 || indices[0].is_empty() {
-                        return Err(fail("Malformed face corner".into()));
-                    }
-                    vertices
-                        .push(obj_index(indices[0], positions.len()).map_err(&fail)? as u64 + 1);
-                    if indices.len() > 1 && !indices[1].is_empty() {
-                        obj_index(indices[1], uv_count).map_err(&fail)?;
-                    }
-                    if indices.len() > 2 && !indices[2].is_empty() {
-                        obj_index(indices[2], normal_count).map_err(&fail)?;
-                    }
-                    if vertices.len() > MAX_FACE_CORNERS {
-                        return Err(fail("Polygon exceeds the corner limit".into()));
-                    }
-                }
-                check_budget(vertices.len(), &mut corners, &mut work).map_err(&fail)?;
-                face_id += 1;
-                groups.last_mut().unwrap().1.push(Face {
-                    id: face_id,
-                    vertices,
-                });
-            }
-            _ => {}
-        }
-    }
-    if face_id == 0 {
-        return Err("OBJ contains no polygon faces".into());
-    }
-    let mut document = Document::default();
-    let all_referenced: BTreeSet<_> = groups
-        .iter()
-        .flat_map(|(_, faces)| faces.iter().flat_map(|f| f.vertices.iter().copied()))
-        .collect();
-    let mut owned_vertex_count = 0usize;
-    for (name, faces) in groups {
-        if faces.is_empty() {
-            continue;
-        }
-        let mut referenced: BTreeSet<_> = faces
-            .iter()
-            .flat_map(|f| f.vertices.iter().copied())
-            .collect();
-        if document.objects.is_empty() {
-            referenced
-                .extend((1..=positions.len() as u64).filter(|id| !all_referenced.contains(id)));
-        }
-        owned_vertex_count += referenced.len();
-        if owned_vertex_count > MAX_VERTICES {
-            return Err("OBJ exceeds the owned vertex limit after splitting objects".into());
-        }
-        let vertices = referenced
-            .into_iter()
-            .map(|id| MeshVertex {
-                id,
-                position: positions[id as usize - 1],
-            })
-            .collect();
-        document.objects.push(Object {
-            id: document.objects.len() as u64 + 1,
-            name,
-            transform: Transform::default(),
-            geometry: Geometry::Mesh(EditableMesh {
-                vertices,
-                faces,
-                edges: Vec::new(),
-            }),
-        });
-    }
-    document.validate()?;
-    Ok(document)
-}
-
-fn obj_index(text: &str, count: usize) -> Result<usize> {
-    let index = text
-        .parse::<i64>()
-        .map_err(|_| "Invalid OBJ index".to_owned())?;
-    let resolved = if index > 0 {
-        index - 1
-    } else if index < 0 {
-        count as i64 + index
-    } else {
-        -1
-    };
-    if resolved < 0 || resolved >= count as i64 {
-        return Err(format!("OBJ index {index} is out of range"));
-    }
-    Ok(resolved as usize)
 }
 
 #[cfg(test)]

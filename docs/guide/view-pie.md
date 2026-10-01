@@ -5,8 +5,17 @@
 Move the pointer over <code>Viewport</code> and hold <kbd>`</kbd> to
 open the view pie. Keep the key held while pointing at a choice, then release
 the key to use it. You do not need to click.
+The **View** name appears above the center. The choices face a circular opening,
+with their buttons extending outward from it.
+The ring's highlighted segment follows the pointer's direction, including empty sectors.
+Pause in a choice's sector
+to see its tooltip; you do not need to hover directly over the button.
+Near a viewport edge, the pie can extend over the side panels; it stays inside
+the window. Keep the key held to choose there too.
 
 ![view pie open](assets/view-pie-open.webp)
+
+![view pie help](assets/view-pie-help.webp)
 
 | Position    | Choice                         |
 | ----------- | ------------------------------ |

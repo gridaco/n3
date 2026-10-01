@@ -1,0 +1,673 @@
+{
+  "version": 1,
+  "renderer": "linux-vulkan-lavapipe",
+  "canonical_renderer": "macos-metal",
+  "canonical_guide_sha256": "6dfc9b2fbe0188b70c03933d4db501f308d7ad40fa12db5c5bec00a3be01e421",
+  "artifacts": [
+    {
+      "path": "2d-ruler.md",
+      "bytes": 3689,
+      "sha256": "be0a7a2e0c70d17c758f69319b6df4476dd4d340961653ed828ea8735befb01d"
+    },
+    {
+      "path": "2d.md",
+      "bytes": 1994,
+      "sha256": "2f1219f57848e4fc12095df19b265f7b39f5862f0f2ae528862efa714e2c44d9"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1295,
+      "sha256": "66a7a25fba95bf9e7a2fb5fc258d3195b386e996e6093dbc121ed0563ebf0431"
+    },
+    {
+      "path": "animation.md",
+      "bytes": 4701,
+      "sha256": "190d3ab9711a5070a41bf6ef90045d3362bbe37fccb53b73be1611ecfff6d67c"
+    },
+    {
+      "path": "assets/2d-circle-filled.webp",
+      "bytes": 77376,
+      "sha256": "25868ce406c241feee50d344ef1a1b4d50ffc5ecbc547e94b6a66ddb238f3935"
+    },
+    {
+      "path": "assets/2d-empty.webp",
+      "bytes": 29058,
+      "sha256": "be01e79c11e35ac020ed459bda7fbba75aa789969c6520abf03fa1d96173ec2f"
+    },
+    {
+      "path": "assets/2d-overview.webp",
+      "bytes": 84068,
+      "sha256": "246bdb235ef65a5abb433ba15e9060ee69ff3350cf8092022b506eb4c3a8f4f3"
+    },
+    {
+      "path": "assets/2d-ruler-axis-transition.webp",
+      "bytes": 2621074,
+      "sha256": "14fe06b54426d1bdfde0ae09b0e5eb6995e5ec0a5498532e41624bc481b73559"
+    },
+    {
+      "path": "assets/2d-ruler-hidden.webp",
+      "bytes": 35222,
+      "sha256": "30b39d562d6907ff8428fa386a1c3e29f821c057956c86814ba908c7a8ee7b28"
+    },
+    {
+      "path": "assets/2d-ruler-menu.webp",
+      "bytes": 41330,
+      "sha256": "1fe8eebaed62c4c5f6aebbe2898e0c2d829b7d8be64ccd7685ceb91983aee07c"
+    },
+    {
+      "path": "assets/2d-ruler-objects.webp",
+      "bytes": 51946,
+      "sha256": "9d5800361cbecd9c79a44da337d2c928b6ceecc98b5461e95cacf86d01e28edd"
+    },
+    {
+      "path": "assets/2d-ruler-vertices.webp",
+      "bytes": 50424,
+      "sha256": "ce011379f8f974e20f075523d6a499c3127bbfd50f499bc6428f71995a11178c"
+    },
+    {
+      "path": "assets/animation-box-selection.webp",
+      "bytes": 586896,
+      "sha256": "c0192c2ecf77ad80ba2610ae9d052bb35d7e8e748a6914a2546e1fef652acb5f"
+    },
+    {
+      "path": "assets/animation-inspection.webp",
+      "bytes": 97912,
+      "sha256": "76885b0de26dc9058c8fb5d540c483c5608b7a4fd66f0905d0309ccfb0e011ad"
+    },
+    {
+      "path": "assets/animation-morphs.webp",
+      "bytes": 8489480,
+      "sha256": "2f0d79b799583c52308f7e61b5e1d3c164b84a80b3eccc59a529c3501282587e"
+    },
+    {
+      "path": "assets/animation-panel-closed.webp",
+      "bytes": 65122,
+      "sha256": "bbf17f1bdfa908c26c1bbaf447473ec2dc05ebf3347e1e9231343bd320a212c3"
+    },
+    {
+      "path": "assets/animation-panel-open.webp",
+      "bytes": 87900,
+      "sha256": "e98ee515515c40da72532ce782e222aeebeba7b3250c4224bff94dd07d0d3e7b"
+    },
+    {
+      "path": "assets/animation-skinning.webp",
+      "bytes": 2559778,
+      "sha256": "ebbbe662909b9530cdd9aebed6d0a74c4b51fd8805acb0704e41f46bc3cbeecb"
+    },
+    {
+      "path": "assets/axis-locks-aligned-nudge.webp",
+      "bytes": 49216,
+      "sha256": "ac505ee06ac53e18b08878d7c8baf73f903305dc8d33ff82909ab664b59a51d7"
+    },
+    {
+      "path": "assets/axis-locks-drag.webp",
+      "bytes": 54522,
+      "sha256": "8107768346955b6a1fab3a14151f2b3aa9aef3474b11269e6cbe85eec86fb194"
+    },
+    {
+      "path": "assets/edit-selection-face.webp",
+      "bytes": 569442,
+      "sha256": "5f2c75bea98af9711f88ba3ffea7ae101a5ab250c1c17762a10eafdff92af4ba"
+    },
+    {
+      "path": "assets/edit-selection-partial.webp",
+      "bytes": 47288,
+      "sha256": "7014951f9c7056f1b5a95e4b640459042c7232900cc0155fa57c334339ca0faf"
+    },
+    {
+      "path": "assets/editing-insert-menu.webp",
+      "bytes": 418436,
+      "sha256": "45f75334e2ed6df52eb49e94a9ac563c03e2fc8f8758f66fc5e32e37f539ec5c"
+    },
+    {
+      "path": "assets/editing-move-handles.webp",
+      "bytes": 408278,
+      "sha256": "c740868b869eeb3dd6adaf175cf1fa5fafcab772863ec5b661a7e176a36697e0"
+    },
+    {
+      "path": "assets/editing-move-vertices.webp",
+      "bytes": 407554,
+      "sha256": "d7a6868073571e9afde4c70a0c90aa9f3b3fa14ab06bec860fca859a23054809"
+    },
+    {
+      "path": "assets/editing-no-selection.webp",
+      "bytes": 405394,
+      "sha256": "c92802a237e647064f80f853f62b837b4a3ac1c8945d696415ed6978e5e69d4c"
+    },
+    {
+      "path": "assets/editing-polyhedron-type.webp",
+      "bytes": 314962,
+      "sha256": "6fe8e2aee206cc175df75608db58f5c046d1aefc90505162e68143625e059365"
+    },
+    {
+      "path": "assets/editing-primitive-vertices.webp",
+      "bytes": 411424,
+      "sha256": "f75bb52219be809aa1f24d6816d68962232c57e254193ae41439cf84555e913e"
+    },
+    {
+      "path": "assets/editing-primitive.webp",
+      "bytes": 405256,
+      "sha256": "aeaefb370947d4f4ae7554264a97c7ef72389bc82c0c666f7640b099fb5c7192"
+    },
+    {
+      "path": "assets/editing-scale-handles.webp",
+      "bytes": 405572,
+      "sha256": "baebffa9f6f34b9f28633b1de9d50090656e7006f10adb456cee2f8d357dab74"
+    },
+    {
+      "path": "assets/gizmo-aligned.webp",
+      "bytes": 35028,
+      "sha256": "91946183757017777778ecca4473f57956294ec5fb90db54e59f5c918f58dad1"
+    },
+    {
+      "path": "assets/gizmo-context-menu.webp",
+      "bytes": 36432,
+      "sha256": "336b3d201ba04c3f91eccb1e9f29f50557d024fcdefde0321f6ca581ee214c9c"
+    },
+    {
+      "path": "assets/gizmo-dot-navigation.webp",
+      "bytes": 40748,
+      "sha256": "60367bfeda6264976d280303316ad602bc8b53c45bd3eb9068a2046133607d67"
+    },
+    {
+      "path": "assets/gizmo-drag.webp",
+      "bytes": 300778,
+      "sha256": "bba5ef96ddcb6ddd50e93ef5a3c530a9be39acfb93600ed3a3de36055d0059cc"
+    },
+    {
+      "path": "assets/gizmo-hover.webp",
+      "bytes": 458168,
+      "sha256": "cee95b40ca4e4c05e6cf9ab865fa67a77638d6b624da4162ffa71deeeac775fe"
+    },
+    {
+      "path": "assets/gizmo-navigation-mode.webp",
+      "bytes": 425136,
+      "sha256": "3d17eb769908a8e08d7514949c99c747ba0f8e4e809f5cb109c150cdab2d8e38"
+    },
+    {
+      "path": "assets/gizmo-orbit-and-align.webp",
+      "bytes": 10800238,
+      "sha256": "6211dc92771a413d91d5565bde879bc848b4f48e34ae78ed16be7c87f6b7dfe0"
+    },
+    {
+      "path": "assets/gizmo-orbit.webp",
+      "bytes": 455648,
+      "sha256": "26f195aa4ad51e8fb1ad1b3c557f71297b9aa3fb681d5a4c06654089b88ef071"
+    },
+    {
+      "path": "assets/gizmo-projection-orthographic.webp",
+      "bytes": 487646,
+      "sha256": "584feef531d95a595d5e25519afc38bd721c8536e9b047cf0b87a499ab967418"
+    },
+    {
+      "path": "assets/gizmo-projection-perspective.webp",
+      "bytes": 461314,
+      "sha256": "92b6bec70597c43b84ee820a3f22027d6dc067f5b36d5b29abb7a15d3e2d8788"
+    },
+    {
+      "path": "assets/gizmo-settings.webp",
+      "bytes": 382128,
+      "sha256": "0a3d1c8b0c1b30018e7c1cf764fbacdda049910b3aff14b64d9847ed8769dd57"
+    },
+    {
+      "path": "assets/hand-tool-drag.webp",
+      "bytes": 344516,
+      "sha256": "4fd2556722844b2c6f1dcf5e2fb1e33acea6cd1f1bb7bd04bc30ada09414919c"
+    },
+    {
+      "path": "assets/hand-tool-pan-and-release.webp",
+      "bytes": 6278374,
+      "sha256": "5529b7d3a7ca6b05f4d77940c7867029cc47cdaf1b3c56eab885aba099d4a3be"
+    },
+    {
+      "path": "assets/hand-tool-ready.webp",
+      "bytes": 337844,
+      "sha256": "958d708b0321a4341f3b6438cedbfea89fadb26c06abc9b1e73fbf950c8419df"
+    },
+    {
+      "path": "assets/length-units-meters.webp",
+      "bytes": 46848,
+      "sha256": "243406e5fd1f0d5fd99ffa6ed7f8d16cbe8e0540e6b224cb01d5f7c6beb3e2f1"
+    },
+    {
+      "path": "assets/length-units-millimeters.webp",
+      "bytes": 49938,
+      "sha256": "67d5bd1fa8d6813fc566690b9ae8ce8a01c1c4e5c4bff2dc01aff1ac7cdb9970"
+    },
+    {
+      "path": "assets/local-view-all.webp",
+      "bytes": 520362,
+      "sha256": "96235fde10ae1e3a10d9c65cd31342febbdc327e38d5b9980a3da1692344e8cb"
+    },
+    {
+      "path": "assets/local-view-isolated.webp",
+      "bytes": 330220,
+      "sha256": "5c2efc4bc5bb3fb34edabd2d3ec423c54dcd150853e592b03c9b7439a6b65fab"
+    },
+    {
+      "path": "assets/local-view-restored.webp",
+      "bytes": 520750,
+      "sha256": "4cee0202214ec8bf305ff37e36f91229f9dc41bff576c76e76ac184d855e3891"
+    },
+    {
+      "path": "assets/local-view-transition.webp",
+      "bytes": 3815690,
+      "sha256": "37ea3e38d7ca1f3af1c123d7e3293afb9041ba00f8ee73ebe64b926fde5fdd39"
+    },
+    {
+      "path": "assets/make-face-circle.webp",
+      "bytes": 4579506,
+      "sha256": "df797ecaad94e0312369584413655550146ea1eb3f32c81cd534941b649ac30e"
+    },
+    {
+      "path": "assets/make-face-menu.webp",
+      "bytes": 450060,
+      "sha256": "51530e4fa629a10fe988fe1317f4d668b2b00f09945a9640e839c0698db4f554"
+    },
+    {
+      "path": "assets/make-face-result.webp",
+      "bytes": 306208,
+      "sha256": "ee77df230017cc2086f80c6857f80ab14a3d953ae1acaba44cdb0722006f5ce6"
+    },
+    {
+      "path": "assets/navigation-aligned-trackpad.webp",
+      "bytes": 44342,
+      "sha256": "67a6e5acf8403b54030d6e16dbbd6eb86a551e89f2c9a1d23992d900b13ab572"
+    },
+    {
+      "path": "assets/navigation-context-menu.webp",
+      "bytes": 462364,
+      "sha256": "ed0383c5af013414b22ee69dacace8a6250253483fc34402a600ddc32375fbb7"
+    },
+    {
+      "path": "assets/navigation-frame-key.webp",
+      "bytes": 465218,
+      "sha256": "bcffeed644a2eec7ab8a70c4a144fa6fb88b72f7556aaa3d96bbd70964956682"
+    },
+    {
+      "path": "assets/navigation-mouse-orbit.webp",
+      "bytes": 488152,
+      "sha256": "817e59e571d4aee81e4dea48fd0ac9dad5ae1c0afa1dbdef9bb955a81b534779"
+    },
+    {
+      "path": "assets/navigation-view-menu.webp",
+      "bytes": 456936,
+      "sha256": "9ee30f1fd03e6ea9058f95d9b007ebe1389d4915dc910f6aa247d9246fb1cd9b"
+    },
+    {
+      "path": "assets/navigation.webp",
+      "bytes": 43088,
+      "sha256": "c11797d61e85ac24343dedae2f2e2965cb54c50278363c89edbf85151830790e"
+    },
+    {
+      "path": "assets/numeric-move.webp",
+      "bytes": 54078,
+      "sha256": "d13748f0df2f2da50a01fda49a3c323e00e16237bb9d449fb635004e15fbd67d"
+    },
+    {
+      "path": "assets/numeric-rotate.webp",
+      "bytes": 59326,
+      "sha256": "e910c19aa93e0e57260ff90fd6791d81a384e6cf1b358302d260f791dadb5875"
+    },
+    {
+      "path": "assets/numeric-scale.webp",
+      "bytes": 52448,
+      "sha256": "5c326bc2213f8d5d542c88cff7ef839e41b02d1713491ff51ec634add054723d"
+    },
+    {
+      "path": "assets/object-feedback-box-drag-and-release.webp",
+      "bytes": 3207042,
+      "sha256": "4fbe446c21850a528e49d516d43dab56b4cef3bf4a1984c6647da2bb2d2cf1c0"
+    },
+    {
+      "path": "assets/object-feedback-box-result.webp",
+      "bytes": 517694,
+      "sha256": "d92983dd7c9a631497b6e5e02ed7f6c11af8774e706516f300e16aaa279e009a"
+    },
+    {
+      "path": "assets/object-feedback-box-selection.webp",
+      "bytes": 513122,
+      "sha256": "aeb1afbf4005465c57a7338950bef27ca05c93b3c39943717bfaabeee21c6452"
+    },
+    {
+      "path": "assets/object-feedback-layers.webp",
+      "bytes": 502604,
+      "sha256": "7f6b6fa7fde37427fe3c475c103ddb77facbb5564397a3d0dd518c2d9a3f7e7d"
+    },
+    {
+      "path": "assets/object-feedback-viewport.webp",
+      "bytes": 498766,
+      "sha256": "0a9600be0e65127bc7c7ce3c7a681eb38022b2dc41aa88a88d78866d2fac6540"
+    },
+    {
+      "path": "assets/opening-models.webp",
+      "bytes": 455648,
+      "sha256": "26f195aa4ad51e8fb1ad1b3c557f71297b9aa3fb681d5a4c06654089b88ef071"
+    },
+    {
+      "path": "assets/orbit-tool-leave-alignment.webp",
+      "bytes": 7673134,
+      "sha256": "129b500be7fa96188710cd1839dcbd63c28684293eee5ee96955b656059e6413"
+    },
+    {
+      "path": "assets/orbit-tool-ready.webp",
+      "bytes": 46326,
+      "sha256": "33c3a2ddacae580281bcf7cd43af72a203e93483f6282f88b4d2ba01bfaf0840"
+    },
+    {
+      "path": "assets/scene-viewer-materials.webp",
+      "bytes": 594448,
+      "sha256": "7979d5bdaf39b8784529e86b1e85121be6a06ce5db4ae21eb2ee18ad348649c9"
+    },
+    {
+      "path": "assets/scene-viewer-placement.webp",
+      "bytes": 2928508,
+      "sha256": "9bd0708ad9c6c6a66457d9d3b50976e61e562e01d553a37c93dd47a4123fb741"
+    },
+    {
+      "path": "assets/selection-keys-all-objects.webp",
+      "bytes": 506090,
+      "sha256": "80a020c00a484c7fcb2a2b6d141ccae10b57e5bd50f8c88c8ce0bc47da3debd8"
+    },
+    {
+      "path": "assets/selection-keys-delete-vertex.webp",
+      "bytes": 506126,
+      "sha256": "7e7a1630a20a74c1a7d4065cf2b911942543582f803395d11f0cc2eff391685d"
+    },
+    {
+      "path": "assets/selection-keys-duplicate.webp",
+      "bytes": 510330,
+      "sha256": "43444fe80dc9b897a43cc26c2ae954609835f19279543b55578fd5eba0af2f45"
+    },
+    {
+      "path": "assets/settings-dark.webp",
+      "bytes": 58806,
+      "sha256": "b86476bcdd69ce2691d91cf181e8228d5de9efef1dfcdd1eb80562eecef1795e"
+    },
+    {
+      "path": "assets/settings-invalid-json.webp",
+      "bytes": 75148,
+      "sha256": "c61104a1b4149b8976ecb79e5d1fc33cfbaaa7e67ed12388f17beef4b2fd0c20"
+    },
+    {
+      "path": "assets/settings-preferences.webp",
+      "bytes": 65278,
+      "sha256": "7e661bfeea70e4d263de0e506435c26423027e8990b52fa2e161c211e25d5a09"
+    },
+    {
+      "path": "assets/shading-imported-solid.webp",
+      "bytes": 537032,
+      "sha256": "e9acd9d2a4502f3fc0f1af9d092609e94e172ca91b387dec2f68486b8ef693db"
+    },
+    {
+      "path": "assets/shading-material-preview.webp",
+      "bytes": 593532,
+      "sha256": "12a691f6f0fd4039715866dc0167dd2b32cec11e317a4c26842f624498dfb7ea"
+    },
+    {
+      "path": "assets/shading-pie-help.webp",
+      "bytes": 345106,
+      "sha256": "b0ee32bf9763aebce0a838e2178e6c6b22422d1bf63401dd4d7dfbde605b7285"
+    },
+    {
+      "path": "assets/shading-pie.webp",
+      "bytes": 339438,
+      "sha256": "c6f8ac0007fd1054ab888d5c73a3f6d8db4ad0bf59f3b40b3bba80be84cc0ee8"
+    },
+    {
+      "path": "assets/shading-solid.webp",
+      "bytes": 331692,
+      "sha256": "107c79e9e47b7298aca054884ebd1305da5436d18a870125247fb348d4f25c58"
+    },
+    {
+      "path": "assets/shading-wireframe.webp",
+      "bytes": 549396,
+      "sha256": "3431fc7bb77dffdd230f0d4e2aa241bed1fa31016156aeeb7e6443154ef9c384"
+    },
+    {
+      "path": "assets/snapping-detail-move.webp",
+      "bytes": 440178,
+      "sha256": "d6a0e21fa38b263b7f5a4f2c33d5c8796bf31f4cefc40acd0d8ec0ca9ceaa1d2"
+    },
+    {
+      "path": "assets/snapping-grid-move.webp",
+      "bytes": 169116,
+      "sha256": "dc58d5a1af3d6516a5d7c833c20e02a88e46d7438c26b2ed1c4fc17beda3fd73"
+    },
+    {
+      "path": "assets/snapping-precise-input.webp",
+      "bytes": 165224,
+      "sha256": "ae05f7eafc41bbd169bda48ecdcedfc38ccbb86bd479c21b525ff954cc00156e"
+    },
+    {
+      "path": "assets/snapping-preferences.webp",
+      "bytes": 185468,
+      "sha256": "f9c711e34d7b663d708870e5e57814da63cf8756e7d2f06ede69e1e6b28d68c6"
+    },
+    {
+      "path": "assets/terminal-dark.webp",
+      "bytes": 336402,
+      "sha256": "3a0724daf3b478fe3e14df58a71ed11504b7c808b576c023cc0f5c8ba8356c23"
+    },
+    {
+      "path": "assets/terminal-light.webp",
+      "bytes": 362474,
+      "sha256": "949c90c9edbc78f469663f76dfbdfd1194542e2b1524c4eeaacdf4fe73b84f0d"
+    },
+    {
+      "path": "assets/terminal-resized.webp",
+      "bytes": 360292,
+      "sha256": "80787af75ba19e8ee71f4705ee3e07449453426d72a258e1b073131c0d0fedaf"
+    },
+    {
+      "path": "assets/toasts-shortcut-hint-dark.webp",
+      "bytes": 305656,
+      "sha256": "79c4b16ca1d9610dc9a6c06e93ada8610f835c8e284b234b9a4fd1b3363557d3"
+    },
+    {
+      "path": "assets/toasts-shortcut-hint.webp",
+      "bytes": 326448,
+      "sha256": "29ebf422dd5e8217e567a4ed3604a44affcfb50b60832e931d3f257e2915d8e9"
+    },
+    {
+      "path": "assets/view-keys-object-fit.webp",
+      "bytes": 361514,
+      "sha256": "33668e90e6768f94c666abd2f9949327402b7f15c225f1c51c960cdc7a250bd1"
+    },
+    {
+      "path": "assets/view-keys-vertex-fit.webp",
+      "bytes": 104630,
+      "sha256": "0610b5f49c75e48120cd0da19f4fe80ff6c267915a9fb2237637a1b4b9fdd70f"
+    },
+    {
+      "path": "assets/view-pie-help.webp",
+      "bytes": 351056,
+      "sha256": "4eb51142ae03952a144b058a08257e0ef376964390b4804826134b87d81be2b4"
+    },
+    {
+      "path": "assets/view-pie-open.webp",
+      "bytes": 347134,
+      "sha256": "fbb7a65007e797cbaac17567b1b55195b39e699e127252a0f51863d678d18d80"
+    },
+    {
+      "path": "assets/workspace-empty-3d.webp",
+      "bytes": 516894,
+      "sha256": "27db08122f1dd3a2baa2f8e8a1b1c26adbc7d68c12c0f4e34cb68c92e7ece3c3"
+    },
+    {
+      "path": "assets/workspace-hidden-ui.webp",
+      "bytes": 383566,
+      "sha256": "a3bcb71e510b53bd3833cebc35ade8e9e8bacdd275084c88f823fbe25f8e2539"
+    },
+    {
+      "path": "assets/workspace-layout.webp",
+      "bytes": 340112,
+      "sha256": "c4c4ea816f532155795c44a39a4334b39589f51393659e87faa8e3cd3f3c2a00"
+    },
+    {
+      "path": "assets/workspace-live-property.webp",
+      "bytes": 321552,
+      "sha256": "682c447ec2f24669a70d691b00e31d44a3f577bfdbbfea662c2d455604ae3a9d"
+    },
+    {
+      "path": "assets/workspace-menu.webp",
+      "bytes": 343554,
+      "sha256": "488c5522c587a7aea7f9a0866df85d778e795ec6e752106b8fd78ae4d9d3815c"
+    },
+    {
+      "path": "assets/workspace-transform-layout.webp",
+      "bytes": 340112,
+      "sha256": "c4c4ea816f532155795c44a39a4334b39589f51393659e87faa8e3cd3f3c2a00"
+    },
+    {
+      "path": "assets/xray-box-selection.webp",
+      "bytes": 15974646,
+      "sha256": "1b47e49395702b5c3bff7f272f18ed30c93d91cbaa96b718d08972c9d586792d"
+    },
+    {
+      "path": "assets/xray-menu.webp",
+      "bytes": 685912,
+      "sha256": "8ce67807876f834cf8625456c348e60f878eb90b2df95de4d067a96608e98a0a"
+    },
+    {
+      "path": "assets/xray-selection-retained.webp",
+      "bytes": 570430,
+      "sha256": "fb90dccc9fec6b936c817dcbfaa57fdcb15c807ff57e63ecf52e75fdb9081b89"
+    },
+    {
+      "path": "assets/xray-solid.webp",
+      "bytes": 687208,
+      "sha256": "67e28a491730296b5ca3a4c91306060723bb85dee3ce2899320ebbe1cc18c07b"
+    },
+    {
+      "path": "assets/xray-wireframe.webp",
+      "bytes": 702478,
+      "sha256": "bff90a212e2d3e6b4fd887bf60a471f670948d8e108e996f829499e6ff200f86"
+    },
+    {
+      "path": "axis-locks.md",
+      "bytes": 4054,
+      "sha256": "945602957e6ba7e0a43334a1a04b05141075428e824765236de70058af5f2cc2"
+    },
+    {
+      "path": "edit-selection.md",
+      "bytes": 2435,
+      "sha256": "e44210f5d1ff5c0705dbf4e6a8094ec8185704adc8776300dfec704604b01309"
+    },
+    {
+      "path": "editing.md",
+      "bytes": 8956,
+      "sha256": "972f80e3573c3034a23addfd18d61a4027a142bfad63d7fa3eee70afdcb382b6"
+    },
+    {
+      "path": "gizmo.md",
+      "bytes": 5979,
+      "sha256": "c4420faa7b3b112efd89362dd737a1c632579a767c69d8a7c35b70bf9c67dd26"
+    },
+    {
+      "path": "hand-tool.md",
+      "bytes": 1790,
+      "sha256": "7934705b101089573016b26cf1844c92171fddadf388994298b5c506a0e81ae9"
+    },
+    {
+      "path": "length-units.md",
+      "bytes": 2785,
+      "sha256": "fa9efc8afb11720fb96daf8491871ce226d3f7d6a5c01a33c4b77553a76a4e66"
+    },
+    {
+      "path": "local-view.md",
+      "bytes": 1430,
+      "sha256": "6e5e3566e85de6e0d786bbf085c494db207d842920b13067c4d3344e864f960a"
+    },
+    {
+      "path": "make-face.md",
+      "bytes": 2530,
+      "sha256": "050afc8c71fe6c774c0a5d0876126a942dcb9418ed6509af13d03bda453070d6"
+    },
+    {
+      "path": "manifest.txt",
+      "bytes": 412206,
+      "sha256": "3c674c8c47e13896c39a849c47b5551434916dd8b13a0f9d2b76f64d1697a8e2"
+    },
+    {
+      "path": "navigation.md",
+      "bytes": 4618,
+      "sha256": "bfda019826ab2e2d41d02c1de85433d8506970fa11dfa76299c0771f28fd58ca"
+    },
+    {
+      "path": "numeric-transforms.md",
+      "bytes": 4056,
+      "sha256": "ced330a5102a4024757f55af37aee4e75146f1543e7053c5f5644b0da5213026"
+    },
+    {
+      "path": "object-feedback.md",
+      "bytes": 2564,
+      "sha256": "c9e2cf71af5609c603da453520115bb4e94880a90dc6d7be5fb74b8e0971cfe3"
+    },
+    {
+      "path": "opening-models.md",
+      "bytes": 1353,
+      "sha256": "42644bbf46f6b4173ee237616b2192d1ea638a6f1d0c25e27d59e0aff41ed928"
+    },
+    {
+      "path": "orbit-tool.md",
+      "bytes": 2195,
+      "sha256": "0b8a441aa606a863346a8c73b95eeb97aa97ec9eb6fa1d640cf8d091f6a384d8"
+    },
+    {
+      "path": "scene-viewer.md",
+      "bytes": 3692,
+      "sha256": "c786c41ff8977d4e77710b713f817560168f78317711656dfcf3ae51ca28d89d"
+    },
+    {
+      "path": "selection-keys.md",
+      "bytes": 2834,
+      "sha256": "5f07b76d14e27b5ee8b9bf38f58643fdab1a9aadd61039d1204199008ff68d54"
+    },
+    {
+      "path": "settings.md",
+      "bytes": 5129,
+      "sha256": "c4f97b286ced7b58aa2b308fd63d5dfadb06a9b3fc3f0042fff4c750d516816d"
+    },
+    {
+      "path": "shading.md",
+      "bytes": 2948,
+      "sha256": "fa5c43e4cbecbbdb07376b7d386364a97305a0257027f90fff28e5f666b4f411"
+    },
+    {
+      "path": "snapping.md",
+      "bytes": 3425,
+      "sha256": "5eb806c872bc4836f09ae8ae0649600faff3013f459226f8d3439c7f7e08920a"
+    },
+    {
+      "path": "terminal.md",
+      "bytes": 2192,
+      "sha256": "8c9508bd62bcc21de6d7c9038cd81330fe5bf0ccef94f82f4d2fafc30e76c856"
+    },
+    {
+      "path": "toasts.md",
+      "bytes": 1945,
+      "sha256": "4219c50d603d76f12e1e0759729eb99b491464facc21c8726f7b1ac196b0c365"
+    },
+    {
+      "path": "view-keys.md",
+      "bytes": 2932,
+      "sha256": "d87beba09b0a37b045bb479b8bb83bd4c65a7cfa44b2e6f9463497c33d17d90f"
+    },
+    {
+      "path": "view-pie.md",
+      "bytes": 2156,
+      "sha256": "720d33cd76cf36d260d2a58bf0fd76111f0c833fbdeb9f528d003cd2beb0a00c"
+    },
+    {
+      "path": "workspace.md",
+      "bytes": 4799,
+      "sha256": "3431d89c1d2d508bc8689964b7469e5eab42299b696286b8356edaa556cec84b"
+    },
+    {
+      "path": "xray.md",
+      "bytes": 3015,
+      "sha256": "0f7918fabb19510358c82cfa615e3c2ac489875a62ba08b8746693651f1ecf45"
+    }
+  ]
+}

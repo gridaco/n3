@@ -2,12 +2,12 @@
 mod settings_host;
 mod settings_store;
 
+use crate::asset_io::LoadedDocument;
 use crate::{
-    document, document_io, keyboard_input, navigation_events, renderer, scroll_input,
+    document_io, keyboard_input, navigation_events, renderer, scroll_input,
     settings::{ResolvedTheme, Settings, ThemeMode},
     shortcuts, workspace_ui,
 };
-use document::Document;
 use keyboard_input::{NumberKey, NumberKeyInput};
 use renderer::{SceneRenderer, ViewportRenderOptions};
 use settings_host::SettingsHost;
@@ -28,11 +28,34 @@ use winit::{
 };
 use workspace_ui::{WorkspaceUi, configure_context, filename};
 
+const INITIAL_WINDOW_SIZE: LogicalSize<f64> = LogicalSize::new(1440.0, 900.0);
+const MINIMUM_WINDOW_SIZE: LogicalSize<f64> = LogicalSize::new(820.0, 500.0);
+
+fn initial_window_size(screen: Option<LogicalSize<f64>>) -> LogicalSize<f64> {
+    // Winit exposes the monitor's full bounds, not its desktop work area.
+    // Leave a 10% margin for window chrome and the surrounding desktop. Use
+    // logical points so Retina scaling does not make the window oversized.
+    let Some(screen) = screen.filter(|size| {
+        size.width.is_finite() && size.height.is_finite() && size.width > 0.0 && size.height > 0.0
+    }) else {
+        return INITIAL_WINDOW_SIZE;
+    };
+    LogicalSize::new(
+        INITIAL_WINDOW_SIZE
+            .width
+            .min((screen.width * 0.9).floor().max(1.0)),
+        INITIAL_WINDOW_SIZE
+            .height
+            .min((screen.height * 0.9).floor().max(1.0)),
+    )
+}
+
 enum AppEvent {
     Loaded {
         generation: u64,
         path: PathBuf,
-        result: Result<Document, String>,
+        result: Result<LoadedDocument, String>,
+        append: bool,
     },
     Repaint,
 }
@@ -59,7 +82,7 @@ struct NativeWindow {
     applied_window_theme: ThemeMode,
     scene_size: [u32; 2],
     uploaded_revision: u64,
-    load_revision: u64,
+    load_document: crate::document::Document,
     cursor: Option<egui::Pos2>,
     number_keys: NumberKeyInput,
     modifiers: egui::Modifiers,
@@ -68,6 +91,7 @@ struct NativeWindow {
     proxy: EventLoopProxy<AppEvent>,
     next_repaint: Option<Instant>,
     pending_open: bool,
+    pending_import: bool,
     pending_quit: bool,
     settings: Option<SettingsHost<FileSettingsStore>>,
     settings_path: Option<PathBuf>,
@@ -100,7 +124,7 @@ impl NativeWindow {
         );
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                label: Some("n3 viewer device"),
+                label: Some("n3 workspace device"),
                 ..Default::default()
             })
             .await
@@ -148,6 +172,9 @@ impl NativeWindow {
             ui_renderer.register_native_texture(&device, &scene.view, wgpu::FilterMode::Linear);
         let scene_size = [config.width, config.height];
         let mut state = WorkspaceUi::new(scene_texture);
+        // Native sessions are opt-in: guide/workbench hosts keep isolated fixtures.
+        // The process starts only after opening Terminal and measuring its grid.
+        state.tool_dock.terminal = crate::terminal::TerminalSession::dormant_native();
         state.set_system_theme(resolved_window_theme(window.theme()));
         let settings_defaults = state.user_settings();
         let mut native = Self {
@@ -165,7 +192,7 @@ impl NativeWindow {
             applied_window_theme: ThemeMode::System,
             scene_size,
             uploaded_revision: u64::MAX,
-            load_revision: 0,
+            load_document: crate::document::Document::default(),
             cursor: None,
             number_keys: NumberKeyInput::default(),
             modifiers: egui::Modifiers::NONE,
@@ -174,6 +201,7 @@ impl NativeWindow {
             proxy,
             next_repaint: None,
             pending_open: false,
+            pending_import: false,
             pending_quit: false,
             settings: None,
             settings_path: None,
@@ -340,56 +368,130 @@ impl NativeWindow {
             _ => false,
         }
     }
-    fn open_dialog(&mut self) {
+    fn open_dialog(&mut self, append: bool) {
         if !self.state.document_action_allowed() {
             self.window.request_redraw();
             return;
         }
         self.reset_input();
         let mut dialog = rfd::FileDialog::new()
-            .set_title("Open N3 or import OBJ")
-            .add_filter("N3 document or Wavefront OBJ", &["json", "obj"]);
+            .set_title(if append {
+                "Import objects into N3"
+            } else {
+                "Open N3, OBJ, glTF or GLB"
+            })
+            .add_filter(
+                "N3, Wavefront OBJ or glTF scene",
+                &["json", "obj", "gltf", "glb"],
+            );
         if let Some(parent) = self.state.path.as_ref().and_then(|p| p.parent()) {
             dialog = dialog.set_directory(parent);
         }
         if let Some(path) = dialog.pick_file() {
-            self.load(path);
+            self.load_into(path, append);
         }
         self.window.request_redraw();
     }
     fn load(&mut self, path: PathBuf) {
-        if !self.confirm_discard() {
+        self.load_into(path, false);
+    }
+    fn load_into(&mut self, path: PathBuf, append: bool) {
+        if append {
+            if !self.state.editor.can_edit() || !self.state.document_action_allowed() {
+                return;
+            }
+        } else if !self.confirm_discard() {
             return;
         }
         self.state.hovered_file = false;
         self.reset_input();
-        if !path
-            .extension()
-            .is_some_and(|s| s.eq_ignore_ascii_case("obj") || s.eq_ignore_ascii_case("json"))
-        {
-            self.state.error =
-                Some("Choose an .n3.json document or Wavefront .obj file.".to_owned());
+        if !crate::asset_io::is_supported_path(&path) {
+            self.state.error = Some("Choose an .n3.json, .obj, .gltf or .glb file.".into());
             self.window.request_redraw();
             return;
         }
         self.generation += 1;
         let generation = self.generation;
-        self.load_revision = self.state.editor.revision;
+        self.load_document = self.state.editor.document.clone();
         self.state.loading = Some(path.clone());
         self.state.error = None;
         let proxy = self.proxy.clone();
         std::thread::spawn(move || {
-            let result = std::panic::catch_unwind(|| document::load(&path))
+            let result = std::panic::catch_unwind(|| crate::asset_io::load(&path))
                 .unwrap_or_else(|_| Err("The loader could not process this file.".to_owned()));
             let _ = proxy.send_event(AppEvent::Loaded {
                 generation,
                 path,
                 result,
+                append,
             });
         });
         self.window.request_redraw();
     }
+    fn install_opened_asset(
+        &mut self,
+        path: PathBuf,
+        loaded: LoadedDocument,
+        append: bool,
+    ) -> Result<(), String> {
+        // Prepare against an isolated candidate before publishing either CPU or
+        // GPU state. Opening/importing a file is infrequent; placement afterwards
+        // reuses the normal renderer resource cache.
+        let mut candidate = WorkspaceUi::new(self.state.scene_texture);
+        let copy = LoadedDocument {
+            document: loaded.document.clone(),
+            assets: loaded.assets.clone(),
+            diagnostics: loaded.diagnostics.clone(),
+            saved_bytes: loaded.saved_bytes.clone(),
+        };
+        if append {
+            candidate.editor = crate::editor::Editor::new(self.state.editor.document.clone())?;
+            candidate.editor.frame = self.state.editor.frame;
+            candidate.asset_views = self.state.asset_views.clone();
+            candidate
+                .editor
+                .set_asset_frames(self.state.editor.asset_frames().clone())?;
+            candidate.import_loaded_document(copy)?;
+        } else {
+            candidate.install_loaded_document(path.clone(), copy)?;
+        }
+        if let Some(mesh) = &candidate.mesh {
+            SceneRenderer::validate_mesh(&self.device, mesh)?;
+        }
+        let mut gpu = SceneRenderer::new(
+            &self.device,
+            self.scene_size[0].max(1),
+            self.scene_size[1].max(1),
+        );
+        gpu.set_assets(
+            &self.device,
+            &self.queue,
+            &candidate.placed_scenes(),
+            &candidate.editor.frame,
+        )?;
+        if let Some(mesh) = &candidate.mesh {
+            gpu.set_mesh(&self.device, mesh)?;
+        }
+        if append {
+            self.state.import_loaded_document(loaded)?;
+        } else {
+            self.state.install_loaded_document(path, loaded)?;
+        }
+        self.ui_renderer.update_egui_texture_from_wgpu_texture(
+            &self.device,
+            &gpu.view,
+            wgpu::FilterMode::Linear,
+            self.state.scene_texture,
+        );
+        self.scene = gpu;
+        self.uploaded_revision = self.state.mesh_revision;
+        Ok(())
+    }
     fn save_document(&mut self, save_as: bool) -> bool {
+        if !self.state.editor.can_edit() {
+            self.state.error = Some("This document is read-only.".into());
+            return false;
+        }
         if !self.state.document_action_allowed() {
             self.window.request_redraw();
             return false;
@@ -453,6 +555,9 @@ impl NativeWindow {
         }
     }
     fn confirm_discard(&mut self) -> bool {
+        if !self.state.editor.can_edit() {
+            return true;
+        }
         if !self.state.document_action_allowed() {
             self.window.request_redraw();
             return false;
@@ -643,7 +748,11 @@ impl NativeWindow {
                 self.state.hovered_file = false;
                 self.window.request_redraw();
             }
-            WindowEvent::DroppedFile(path) => self.load(path.clone()),
+            WindowEvent::DroppedFile(path) => {
+                // Native documents replace the document; exchange assets join
+                // the current scene, just like File > Import.
+                self.load_into(path.clone(), !document_io::is_native_path(path));
+            }
             WindowEvent::RedrawRequested => self.draw(event_loop),
             _ => {}
         }
@@ -688,6 +797,9 @@ impl NativeWindow {
             .camera
             .advance_transition(now.duration_since(self.last_camera_tick));
         self.last_camera_tick = now;
+        // A pose or scene may pass CPU validation yet exceed this GPU's limits.
+        // Keep cheap Arc-backed state until this redraw's candidate is prepared.
+        let previous_assets = self.state.asset_views.clone();
         let input = self.input.take_egui_input(&self.window);
         let ctx = self.context.clone();
         let mut shortcuts = ShortcutFrame::with_number_events(&ctx, self.number_keys.take());
@@ -695,13 +807,20 @@ impl NativeWindow {
             let context = ui.ctx().clone();
             let ctx = &context;
             shortcuts.begin_pass(ctx);
-            self.pending_open |= self.state.ui(ui);
+            self.state.ui(ui);
             shortcuts
                 .collect_with_transform(ctx, self.state.transform_keyboard_context(ctx, false));
             if self.state.camera.is_transitioning() {
                 ctx.request_repaint();
             }
         });
+        if std::mem::take(&mut self.state.tool_dock.terminal_start_requested) {
+            // Process creation is a native-host effect, outside repeated UI passes.
+            // Failure is retained in the terminal status with a Retry control.
+            let _ = self.state.tool_dock.terminal.start_shell(&ctx);
+            self.window.request_redraw();
+        }
+
         if self.applied_window_theme != self.state.theme_mode {
             // Explicit preferences also theme the native titlebar. Resetting to
             // None gives macOS ownership back; ThemeChanged then tracks the OS.
@@ -729,6 +848,7 @@ impl NativeWindow {
                 | HostEffect::CancelNavigation
                 | HostEffect::NavigationContextChanged => {}
                 HostEffect::Open => self.pending_open = true,
+                HostEffect::Import => self.pending_import = true,
                 HostEffect::Quit => self.pending_quit = true,
             }
             self.window.request_redraw();
@@ -750,8 +870,48 @@ impl NativeWindow {
         let height = (self.state.viewport.height() * pixels_per_point)
             .round()
             .clamp(1.0, limit as f32) as u32;
-        if self.scene_size != [width, height] {
+        let resized = self.scene_size != [width, height];
+        if resized {
             self.scene.resize(&self.device, width, height);
+        }
+        // Preflight expanded proxy buffers before updating imported geometry:
+        // either cache must retain the previous frame if this GPU cannot upload.
+        let upload_allowed = match self
+            .state
+            .mesh
+            .as_ref()
+            .map(|mesh| SceneRenderer::validate_mesh(&self.device, mesh))
+            .transpose()
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.state.error = Some(error);
+                false
+            }
+        };
+        if upload_allowed
+            && let Err(error) = self.scene.set_assets(
+                &self.device,
+                &self.queue,
+                &self.state.placed_scenes(),
+                &self.state.editor.frame,
+            )
+        {
+            self.state.asset_views = previous_assets;
+            for view in self.state.asset_views.values_mut() {
+                view.playback.playing = false;
+            }
+            let frames = self
+                .state
+                .asset_views
+                .iter()
+                .map(|(key, view)| (key.clone(), view.frame.clone()))
+                .collect();
+            let _ = self.state.editor.set_asset_frames(frames);
+            let _ = self.state.refresh_mesh();
+            self.state.error = Some(error);
+        }
+        if resized {
             self.ui_renderer.update_egui_texture_from_wgpu_texture(
                 &self.device,
                 &self.scene.view,
@@ -760,13 +920,17 @@ impl NativeWindow {
             );
             self.scene_size = [width, height];
         }
-        if self.uploaded_revision != self.state.mesh_revision {
-            if let Some(mesh) = &self.state.mesh {
-                self.scene.set_mesh(&self.device, mesh);
+        if upload_allowed && self.uploaded_revision != self.state.mesh_revision {
+            let result = if let Some(mesh) = &self.state.mesh {
+                self.scene.set_mesh(&self.device, mesh)
             } else {
                 self.scene.clear_mesh();
+                Ok(())
+            };
+            match result {
+                Ok(()) => self.uploaded_revision = self.state.mesh_revision,
+                Err(error) => self.state.error = Some(error),
             }
-            self.uploaded_revision = self.state.mesh_revision;
         }
         let title = self
             .state
@@ -792,7 +956,7 @@ impl NativeWindow {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("viewer frame"),
+                label: Some("workspace frame"),
             });
         self.scene.set_visible_objects(self.state.visible_objects());
         self.scene.set_highlights(self.state.object_highlights());
@@ -808,7 +972,7 @@ impl NativeWindow {
                 Vec::new()
             });
         self.scene.set_transform_gizmo(&self.queue, gizmo);
-        self.scene.render(
+        if let Err(error) = self.scene.render(
             &self.queue,
             &mut encoder,
             &self.state.camera,
@@ -824,7 +988,9 @@ impl NativeWindow {
                 )
                 .workbench_viewport,
             },
-        );
+        ) {
+            self.state.error = Some(error);
+        }
         let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels: [self.config.width, self.config.height],
             pixels_per_point,
@@ -879,8 +1045,11 @@ impl NativeWindow {
             self.state.new_document();
             self.window.request_redraw();
         }
+        if std::mem::take(&mut self.pending_import) {
+            self.open_dialog(true);
+        }
         if std::mem::take(&mut self.pending_open) {
-            self.open_dialog();
+            self.open_dialog(false);
         }
         if std::mem::take(&mut self.pending_quit)
             && self.confirm_discard()
@@ -891,89 +1060,105 @@ impl NativeWindow {
     }
 }
 struct App {
-    viewer: Option<NativeWindow>,
+    workspace: Option<NativeWindow>,
     proxy: EventLoopProxy<AppEvent>,
     initial: Option<PathBuf>,
+    access: crate::editor::EditorAccess,
 }
 impl ApplicationHandler<AppEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.viewer.is_some() {
+        if self.workspace.is_some() {
             return;
         }
+        let size = initial_window_size(
+            event_loop
+                .primary_monitor()
+                .map(|monitor| monitor.size().to_logical(monitor.scale_factor())),
+        );
         let attributes = Window::default_attributes()
             .with_title("N3")
-            .with_inner_size(LogicalSize::new(1160.0, 800.0))
-            .with_min_inner_size(LogicalSize::new(820.0, 500.0));
+            .with_inner_size(size)
+            .with_min_inner_size(LogicalSize::new(
+                MINIMUM_WINDOW_SIZE.width.min(size.width),
+                MINIMUM_WINDOW_SIZE.height.min(size.height),
+            ));
         let window = Arc::new(
             event_loop
                 .create_window(attributes)
                 .expect("create macOS window"),
         );
         match pollster::block_on(NativeWindow::new(window, self.proxy.clone())) {
-            Ok(mut viewer) => {
+            Ok(mut workspace) => {
+                workspace.state.editor.set_access(self.access);
                 if let Some(path) = self.initial.take() {
-                    viewer.load(path);
+                    workspace.load(path);
                 }
-                viewer.window.request_redraw();
-                self.viewer = Some(viewer);
+                workspace.window.request_redraw();
+                self.workspace = Some(workspace);
             }
             Err(error) => {
-                eprintln!("Unable to initialize viewer: {error}");
+                eprintln!("Unable to initialize workspace: {error}");
                 event_loop.exit();
             }
         }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        if let Some(viewer) = &mut self.viewer {
-            viewer.event(&event, event_loop);
+        if let Some(workspace) = &mut self.workspace {
+            workspace.event(&event, event_loop);
         }
     }
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
-        let Some(viewer) = &mut self.viewer else {
+        let Some(workspace) = &mut self.workspace else {
             return;
         };
         match event {
-            AppEvent::Repaint => viewer.window.request_redraw(),
+            AppEvent::Repaint => workspace.window.request_redraw(),
             AppEvent::Loaded {
                 generation,
                 path,
                 result,
-            } if generation == viewer.generation => {
-                viewer.state.loading = None;
+                append,
+            } if generation == workspace.generation => {
+                workspace.state.loading = None;
                 match result {
-                    Ok(document) => {
-                        if viewer.load_revision != viewer.state.editor.revision {
-                            viewer.state.error=Some("The document changed while opening. Open the file again to replace it.".into());
-                        } else if let Err(error) = viewer.state.install_document(path, document) {
-                            viewer.state.error = Some(error);
+                    Ok(asset) => {
+                        if workspace.load_document != workspace.state.editor.document
+                            || workspace.state.editor.has_transform_session()
+                        {
+                            workspace.state.error=Some("The document changed while opening. Open the file again to replace it.".into());
+                        } else {
+                            let result = workspace.install_opened_asset(path, asset, append);
+                            if let Err(error) = result {
+                                workspace.state.error = Some(error);
+                            }
                         }
                     }
                     Err(error) => {
                         eprintln!("Open failed: {error}");
-                        viewer.state.error = Some(error);
+                        workspace.state.error = Some(error);
                     }
                 }
-                viewer.window.request_redraw();
+                workspace.window.request_redraw();
             }
             _ => {}
         }
     }
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(viewer) = &mut self.viewer {
+        if let Some(workspace) = &mut self.workspace {
             // Polling the small settings file wakes the host, not the GPU.
             // Only changed preferences or error state request a redraw.
-            viewer.service_settings();
-            if viewer
+            workspace.service_settings();
+            if workspace
                 .next_repaint
                 .is_some_and(|deadline| deadline <= Instant::now())
             {
-                viewer.next_repaint = None;
-                viewer.window.request_redraw();
+                workspace.next_repaint = None;
+                workspace.window.request_redraw();
             }
-            let deadline = viewer
+            let deadline = workspace
                 .next_repaint
                 .into_iter()
-                .chain(viewer.settings.as_ref().map(SettingsHost::deadline))
+                .chain(workspace.settings.as_ref().map(SettingsHost::deadline))
                 .min();
             if let Some(deadline) = deadline {
                 event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
@@ -983,13 +1168,44 @@ impl ApplicationHandler<AppEvent> for App {
         event_loop.set_control_flow(ControlFlow::Wait);
     }
 }
-pub fn run(initial: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(
+    initial: Option<PathBuf>,
+    access: crate::editor::EditorAccess,
+) -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoop::<AppEvent>::with_user_event().build()?;
     let mut app = App {
-        viewer: None,
+        workspace: None,
         proxy: event_loop.create_proxy(),
         initial,
+        access,
     };
     event_loop.run_app(&mut app)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod window_size_tests {
+    use super::*;
+
+    #[test]
+    fn larger_displays_and_missing_monitor_keep_the_preferred_launch_size() {
+        assert_eq!(initial_window_size(None), INITIAL_WINDOW_SIZE);
+        assert_eq!(
+            initial_window_size(Some(LogicalSize::new(1920.0, 1200.0))),
+            INITIAL_WINDOW_SIZE
+        );
+    }
+
+    #[test]
+    fn launch_size_leaves_margins_in_logical_points_on_retina_and_small_displays() {
+        let retina = winit::dpi::PhysicalSize::new(2880, 1800).to_logical(2.0);
+        assert_eq!(
+            initial_window_size(Some(retina)),
+            LogicalSize::new(1296.0, 810.0)
+        );
+        assert_eq!(
+            initial_window_size(Some(LogicalSize::new(800.0, 600.0))),
+            LogicalSize::new(720.0, 540.0)
+        );
+    }
 }
