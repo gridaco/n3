@@ -66,33 +66,33 @@
     },
     {
       "path": "assets/animation-box-selection.webp",
-      "bytes": 586896,
-      "sha256": "c0192c2ecf77ad80ba2610ae9d052bb35d7e8e748a6914a2546e1fef652acb5f"
+      "bytes": 586358,
+      "sha256": "80a9a81b6f0afb76b18b20bc9ed62f4d0f70f246a95d2eaf3901f94ab43b8a5a"
     },
     {
       "path": "assets/animation-inspection.webp",
-      "bytes": 97912,
-      "sha256": "76885b0de26dc9058c8fb5d540c483c5608b7a4fd66f0905d0309ccfb0e011ad"
+      "bytes": 97376,
+      "sha256": "3817b1949df048786bcc682b3ebb93a06bac231983db564affdbcdfc5458b199"
     },
     {
       "path": "assets/animation-morphs.webp",
-      "bytes": 8489480,
-      "sha256": "2f0d79b799583c52308f7e61b5e1d3c164b84a80b3eccc59a529c3501282587e"
+      "bytes": 8472880,
+      "sha256": "714c9f670bd8a4e286124e479dba669997e512300c5f8cd17bd1989532d4954f"
     },
     {
       "path": "assets/animation-panel-closed.webp",
-      "bytes": 65122,
-      "sha256": "bbf17f1bdfa908c26c1bbaf447473ec2dc05ebf3347e1e9231343bd320a212c3"
+      "bytes": 64364,
+      "sha256": "10f6a36261b71ad920494ffdd27144a1e48448826972597af888decbc142769a"
     },
     {
       "path": "assets/animation-panel-open.webp",
-      "bytes": 87900,
-      "sha256": "e98ee515515c40da72532ce782e222aeebeba7b3250c4224bff94dd07d0d3e7b"
+      "bytes": 87364,
+      "sha256": "f953fc900fa54923304de0a2a1cf1ddace7723ad6300e5da5e50956812faa753"
     },
     {
       "path": "assets/animation-skinning.webp",
-      "bytes": 2559778,
-      "sha256": "ebbbe662909b9530cdd9aebed6d0a74c4b51fd8805acb0704e41f46bc3cbeecb"
+      "bytes": 2538632,
+      "sha256": "9bd379f4c806c2298bec3307b66f0dc1345049334bcba6439199a62a6386ca5f"
     },
     {
       "path": "assets/axis-locks-aligned-nudge.webp",
@@ -356,13 +356,13 @@
     },
     {
       "path": "assets/scene-viewer-materials.webp",
-      "bytes": 594448,
-      "sha256": "7979d5bdaf39b8784529e86b1e85121be6a06ce5db4ae21eb2ee18ad348649c9"
+      "bytes": 594474,
+      "sha256": "cce59207fe463fd4eb8a8d77b197c1d90e6fdfad99323e900632b32820d4c931"
     },
     {
       "path": "assets/scene-viewer-placement.webp",
-      "bytes": 2928508,
-      "sha256": "9bd0708ad9c6c6a66457d9d3b50976e61e562e01d553a37c93dd47a4123fb741"
+      "bytes": 2928476,
+      "sha256": "796779b6823e2c77cd783f17b5892b9e935d2d882b88efd9f919b98b57724827"
     },
     {
       "path": "assets/selection-keys-all-objects.webp",
@@ -396,13 +396,13 @@
     },
     {
       "path": "assets/shading-imported-solid.webp",
-      "bytes": 537032,
-      "sha256": "e9acd9d2a4502f3fc0f1af9d092609e94e172ca91b387dec2f68486b8ef693db"
+      "bytes": 535672,
+      "sha256": "a2895005db9f2fcf577a9c789a183ea0630f1334d65e573bb64655260afb3de7"
     },
     {
       "path": "assets/shading-material-preview.webp",
-      "bytes": 593532,
-      "sha256": "12a691f6f0fd4039715866dc0167dd2b32cec11e317a4c26842f624498dfb7ea"
+      "bytes": 593562,
+      "sha256": "ac9860cf66187c10466c8e4323ab671eece0d91a519861c1b15720c9a2938e8c"
     },
     {
       "path": "assets/shading-pie-help.webp",
@@ -587,7 +587,7 @@
     {
       "path": "manifest.txt",
       "bytes": 412206,
-      "sha256": "3c674c8c47e13896c39a849c47b5551434916dd8b13a0f9d2b76f64d1697a8e2"
+      "sha256": "a687f5453f07a0cd9c1e8b80ee705efb991102b98a051b3c28ca9e684af10ec8"
     },
     {
       "path": "navigation.md",

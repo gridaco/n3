@@ -194,8 +194,20 @@ fn imported_render_fingerprints_color_transfer() {
     );
     for (name, pixels) in [("attachment-srgb", &srgb), ("explicit-unorm", &explicit)] {
         let digest = Sha256::digest(pixels);
-        println!("color-transfer {name}: rgba-sha256={digest:x}");
         let rgba = pixels.as_chunks::<4>().0;
+        // Hash RGB and alpha independently so a linear-alpha rounding tie
+        // cannot hide exact agreement in the attachment's color transfer.
+        let mut rgb_digest = Sha256::new();
+        let mut alpha_digest = Sha256::new();
+        for pixel in rgba {
+            rgb_digest.update(&pixel[..3]);
+            alpha_digest.update(&pixel[3..]);
+        }
+        let rgb_digest = rgb_digest.finalize();
+        let alpha_digest = alpha_digest.finalize();
+        println!(
+            "color-transfer {name}: rgba-sha256={digest:x} rgb-sha256={rgb_digest:x} alpha-sha256={alpha_digest:x}"
+        );
         let dense_decreases = rgba
             .windows(2)
             .filter(|pair| pair[0][0] > pair[1][0])

@@ -120,7 +120,10 @@ Checks never update the guide, including when a renderer or driver changes.
 
 The optional [CI image](../tools/ci/Dockerfile) fixes Ubuntu 24.04 on
 `linux/amd64`, a 2026-09-28 APT snapshot, and Mesa lavapipe software Vulkan with
-`sse2` CPU capabilities. It requests `N3_DOCS_RENDERER=lavapipe` explicitly;
+`sse2` CPU capabilities and 256-bit vectors, with its shader cache disabled. This
+selects accurate sqrt for sRGB conversion and prevents cached 128-bit code from
+bypassing that choice. The [baseline contract](baselines/README.md) records the
+cross-host evidence and diagnostic commands. It requests `N3_DOCS_RENDERER=lavapipe` explicitly;
 normal developer commands select the native backend without that setting.
 Updating a rendering profile requires reviewing its generated output. A Docker
 build alone does not establish that the guide agrees with its baseline.

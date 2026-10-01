@@ -109,6 +109,8 @@ class CIRunnerTests(unittest.TestCase):
         self.assertNotIn("ci_runner", runner.CI_SCRIPT)
         self.assertIn("PYTHONDONTWRITEBYTECODE=1", arguments)
         self.assertIn("GALLIUM_OVERRIDE_CPU_CAPS=sse2", arguments)
+        self.assertIn("LP_NATIVE_VECTOR_WIDTH=256", arguments)
+        self.assertIn("MESA_SHADER_CACHE_DISABLE=true", arguments)
         self.assertIn("LP_NUM_THREADS=2", arguments)
 
     def test_environment_receipt_reports_only_architecture_libc_and_cpu_features(self):
@@ -133,6 +135,7 @@ Features : neon fp
     def test_container_diagnostics_precede_literal_commands_and_keep_pinned_caps(self):
         with patch.dict(runner.os.environ, {
             "GALLIUM_DUMP_CPU": "0", "GALLIUM_OVERRIDE_CPU_CAPS": "avx",
+            "LP_NATIVE_VECTOR_WIDTH": "128", "MESA_SHADER_CACHE_DISABLE": "false",
             "N3_DOCS_FAILURE_ARTIFACTS": "/workspace/docs/guide",
             "N3_CI_FAILURE_ARTIFACTS": "0",
         }):
@@ -143,6 +146,8 @@ Features : neon fp
                 environment = [arguments[i + 1] for i, value in enumerate(arguments) if value == "--env"]
                 self.assertIn("GALLIUM_DUMP_CPU=1", environment)
                 self.assertIn("GALLIUM_OVERRIDE_CPU_CAPS=sse2", environment)
+                self.assertIn("LP_NATIVE_VECTOR_WIDTH=256", environment)
+                self.assertIn("MESA_SHADER_CACHE_DISABLE=true", environment)
                 self.assertFalse(any(value.startswith("N3_DOCS_FAILURE_ARTIFACTS=") for value in environment))
 
     def test_cpu_caps_override_is_restricted_to_the_fixed_readonly_probe(self):
@@ -153,6 +158,7 @@ Features : neon fp
                 arguments = self.command(probe)
                 expected = list(baseline)
                 expected[expected.index("GALLIUM_OVERRIDE_CPU_CAPS=sse2")] = f"GALLIUM_OVERRIDE_CPU_CAPS={caps}"
+                expected[expected.index("LP_NATIVE_VECTOR_WIDTH=256")] = "LP_NATIVE_VECTOR_WIDTH=128"
                 self.assertEqual(arguments, expected)
                 self.assertEqual(arguments[-len(runner.PROBE_COMMAND):], runner.PROBE_COMMAND)
                 self.assertEqual(arguments[arguments.index("--user") + 1], "501:20")

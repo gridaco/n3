@@ -24,6 +24,8 @@ COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
+# Mesa's float8 sRGB conversion uses accurate sqrt with AVX masked by SSE2.
+# Disable its native-code cache, whose key omits the vector-width override.
 ENV RUSTUP_HOME=/opt/rustup \
     CARGO_HOME=/n3-cache/cargo \
     CARGO_TARGET_DIR=/n3-cache/target \
@@ -32,6 +34,8 @@ ENV RUSTUP_HOME=/opt/rustup \
     VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
     GALLIUM_DRIVER=llvmpipe \
     GALLIUM_OVERRIDE_CPU_CAPS=sse2 \
+    LP_NATIVE_VECTOR_WIDTH=256 \
+    MESA_SHADER_CACHE_DISABLE=true \
     LP_NUM_THREADS=2 \
     XDG_RUNTIME_DIR=/tmp/runtime-n3
 

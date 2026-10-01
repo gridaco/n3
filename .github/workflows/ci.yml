@@ -10,28 +10,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ubuntu-renderer-probe:
-    name: Imported renderer precision diagnostics
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Report SSE2 imported renderer fingerprints
-        env:
-          N3_CI_PROBE_CPU_CAPS: sse2
-        run: python3 tools/ci_runner.py test imported_render_fingerprints -- --nocapture
-      - name: Report imported renderer fingerprints without approximate SSE instructions
-        env:
-          N3_CI_PROBE_CPU_CAPS: nosse
-        run: python3 tools/ci_runner.py test imported_render_fingerprints -- --nocapture
-
   ubuntu:
     name: Ubuntu checks and documentation replay
     runs-on: ubuntu-24.04
     # Allow cold builds plus the full guide replay through the software renderer.
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

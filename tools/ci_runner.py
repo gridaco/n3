@@ -134,6 +134,8 @@ def prepare_identity_files(root, uid, gid):
 
 def container_command(root, identity, update, command, uid, gid):
     cpu_caps = probe_cpu_caps(command)
+    # Historical narrow profiles stay available only for the fixed probe.
+    vector_width = 128 if "N3_CI_PROBE_CPU_CAPS" in os.environ else 256
     cache = root / ".cache/ci/linux-amd64"
     arguments = [
         "docker", "run", "--rm", "--init", "--platform", PLATFORM,
@@ -170,6 +172,10 @@ def container_command(root, identity, update, command, uid, gid):
         "PYTHONDONTWRITEBYTECODE=1",
         "GALLIUM_DRIVER=llvmpipe",
         f"GALLIUM_OVERRIDE_CPU_CAPS={cpu_caps}",
+        # Float8 sRGB uses accurate sqrt with AVX masked by the SSE2 profile.
+        f"LP_NATIVE_VECTOR_WIDTH={vector_width}",
+        # Mesa 25.2.8's native-code cache key omits this vector-width override.
+        "MESA_SHADER_CACHE_DISABLE=true",
         # Mesa 25.2.8 reports capabilities after applying the override.
         "GALLIUM_DUMP_CPU=1",
         "LP_NUM_THREADS=2",
