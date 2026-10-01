@@ -18,7 +18,7 @@ IMAGE_INPUTS = (
     "tools/ci/Dockerfile.dockerignore",
     "rust-toolchain.toml",
 )
-USAGE = "Usage: ci_runner.py test [CARGO TEST ARGS...] | docs check|update | ci"
+USAGE = "Usage: ci_runner.py test [CARGO TEST ARGS...] | docs check|update | ci [checks|guide]"
 FAILURE_ARTIFACTS = ".cache/ci/linux-amd64/home/docs-failure-artifacts"
 PROBE_COMMAND = [
     "cargo", "test", "--locked", "imported_render_fingerprints", "--", "--nocapture",
@@ -41,13 +41,23 @@ else
 fi
 python3 tools/ci_runner.py --environment-receipt
 """
-CI_SCRIPT = """\
+CI_CHECKS_PREFIX = """\
 python3 tools/format_docs.py --check
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
-exec cargo test --locked
 """
+CI_SCRIPT = CI_CHECKS_PREFIX + "exec cargo test --locked\n"
+CI_PARTITION_SCRIPTS = {
+    "checks": CI_CHECKS_PREFIX + """\
+python3 tools/ci_test_inventory.py
+exec cargo test --locked -- --skip documentation::tests::generated_documentation_is_current --exact
+""",
+    "guide": """\
+python3 tools/ci_test_inventory.py
+exec cargo test --locked documentation::tests::generated_documentation_is_current -- --exact --nocapture
+""",
+}
 
 
 class RunnerError(Exception):
@@ -63,6 +73,8 @@ def parse_command(arguments):
         ]
     if arguments == ["ci"]:
         return False, None
+    if len(arguments) == 2 and arguments[0] == "ci" and arguments[1] in CI_PARTITION_SCRIPTS:
+        return False, arguments[1]
     raise RunnerError(USAGE)
 
 
@@ -185,9 +197,14 @@ def container_command(root, identity, update, command, uid, gid):
         arguments.extend([
             "--env", "N3_DOCS_FAILURE_ARTIFACTS=/n3-cache/home/docs-failure-artifacts",
         ])
-    script = INITIALIZE + (CI_SCRIPT if command is None else 'exec "$@"\n')
+    if command is None:
+        script = INITIALIZE + CI_SCRIPT
+    elif isinstance(command, str):
+        script = INITIALIZE + CI_PARTITION_SCRIPTS[command]
+    else:
+        script = INITIALIZE + 'exec "$@"\n'
     arguments.extend([f"n3-ci:{identity}", "/bin/sh", "-eu", "-c", script, "n3-ci"])
-    if command is not None:
+    if isinstance(command, list):
         arguments.extend(command)
     return arguments
 

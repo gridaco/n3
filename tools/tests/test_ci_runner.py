@@ -1,6 +1,7 @@
 import contextlib
 import csv
 import io
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from tools import ci_runner as runner
+from tools import ci_test_inventory as inventory
 
 
 class CIRunnerTests(unittest.TestCase):
@@ -113,6 +115,40 @@ class CIRunnerTests(unittest.TestCase):
         self.assertIn("MESA_SHADER_CACHE_DISABLE=true", arguments)
         self.assertIn("LP_NUM_THREADS=2", arguments)
 
+    def test_ci_partition_modes_keep_checks_and_execute_the_validated_exact_partition(self):
+        for mode, listed in zip(("guide", "checks"), inventory.LIST_COMMANDS[1:]):
+            with self.subTest(mode=mode):
+                arguments = self.command(["ci", mode])
+                script = arguments[arguments.index("-c") + 1]
+                self.assertEqual(script, runner.INITIALIZE + runner.CI_PARTITION_SCRIPTS[mode])
+                self.assertEqual(arguments[-1], "n3-ci")
+                self.assertEqual(self.mounts(arguments), self.mounts(self.command(["ci"])))
+                selected = [*listed[:-1], *(["--nocapture"] if mode == "guide" else [])]
+                self.assertIn("exec " + " ".join(selected) + "\n", script)
+                self.assertLess(script.index("python3 tools/ci_test_inventory.py"), script.index("exec cargo test"))
+                self.assertEqual(runner.CI_CHECKS_PREFIX in script, mode == "checks")
+                self.assertIn("LP_NATIVE_VECTOR_WIDTH=256", arguments)
+                self.assertIn("MESA_SHADER_CACHE_DISABLE=true", arguments)
+
+    def test_partition_inventory_failure_prevents_test_execution_in_both_shell_scripts(self):
+        commands = self.root / "commands"
+        commands.mkdir()
+        python = commands / "python3"
+        python.write_text("#!/bin/sh\nif [ \"$1\" = tools/ci_test_inventory.py ]; then\n    exit 7\nfi\n")
+        cargo = commands / "cargo"
+        cargo.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$N3_TEST_RECORD\"\n")
+        python.chmod(0o755)
+        cargo.chmod(0o755)
+        record = self.root / "cargo-calls.txt"
+        environment = {**os.environ, "PATH": f"{commands}:{os.environ['PATH']}", "N3_TEST_RECORD": str(record)}
+        for mode in ("checks", "guide"):
+            with self.subTest(mode=mode):
+                record.unlink(missing_ok=True)
+                result = subprocess.run(["/bin/sh", "-eu", "-c", runner.CI_PARTITION_SCRIPTS[mode]], cwd=self.root, env=environment, check=False)
+                self.assertEqual(result.returncode, 7)
+                calls = record.read_text().splitlines() if record.exists() else []
+                self.assertEqual(calls, ["fmt --check", "clippy --locked --all-targets -- -D warnings"] if mode == "checks" else [])
+
     def test_environment_receipt_reports_only_architecture_libc_and_cpu_features(self):
         cpuinfo = """processor : 0
 model name : private host name
@@ -139,7 +175,7 @@ Features : neon fp
             "N3_DOCS_FAILURE_ARTIFACTS": "/workspace/docs/guide",
             "N3_CI_FAILURE_ARTIFACTS": "0",
         }):
-            for mode in (["ci"], ["test", "probe", "--", "--nocapture"], ["docs", "check"]):
+            for mode in (["ci"], ["ci", "checks"], ["ci", "guide"], ["test", "probe", "--", "--nocapture"], ["docs", "check"]):
                 arguments = self.command(mode)
                 script = arguments[arguments.index("-c") + 1]
                 self.assertLess(script.index("--environment-receipt"), script.index("exec "))
@@ -168,7 +204,7 @@ Features : neon fp
     def test_cpu_caps_override_rejects_other_profiles_and_filters_before_docker(self):
         for caps in ("sse2", "nosse", "avx", "", "nosse;false"):
             for arguments in (
-                ["ci"], ["docs", "check"], ["docs", "update"], ["test"],
+                ["ci"], ["ci", "checks"], ["ci", "guide"], ["docs", "check"], ["docs", "update"], ["test"],
                 ["test", "imported_render_fingerprints"],
                 ["test", "imported_render_fingerprints", "--", "--nocapture", "--test-threads=1"],
             ):
@@ -346,7 +382,7 @@ Features : neon fp
         self.assertEqual(result, 143)
 
     def test_bad_modes_and_update_symlinks_fail_before_docker(self):
-        for arguments in ([], ["docs"], ["docs", "serve"], ["docs", "update", "extra"], ["ci", "extra"]):
+        for arguments in ([], ["docs"], ["docs", "serve"], ["docs", "update", "extra"], ["ci", "extra"], ["ci", "guide", "extra"], ["ci", "checks", "$(touch sentinel)"]):
             with self.subTest(arguments=arguments):
                 result, run, output = self.invoke(arguments, [])
                 self.assertEqual(result, 2)

@@ -53,6 +53,22 @@ for checks. `ci-docs update` writes the separate Linux receipt and ignored revie
 captures while keeping the native guide read-only. No generated app bundle,
 cache, or review capture belongs in Git.
 
+Hosted Ubuntu CI runs two independent jobs: `just ci checks` performs formatting,
+Clippy, tooling tests, and all Rust tests except the full-guide comparison;
+`just ci guide` runs that exact comparison. Both discover the current Rust test
+inventory and reject a missing or ignored guide test, overlapping partitions, or omitted
+tests. `just ci` still runs the complete sequence in one container, and native
+`just verify`, `just test`, and the pre-push hook always retain the full suite.
+
+Hosted jobs cache dependency downloads and compiled build output under keys
+that include their platform, pinned toolchain/environment, and Cargo manifests.
+Incremental compilation output, generated guide artifacts, renderer receipts,
+diagnostics, and account files are excluded. Pull requests can restore caches;
+only successful checks and native jobs on pushes to `main` save them. The guide
+job restores the shared Ubuntu cache without publishing it. Cache hits still
+execute every check, including the exact guide replay. The macOS job also caches
+the pinned `just` installation while retaining its ordinary installation command.
+
 Containers retain the invoking user's numeric UID/GID so writable cache and
 review files keep their host ownership. The runner mounts isolated passwd/group
 entries read-only from its cache; the terminal backend needs a resolvable account

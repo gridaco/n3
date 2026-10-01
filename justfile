@@ -156,8 +156,8 @@ tools-test:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
 # Opt in to the pinned Ubuntu CI environment; requires Docker.
-ci:
-    python3 tools/ci_runner.py ci
+ci *args:
+    python3 tools/ci_runner.py ci "$@"
 
 # Explicit Ubuntu CI documentation replay/update; requires Docker.
 ci-docs mode="check":

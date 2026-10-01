@@ -10,24 +10,100 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ubuntu:
-    name: Ubuntu checks and documentation replay
+  ubuntu-checks:
+    name: Ubuntu checks and focused regressions
     runs-on: ubuntu-24.04
-    # Allow cold builds plus the full guide replay through the software renderer.
+    # Keep cold-build headroom until both independent lanes have been measured.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Check, test, and replay documentation in the pinned Ubuntu renderer
+      - name: Identify the pinned Ubuntu build environment
+        id: environment
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          from tools.ci_runner import ROOT, image_identity
+          print(f"image={image_identity(ROOT)}")
+          PY
+      - name: Restore Ubuntu dependencies and build output
+        id: dependencies
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/ci/linux-amd64/cargo/registry/cache
+            .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/target/debug/deps
+            .cache/ci/linux-amd64/target/debug/build
+            .cache/ci/linux-amd64/target/debug/.fingerprint
+            .cache/ci/linux-amd64/target/.rustc_info.json
+            .cache/ci/linux-amd64/home/.npm
+          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+      - name: Check formatting, lint, tooling, and focused regressions
         env:
           N3_CI_FAILURE_ARTIFACTS: "1"
-        run: python3 tools/ci_runner.py ci
+        run: python3 tools/ci_runner.py ci checks
+      - name: Save verified Ubuntu dependencies and build output
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/ci/linux-amd64/cargo/registry/cache
+            .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/target/debug/deps
+            .cache/ci/linux-amd64/target/debug/build
+            .cache/ci/linux-amd64/target/debug/.fingerprint
+            .cache/ci/linux-amd64/target/.rustc_info.json
+            .cache/ci/linux-amd64/home/.npm
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - name: Preserve exact renderer drift evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ubuntu-renderer-drift-${{ github.sha }}-${{ github.run_attempt }}
+          name: ubuntu-checks-renderer-drift-${{ github.sha }}-${{ github.run_attempt }}
+          path: .cache/ci/linux-amd64/home/docs-failure-artifacts
+          include-hidden-files: true
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
+
+  ubuntu-guide:
+    name: Ubuntu exact documentation replay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Identify the pinned Ubuntu build environment
+        id: environment
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          from tools.ci_runner import ROOT, image_identity
+          print(f"image={image_identity(ROOT)}")
+          PY
+      # The checks lane alone publishes this shared dependency cache.
+      - name: Restore Ubuntu dependencies and build output
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/ci/linux-amd64/cargo/registry/cache
+            .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/target/debug/deps
+            .cache/ci/linux-amd64/target/debug/build
+            .cache/ci/linux-amd64/target/debug/.fingerprint
+            .cache/ci/linux-amd64/target/.rustc_info.json
+            .cache/ci/linux-amd64/home/.npm
+          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+      - name: Replay every guide feature and check exact artifacts
+        env:
+          N3_CI_FAILURE_ARTIFACTS: "1"
+        run: python3 tools/ci_runner.py ci guide
+      - name: Preserve exact renderer drift evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ubuntu-guide-renderer-drift-${{ github.sha }}-${{ github.run_attempt }}
           path: .cache/ci/linux-amd64/home/docs-failure-artifacts
           include-hidden-files: true
           if-no-files-found: warn
@@ -42,7 +118,62 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Identify the native runner and SDK
+        id: environment
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib
+          import os
+          import subprocess
+          image = os.environ.get("ImageVersion", "unreported")
+          sdk = subprocess.check_output(["xcrun", "--show-sdk-build-version"], text=True).strip()
+          xcode = subprocess.check_output(["xcodebuild", "-version"], text=True).strip()
+          identity = hashlib.sha256("\0".join((image, sdk, xcode)).encode()).hexdigest()
+          print(f"platform={identity}")
+          PY
+      - name: Restore native dependencies and build output
+        id: dependencies
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/cargo/registry/cache
+            .cache/cargo/registry/index
+            target/debug/deps
+            target/debug/build
+            target/debug/.fingerprint
+            target/.rustc_info.json
+          key: n3-v1-macos15-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock') }}
+      - name: Restore the pinned just installation
+        id: just
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/just
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: n3-v1-just1.46.0-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml') }}
       - name: Install just using the repository Rust toolchain
         run: cargo install just --version 1.46.0 --locked
       - name: Build and verify the native app bundle and platform integration
         run: just ci-macos
+      - name: Save verified native dependencies and build output
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/cargo/registry/cache
+            .cache/cargo/registry/index
+            target/debug/deps
+            target/debug/build
+            target/debug/.fingerprint
+            target/.rustc_info.json
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - name: Save the verified just installation
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.just.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/just
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: ${{ steps.just.outputs.cache-primary-key }}
