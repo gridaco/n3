@@ -5,6 +5,8 @@ import hashlib
 import io
 import os
 from pathlib import Path
+import platform
+import shutil
 import subprocess
 import sys
 
@@ -17,6 +19,10 @@ IMAGE_INPUTS = (
     "rust-toolchain.toml",
 )
 USAGE = "Usage: ci_runner.py test [CARGO TEST ARGS...] | docs check|update | ci"
+FAILURE_ARTIFACTS = ".cache/ci/linux-amd64/home/docs-failure-artifacts"
+PROBE_COMMAND = [
+    "cargo", "test", "--locked", "imported_render_fingerprints", "--", "--nocapture",
+]
 
 # These are fixed shell statements, never interpolated with paths or user input.
 # The ICD filename changed between Mesa packages; accept only the two known
@@ -33,6 +39,7 @@ else
     echo 'The CI image is missing its lavapipe Vulkan driver.' >&2
     exit 1
 fi
+python3 tools/ci_runner.py --environment-receipt
 """
 CI_SCRIPT = """\
 python3 tools/format_docs.py --check
@@ -57,6 +64,19 @@ def parse_command(arguments):
     if arguments == ["ci"]:
         return False, None
     raise RunnerError(USAGE)
+
+
+def probe_cpu_caps(command):
+    """Alternate CPU caps are restricted to the fixed renderer diagnostic probe."""
+    caps = os.environ.get("N3_CI_PROBE_CPU_CAPS")
+    if caps is None:
+        return "sse2"
+    if caps not in ("sse2", "nosse") or command != PROBE_COMMAND:
+        raise RunnerError(
+            "N3_CI_PROBE_CPU_CAPS accepts sse2|nosse only for "
+            "test imported_render_fingerprints -- --nocapture."
+        )
+    return caps
 
 
 def image_identity(root):
@@ -113,6 +133,7 @@ def prepare_identity_files(root, uid, gid):
 
 
 def container_command(root, identity, update, command, uid, gid):
+    cpu_caps = probe_cpu_caps(command)
     cache = root / ".cache/ci/linux-amd64"
     arguments = [
         "docker", "run", "--rm", "--init", "--platform", PLATFORM,
@@ -148,10 +169,16 @@ def container_command(root, identity, update, command, uid, gid):
         "npm_config_cache=/n3-cache/home/.npm",
         "PYTHONDONTWRITEBYTECODE=1",
         "GALLIUM_DRIVER=llvmpipe",
-        "GALLIUM_OVERRIDE_CPU_CAPS=sse2",
+        f"GALLIUM_OVERRIDE_CPU_CAPS={cpu_caps}",
+        # Mesa 25.2.8 reports capabilities after applying the override.
+        "GALLIUM_DUMP_CPU=1",
         "LP_NUM_THREADS=2",
     ):
         arguments.extend(["--env", value])
+    if os.environ.get("N3_CI_FAILURE_ARTIFACTS") == "1":
+        arguments.extend([
+            "--env", "N3_DOCS_FAILURE_ARTIFACTS=/n3-cache/home/docs-failure-artifacts",
+        ])
     script = INITIALIZE + (CI_SCRIPT if command is None else 'exec "$@"\n')
     arguments.extend([f"n3-ci:{identity}", "/bin/sh", "-eu", "-c", script, "n3-ci"])
     if command is not None:
@@ -163,13 +190,51 @@ def status(returncode):
     return returncode if returncode >= 0 else 128 - returncode
 
 
+def cpu_features(cpuinfo):
+    """Report capabilities without CPU names, identifiers, or unrelated fields."""
+    features = set()
+    for line in cpuinfo.splitlines():
+        name, separator, value = line.partition(":")
+        if separator and name.strip() in ("flags", "Features"):
+            features.update(value.split())
+    return sorted(features)
+
+
+def print_environment_receipt():
+    print(
+        f"N3 CI container: architecture={platform.machine()} "
+        f"libc={os.confstr('CS_GNU_LIBC_VERSION')}",
+        flush=True,
+    )
+    features = cpu_features(Path("/proc/cpuinfo").read_text(encoding="utf-8"))
+    print(f"N3 CI container CPU features: {' '.join(features)}", flush=True)
+
+
+def reset_failure_artifacts(root):
+    """Clear only the fixed ignored diagnostic directory before an opted-in run."""
+    destination = root / FAILURE_ARTIFACTS
+    if any(
+        path.is_symlink()
+        for path in (destination, *destination.parents)
+        if root in path.parents
+    ) or (destination.exists() and not destination.is_dir()):
+        raise RunnerError("CI failure artifacts require a real repository-local cache directory.")
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.mkdir(parents=True)
+
+
 def main(argv=None, *, root=ROOT):
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments == ["--environment-receipt"]:
+        print_environment_receipt()
+        return 0
     if arguments in (["--help"], ["-h"]):
         print(USAGE)
         return 0
     try:
         update, command = parse_command(arguments)
+        probe_cpu_caps(command)
     except RunnerError as error:
         print(error, file=sys.stderr)
         return 2
@@ -187,6 +252,7 @@ def main(argv=None, *, root=ROOT):
                 ):
                     raise RunnerError(f"docs update requires a real {relative} directory in this checkout.")
         identity = image_identity(root)
+        print(f"N3 CI host: architecture={platform.machine()}", flush=True)
         print(f"N3 CI environment: {PLATFORM}, n3-ci:{identity}", flush=True)
         result = subprocess.run(build_command(root, identity), cwd=root, check=False)
         if result.returncode:
@@ -195,6 +261,8 @@ def main(argv=None, *, root=ROOT):
             (root / ".cache/ci/linux-amd64" / name).mkdir(parents=True, exist_ok=True)
         uid, gid = os.getuid(), os.getgid()
         prepare_identity_files(root, uid, gid)
+        if os.environ.get("N3_CI_FAILURE_ARTIFACTS") == "1":
+            reset_failure_artifacts(root)
         if update:
             for relative in ("docs/baselines", ".cache/docs/linux-vulkan-lavapipe"):
                 (root / relative).mkdir(parents=True, exist_ok=True)

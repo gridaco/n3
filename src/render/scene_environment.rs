@@ -317,6 +317,70 @@ fn upload(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn imported_render_fingerprints_environment_uploads_are_finite_and_complete() {
+        use sha2::{Digest, Sha256};
+        fn fingerprint(name: &str, size: u32, layers: u32, pixels: &[u16]) {
+            assert_eq!(
+                pixels.len(),
+                size as usize * size as usize * layers as usize * 4
+            );
+            assert!(
+                pixels
+                    .iter()
+                    .all(|value| value & 0x8000 == 0 && value & 0x7c00 != 0x7c00)
+            );
+            assert!(
+                pixels
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .all(|pixel| pixel[3] == 0x3c00)
+            );
+            assert!(
+                pixels
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .any(|pixel| pixel[..3].iter().any(|value| *value != 0))
+            );
+            let mut digest = Sha256::new();
+            digest.update(b"n3 studio environment upload v1\0");
+            digest.update(size.to_le_bytes());
+            digest.update(layers.to_le_bytes());
+            for value in pixels {
+                digest.update(value.to_le_bytes());
+            }
+            println!(
+                "imported-render-fingerprint environment={name} size={size} layers={layers} bytes={} sha256={:x}",
+                pixels.len() * 2,
+                digest.finalize()
+            );
+        }
+        let baked = STUDIO.get_or_init(bake);
+        assert!(std::ptr::eq(baked, STUDIO.get_or_init(bake)));
+        assert_eq!(baked.specular.len(), SPECULAR_SIZE.ilog2() as usize + 1);
+        for (level, pixels) in baked.specular.iter().enumerate() {
+            fingerprint(
+                &format!("specular-mip{level}"),
+                (SPECULAR_SIZE >> level).max(1),
+                6,
+                pixels,
+            );
+        }
+        fingerprint("diffuse", DIFFUSE_SIZE, 6, &baked.diffuse);
+        fingerprint("brdf", LUT_SIZE, 1, &baked.brdf);
+        assert!(
+            baked
+                .brdf
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|pixel| pixel[2] == 0)
+        );
+    }
+
     #[test]
     fn studio_integrals_are_finite_nonnegative_and_roughness_broadens_reflections() {
         for roughness in [0.0, 0.05, 0.5, 1.0] {

@@ -13,4 +13,6 @@ pub(crate) use decode::{load, load_path};
 use glam::{DMat4, DQuat, DVec3};
 
 #[cfg(test)]
+mod fingerprint_tests;
+#[cfg(test)]
 mod tests;

@@ -11,6 +11,66 @@ const VERSION: u32 = 1;
 const RECEIPT: &str = "docs/baselines/linux-vulkan-lavapipe.json";
 const REVIEW: &str = ".cache/docs/linux-vulkan-lavapipe";
 
+/// Failure captures are diagnostics, never a baseline. Restrict the opt-in
+/// destination to disposable caches, including the CI runner's writable mounts.
+fn failure_directory(root: &Path, destination: &Path) -> Result<()> {
+    use std::path::Component;
+    if !destination.is_absolute()
+        || destination
+            .components()
+            .any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
+        || ![
+            root.join(".cache"),
+            root.join("target"),
+            "/n3-cache/home".into(),
+            "/n3-cache/target".into(),
+        ]
+        .iter()
+        .any(|cache| destination != cache && destination.starts_with(cache))
+    {
+        return Err("Documentation failure artifacts require an absolute directory inside .cache, target, or a CI cache mount.".into());
+    }
+    for ancestor in destination.ancestors() {
+        match std::fs::symlink_metadata(ancestor) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(format!(
+                    "Documentation failure artifacts must not follow symlinks: {}",
+                    ancestor.display()
+                ));
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(format!(
+                    "Documentation failure artifacts require a directory: {}",
+                    ancestor.display()
+                ));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(())
+}
+
+fn export_failure(root: &Path, destination: &Path, generated: &Artifacts) -> Result<()> {
+    failure_directory(root, destination)?;
+    for path in generated.keys() {
+        artifacts::validate_path(path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            if let Ok(metadata) = std::fs::symlink_metadata(destination.join(path))
+                && metadata.nlink() > 1
+            {
+                return Err(format!(
+                    "Documentation failure artifacts must not overwrite hard links: {path}"
+                ));
+            }
+        }
+    }
+    artifacts::publish(destination, generated)
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Receipt {
@@ -181,6 +241,23 @@ pub(super) fn run(
     canonical: &Artifacts,
     generated: &Artifacts,
 ) -> Result<()> {
+    let destination = std::env::var_os("N3_DOCS_FAILURE_ARTIFACTS");
+    run_with_failure_artifacts(
+        mode,
+        root,
+        canonical,
+        generated,
+        destination.as_deref().map(Path::new),
+    )
+}
+
+fn run_with_failure_artifacts(
+    mode: &str,
+    root: &Path,
+    canonical: &Artifacts,
+    generated: &Artifacts,
+    failure_artifacts: Option<&Path>,
+) -> Result<()> {
     let receipt_path = root.join(RECEIPT);
     match mode {
         "update" => {
@@ -194,10 +271,28 @@ pub(super) fn run(
             println!("docs update: review {REVIEW} and {RECEIPT}; canonical guide preserved");
         }
         "check" => {
-            let bytes = std::fs::read(&receipt_path).map_err(|error| {
-                format!("Cannot read secondary renderer baseline {}: {error}. Run just ci-docs update and review its captures and receipt.", receipt_path.display())
-            })?;
-            Receipt::decode(&bytes)?.check(canonical, generated)?;
+            let result = (|| {
+                let bytes = std::fs::read(&receipt_path).map_err(|error| {
+                    format!("Cannot read secondary renderer baseline {}: {error}. Run just ci-docs update and review its captures and receipt.", receipt_path.display())
+                })?;
+                Receipt::decode(&bytes)?.check(canonical, generated)
+            })();
+            if result.is_err()
+                && let Some(destination) = failure_artifacts
+            {
+                match export_failure(root, destination, generated) {
+                    Ok(()) => eprintln!(
+                        "docs check: actual failure artifacts exported to {}",
+                        destination.display()
+                    ),
+                    Err(error) => eprintln!(
+                        "docs check: could not export failure artifacts to {}: {error}",
+                        destination.display()
+                    ),
+                }
+            }
+            // A diagnostic export cannot replace or suppress the strict check.
+            result?;
         }
         _ => return Err("Usage: --docs update|check".into()),
     }
@@ -207,6 +302,10 @@ pub(super) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn run(mode: &str, root: &Path, canonical: &Artifacts, generated: &Artifacts) -> Result<()> {
+        run_with_failure_artifacts(mode, root, canonical, generated, None)
+    }
 
     fn guide(profile: &str) -> Artifacts {
         Artifacts::from([
@@ -403,6 +502,116 @@ mod tests {
         changed.insert("README.md".into(), b"# Unreviewed prose\n".to_vec());
         assert!(run("update", &root, &canonical, &changed).is_err());
         assert_eq!(artifacts::read_tree(&root).unwrap(), before);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn failure_exports_actual_captures_and_preserves_the_original_error_and_baselines() {
+        let root = std::env::temp_dir().join(format!(
+            "n3-failure-artifacts-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        let canonical = guide("macos-metal");
+        let expected = guide(PROFILE);
+        artifacts::publish(&root.join("docs/guide"), &canonical).unwrap();
+        run("update", &root, &canonical, &expected).unwrap();
+        let baseline = artifacts::read_tree(&root.join("docs")).unwrap();
+        let review = artifacts::read_tree(&root.join(REVIEW)).unwrap();
+        let destination = root.join(".cache/failure-artifacts");
+        run_with_failure_artifacts("check", &root, &canonical, &expected, Some(&destination))
+            .unwrap();
+        assert!(!destination.exists(), "Successful checks do not publish");
+
+        let mut actual = expected.clone();
+        actual.get_mut("assets/still.webp").unwrap().push(42);
+        let error = run("check", &root, &canonical, &actual).unwrap_err();
+        assert!(error.contains("Secondary renderer artifact drift"));
+        assert_eq!(
+            run_with_failure_artifacts("check", &root, &canonical, &actual, Some(&destination),)
+                .unwrap_err(),
+            error
+        );
+        assert_eq!(artifacts::read_tree(&destination).unwrap(), actual);
+
+        // Rejected destinations and a publication failure retain the same error.
+        let blocked = root.join(".cache/blocked");
+        std::fs::create_dir_all(&blocked).unwrap();
+        std::fs::write(blocked.join("unowned.txt"), b"retain this file").unwrap();
+        let blocked_before = artifacts::read_tree(&blocked).unwrap();
+        for rejected in [
+            root.join("docs/guide"),
+            root.join("docs/baselines"),
+            root.join(".cache"),
+            root.join(".cache/../docs/guide"),
+            ".cache/relative".into(),
+            blocked.clone(),
+        ] {
+            assert_eq!(
+                run_with_failure_artifacts("check", &root, &canonical, &actual, Some(&rejected),)
+                    .unwrap_err(),
+                error
+            );
+        }
+        assert_eq!(artifacts::read_tree(&blocked).unwrap(), blocked_before);
+        assert_eq!(artifacts::read_tree(&root.join("docs")).unwrap(), baseline);
+        assert_eq!(artifacts::read_tree(&root.join(REVIEW)).unwrap(), review);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failure_export_rejects_link_ancestors_and_artifacts() {
+        let root = std::env::temp_dir().join(format!(
+            "n3-failure-symlinks-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(root.join(".cache/actual")).unwrap();
+        let root = root.canonicalize().unwrap();
+        let outside = root.join("untouched");
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(outside.join("still.webp"), b"preserved").unwrap();
+        std::os::unix::fs::symlink(&outside, root.join(".cache/link")).unwrap();
+        assert!(
+            export_failure(&root, &root.join(".cache/link/captures"), &guide(PROFILE))
+                .unwrap_err()
+                .contains("symlink")
+        );
+        let artifacts = root.join(".cache/actual/assets");
+        std::fs::create_dir(&artifacts).unwrap();
+        std::os::unix::fs::symlink(outside.join("still.webp"), artifacts.join("still.webp"))
+            .unwrap();
+        assert!(
+            export_failure(&root, &root.join(".cache/actual"), &guide(PROFILE))
+                .unwrap_err()
+                .contains("symlink")
+        );
+        assert_eq!(
+            std::fs::read(outside.join("still.webp")).unwrap(),
+            b"preserved"
+        );
+        assert!(!outside.join("captures").exists());
+        std::fs::remove_file(artifacts.join("still.webp")).unwrap();
+        std::fs::hard_link(outside.join("still.webp"), artifacts.join("still.webp")).unwrap();
+        assert!(
+            export_failure(&root, &root.join(".cache/actual"), &guide(PROFILE))
+                .unwrap_err()
+                .contains("hard links")
+        );
+        assert_eq!(
+            std::fs::read(outside.join("still.webp")).unwrap(),
+            b"preserved"
+        );
+        assert!(!root.join(".cache/actual/README.md").exists());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

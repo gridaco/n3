@@ -93,8 +93,7 @@ class CIRunnerTests(unittest.TestCase):
         self.assertEqual(arguments[-(len(supplied) + 3):], ["cargo", "test", "--locked", *supplied])
         script = arguments[arguments.index("-c") + 1]
         self.assertIn('exec "$@"', script)
-        for value in supplied:
-            self.assertNotIn(value, script)
+        self.assertEqual(script, runner.INITIALIZE + 'exec "$@"\n')
 
     def test_ci_runs_full_checks_without_recursing_through_just_or_runner(self):
         arguments = self.command(["ci"])
@@ -107,10 +106,124 @@ class CIRunnerTests(unittest.TestCase):
         ):
             self.assertIn(command, script)
         self.assertNotIn("just", script)
-        self.assertNotIn("ci_runner", script)
+        self.assertNotIn("ci_runner", runner.CI_SCRIPT)
         self.assertIn("PYTHONDONTWRITEBYTECODE=1", arguments)
         self.assertIn("GALLIUM_OVERRIDE_CPU_CAPS=sse2", arguments)
         self.assertIn("LP_NUM_THREADS=2", arguments)
+
+    def test_environment_receipt_reports_only_architecture_libc_and_cpu_features(self):
+        cpuinfo = """processor : 0
+model name : private host name
+Serial : private identifier
+flags : sse2 fma avx2
+processor : 1
+flags : avx2 sse2
+Features : neon fp
+"""
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch.object(runner.Path, "read_text", return_value=cpuinfo) as read, patch.object(runner.platform, "machine", return_value="x86_64"), patch.object(runner.os, "confstr", return_value="glibc 2.39"), patch.object(runner.subprocess, "run") as run:
+            self.assertEqual(runner.main(["--environment-receipt"]), 0)
+        run.assert_not_called()
+        read.assert_called_once_with(encoding="utf-8")
+        self.assertEqual(output.getvalue().splitlines(), [
+            "N3 CI container: architecture=x86_64 libc=glibc 2.39",
+            "N3 CI container CPU features: avx2 fma fp neon sse2",
+        ])
+
+    def test_container_diagnostics_precede_literal_commands_and_keep_pinned_caps(self):
+        with patch.dict(runner.os.environ, {
+            "GALLIUM_DUMP_CPU": "0", "GALLIUM_OVERRIDE_CPU_CAPS": "avx",
+            "N3_DOCS_FAILURE_ARTIFACTS": "/workspace/docs/guide",
+            "N3_CI_FAILURE_ARTIFACTS": "0",
+        }):
+            for mode in (["ci"], ["test", "probe", "--", "--nocapture"], ["docs", "check"]):
+                arguments = self.command(mode)
+                script = arguments[arguments.index("-c") + 1]
+                self.assertLess(script.index("--environment-receipt"), script.index("exec "))
+                environment = [arguments[i + 1] for i, value in enumerate(arguments) if value == "--env"]
+                self.assertIn("GALLIUM_DUMP_CPU=1", environment)
+                self.assertIn("GALLIUM_OVERRIDE_CPU_CAPS=sse2", environment)
+                self.assertFalse(any(value.startswith("N3_DOCS_FAILURE_ARTIFACTS=") for value in environment))
+
+    def test_cpu_caps_override_is_restricted_to_the_fixed_readonly_probe(self):
+        probe = ["test", "imported_render_fingerprints", "--", "--nocapture"]
+        baseline = self.command(probe)
+        for caps in ("sse2", "nosse"):
+            with self.subTest(caps=caps), patch.dict(runner.os.environ, {"N3_CI_PROBE_CPU_CAPS": caps}):
+                arguments = self.command(probe)
+                expected = list(baseline)
+                expected[expected.index("GALLIUM_OVERRIDE_CPU_CAPS=sse2")] = f"GALLIUM_OVERRIDE_CPU_CAPS={caps}"
+                self.assertEqual(arguments, expected)
+                self.assertEqual(arguments[-len(runner.PROBE_COMMAND):], runner.PROBE_COMMAND)
+                self.assertEqual(arguments[arguments.index("--user") + 1], "501:20")
+                self.assertEqual(self.mounts(arguments), self.mounts(baseline))
+                self.assertIn(["type=bind", f"source={self.root}", "target=/workspace", "readonly"], self.mounts(arguments))
+
+    def test_cpu_caps_override_rejects_other_profiles_and_filters_before_docker(self):
+        for caps in ("sse2", "nosse", "avx", "", "nosse;false"):
+            for arguments in (
+                ["ci"], ["docs", "check"], ["docs", "update"], ["test"],
+                ["test", "imported_render_fingerprints"],
+                ["test", "imported_render_fingerprints", "--", "--nocapture", "--test-threads=1"],
+            ):
+                with self.subTest(caps=caps, arguments=arguments), patch.dict(runner.os.environ, {"N3_CI_PROBE_CPU_CAPS": caps}):
+                    result, run, output = self.invoke(arguments, [])
+                self.assertEqual(result, 2)
+                run.assert_not_called()
+                self.assertIn("only for test imported_render_fingerprints -- --nocapture", output)
+        for caps in ("avx", "", "nosse;false"):
+            with self.subTest(caps=caps), patch.dict(runner.os.environ, {"N3_CI_PROBE_CPU_CAPS": caps}):
+                result, run, _ = self.invoke(["test", "imported_render_fingerprints", "--", "--nocapture"], [])
+            self.assertEqual(result, 2)
+            run.assert_not_called()
+
+    def test_failure_artifact_opt_in_uses_fixed_cache_and_clears_only_stale_diagnostics(self):
+        cache = self.root / ".cache/ci/linux-amd64/home"
+        stale = self.root / runner.FAILURE_ARTIFACTS
+        stale.mkdir(parents=True)
+        (stale / "old.webp").write_bytes(b"stale")
+        preserved = cache / "unrelated-cache.txt"
+        preserved.write_text("preserve")
+
+        def docker(arguments, **kwargs):
+            if arguments[1] == "run":
+                self.assertTrue(stale.is_dir())
+                self.assertEqual(list(stale.iterdir()), [])
+                self.assertEqual(preserved.read_text(), "preserve")
+                self.assertIn("N3_DOCS_FAILURE_ARTIFACTS=/n3-cache/home/docs-failure-artifacts", arguments)
+                self.assertEqual(len(self.mounts(arguments)), 6)
+            return subprocess.CompletedProcess(arguments, 0)
+
+        with patch.dict(runner.os.environ, {
+            "N3_CI_FAILURE_ARTIFACTS": "1",
+            "N3_DOCS_FAILURE_ARTIFACTS": "/workspace/docs/baselines",
+        }), contextlib.redirect_stdout(io.StringIO()), patch.object(runner.subprocess, "run", side_effect=docker):
+            self.assertEqual(runner.main(["ci"], root=self.root), 0)
+
+    def test_failure_artifact_cleanup_requires_opt_in_and_rejects_symlink_ancestors(self):
+        destination = self.root / runner.FAILURE_ARTIFACTS
+        destination.mkdir(parents=True)
+        original = destination / "prior.webp"
+        original.write_bytes(b"preserve until opted in")
+        with patch.dict(runner.os.environ, {"N3_CI_FAILURE_ARTIFACTS": "0"}):
+            result, _, _ = self.invoke(["test"], [
+                subprocess.CompletedProcess([], 0), subprocess.CompletedProcess([], 0),
+            ])
+        self.assertEqual(result, 0)
+        self.assertEqual(original.read_bytes(), b"preserve until opted in")
+        original.unlink()
+        destination.rmdir()
+        for relative in (runner.FAILURE_ARTIFACTS, ".cache/ci/linux-amd64/home"):
+            with self.subTest(relative=relative):
+                link = self.root / relative
+                if link.exists():
+                    link.rmdir()
+                link.symlink_to(self.root / "docs/guide", target_is_directory=True)
+                with patch.dict(runner.os.environ, {"N3_CI_FAILURE_ARTIFACTS": "1"}):
+                    with self.assertRaises(runner.RunnerError):
+                        runner.reset_failure_artifacts(self.root)
+                self.assertTrue((self.root / "docs/guide").is_dir())
+                link.unlink()
 
     def test_build_failure_stops_before_run_and_preserves_status(self):
         result, run, _ = self.invoke(["test"], [subprocess.CompletedProcess([], 7)])

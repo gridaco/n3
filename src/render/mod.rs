@@ -1,4 +1,6 @@
 pub(crate) mod camera;
+#[cfg(test)]
+mod color_transfer_tests;
 pub(crate) mod edit_feedback;
 pub(crate) mod object_feedback;
 pub(crate) mod orientation;

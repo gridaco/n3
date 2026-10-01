@@ -10,6 +10,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  ubuntu-renderer-probe:
+    name: Imported renderer precision diagnostics
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Report SSE2 imported renderer fingerprints
+        env:
+          N3_CI_PROBE_CPU_CAPS: sse2
+        run: python3 tools/ci_runner.py test imported_render_fingerprints -- --nocapture
+      - name: Report imported renderer fingerprints without approximate SSE instructions
+        env:
+          N3_CI_PROBE_CPU_CAPS: nosse
+        run: python3 tools/ci_runner.py test imported_render_fingerprints -- --nocapture
+
   ubuntu:
     name: Ubuntu checks and documentation replay
     runs-on: ubuntu-24.04
@@ -20,7 +37,19 @@ jobs:
         with:
           persist-credentials: false
       - name: Check, test, and replay documentation in the pinned Ubuntu renderer
+        env:
+          N3_CI_FAILURE_ARTIFACTS: "1"
         run: python3 tools/ci_runner.py ci
+      - name: Preserve exact renderer drift evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ubuntu-renderer-drift-${{ github.sha }}-${{ github.run_attempt }}
+          path: .cache/ci/linux-amd64/home/docs-failure-artifacts
+          include-hidden-files: true
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
 
   macos-native:
     name: macOS bundle and native integration
