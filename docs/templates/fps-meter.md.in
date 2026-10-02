@@ -1,0 +1,31 @@
+# FPS meter
+
+Open {{control:view.fps-meter.toggle}} to show a small meter at the bottom-right corner
+of the application window. It stays anchored to the window as the viewport and
+panels change.
+Choose the same item again to turn it off. The meter starts off each time you
+open N3 and does not change your document, selection, settings, or undo history.
+
+{{image:fps-meter-menu}}
+
+**App FPS** measures the rate at which N3 submits completed application frames
+for presentation. The frame interval is the average elapsed time between those
+submissions. It includes time spent waiting between frames, including idle time
+and stalls. It does not measure GPU execution time, frames actually displayed
+by your screen, or the delay between your input and its visible result.
+
+The meter waits for enough frames to form its first sample:
+
+{{image:fps-meter-waiting}}
+
+While frames are arriving, the sample updates after at least half a second.
+The display is labeled **last sample**: an idle editor keeps its last value
+until another frame arrives. Enabling the meter does not keep an otherwise idle
+editor drawing just to refresh the number. Orbit or animate the scene when you
+want to observe its active frame rate; a low rate while doing nothing is normal.
+
+The meter is a passive overlay. It does not take pointer or keyboard input.
+{{shortcut:ui.toggle}} hides it with the rest of the UI; repeating the shortcut
+restores it if it is still enabled. Hiding the UI does not disable measurement.
+
+[Back to guide](README.md).

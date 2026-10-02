@@ -24,6 +24,7 @@ pub enum Command {
     Undo,
     Redo,
     ToggleUi,
+    ToggleFpsMeter,
     ToggleAnimationPanel,
     ToggleTerminalPanel,
     CloseToolDock,

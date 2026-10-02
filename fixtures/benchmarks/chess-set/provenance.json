@@ -1,0 +1,97 @@
+{
+  "asset": "Chess Set",
+  "author": "Riley Queen",
+  "source": "https://polyhaven.com/a/chess_set",
+  "license": "CC0-1.0",
+  "license_url": "https://polyhaven.com/license",
+  "downloaded": "2026-10-02",
+  "variant": "glTF with 1K JPEG textures",
+  "manifest_url": "https://api.polyhaven.com/files/chess_set",
+  "identity": "Upstream download URLs are mutable; exact bytes are pinned by SHA-256 below.",
+  "files": [
+    {
+      "path": "source/chess_set.bin",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/8k/chess_set/chess_set.bin",
+      "bytes": 1732220,
+      "upstream_md5": "815ae6d5becbcdd836b29b0d644bba95",
+      "sha256": "c73476fd032a2cb4a9c256f70573eed260708132fdc42fec161c6216711560b3"
+    },
+    {
+      "path": "source/chess_set_1k.gltf",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/chess_set/chess_set_1k.gltf",
+      "bytes": 53740,
+      "upstream_md5": "ceac1016348f797f3db112e3e70a96a4",
+      "sha256": "3e21ecd0c2ffb703dfdb3f3ea7a379c1dbd4ec513ba2cb8e6cb1e5f276d7eb91"
+    },
+    {
+      "path": "source/textures/chess_set_board_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_board_arm_1k.jpg",
+      "bytes": 756404,
+      "upstream_md5": "dbd91f4091f0eccadbde324cae25c159",
+      "sha256": "67387308ce3a6424a1666e742c6556853344c01fbfcda8453b6e2e2f62bc6d30"
+    },
+    {
+      "path": "source/textures/chess_set_board_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_board_diff_1k.jpg",
+      "bytes": 602985,
+      "upstream_md5": "6387bd6ddb53994016f0463e83e2c50a",
+      "sha256": "cca44d214f48ebe2205362a3996265d1fed727e094835bec2c873e91c653eaa5"
+    },
+    {
+      "path": "source/textures/chess_set_board_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_board_nor_gl_1k.jpg",
+      "bytes": 227381,
+      "upstream_md5": "521b8b19abf4f1aa3cc20105f00eac97",
+      "sha256": "bc5657ec58e0e04a2e8fa6d50ec0f6e3009b1c22b8391ccdde1a4d5d9db30d4d"
+    },
+    {
+      "path": "source/textures/chess_set_pieces_black_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_pieces_black_arm_1k.jpg",
+      "bytes": 833327,
+      "upstream_md5": "5bd1040c1f5b9155c4a857084f8fae9b",
+      "sha256": "e0413b36e970c645bd9b6192bfe788b318d9bd9f4f3746cf137552bfee118982"
+    },
+    {
+      "path": "source/textures/chess_set_pieces_black_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_pieces_black_diff_1k.jpg",
+      "bytes": 480796,
+      "upstream_md5": "cc4bbdc39ed8877c74dfad206284a106",
+      "sha256": "74471018f96f197c963cc89e7dae19960b03bc2e4bf448e4b0beb51bfee5b85d"
+    },
+    {
+      "path": "source/textures/chess_set_pieces_black_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_pieces_black_nor_gl_1k.jpg",
+      "bytes": 421230,
+      "upstream_md5": "c0a6bf5918cc47fbc7ef70e7bcd44b1a",
+      "sha256": "b92343bba552e82f271f86def504e806e73c6f5dfc4469a90fa5b4f66013bfcd"
+    },
+    {
+      "path": "source/textures/chess_set_pieces_white_arm_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_pieces_white_arm_1k.jpg",
+      "bytes": 841156,
+      "upstream_md5": "fda5fe9413f4ab708a25eb425b1bdd37",
+      "sha256": "9604c461ee6d5d4f5937891b0468ff7efd354299074b139d04029b03c326e434"
+    },
+    {
+      "path": "source/textures/chess_set_pieces_white_diff_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_pieces_white_diff_1k.jpg",
+      "bytes": 590948,
+      "upstream_md5": "d71daf8e6465bf04c63992eaa185e1d1",
+      "sha256": "d9e06002509d73c3f343e1643f0c89ef84e24602f1f6858b5628e8f3e55ae77d"
+    },
+    {
+      "path": "source/textures/chess_set_pieces_white_nor_gl_1k.jpg",
+      "url": "https://dl.polyhaven.org/file/ph-assets/Models/jpg/1k/chess_set/chess_set_pieces_white_nor_gl_1k.jpg",
+      "bytes": 443642,
+      "upstream_md5": "4cacfbb2e652cd1fd68ad599fda9c7b7",
+      "sha256": "51c31dc44d1d0f01c10b759be7903bea9d5b04781b63dc45738dd70a6e31dd6c"
+    }
+  ],
+  "derived": {
+    "path": "chess-set-1k.glb",
+    "recipe": "pack.py",
+    "bytes": 6962072,
+    "sha256": "82200d86f5d6cdf6a307bda65c60b243e3749a707cd57e6c36356478caa678ff",
+    "changes": "Embed the original geometry buffer and nine JPEG byte streams; add four-byte padding and image buffer views. No geometry, transform, material, sampler, or image conversion."
+  }
+}

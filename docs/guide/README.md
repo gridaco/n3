@@ -10,6 +10,7 @@ Guide to N3, the minimal mesh editor. Import OBJ geometry, insert parametric sha
 - [Snapping movement](snapping.md)
 - [Workspace layout and property editing](workspace.md)
 - [Terminal](terminal.md)
+- [FPS meter](fps-meter.md)
 - [Toasts and shortcut hints](toasts.md)
 - [Length units](length-units.md)
 - [2D](2d.md)

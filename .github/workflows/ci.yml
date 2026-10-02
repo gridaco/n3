@@ -241,6 +241,8 @@ jobs:
       # own behavioral tests and exact guide receipts; this job needs no GPU.
       - name: Lint the WASM target and generate the browser application
         run: just web-verify
+      - name: Check the optional WASM measurement adapter
+        run: just benchmark-web-check
       - name: Save verified WASM dependencies and build output
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

@@ -105,6 +105,10 @@ class CIRunnerTests(unittest.TestCase):
             "cargo clippy --locked --all-targets -- -D warnings",
             "python3 -m unittest discover -s tools/tests -p 'test_*.py'",
             "node --test tools/tests/web_wrapper.test.mjs",
+            "python3 -m unittest discover -s tools/benchmark/tests -t . -p 'test_*.py'",
+            "node --test tools/benchmark/tests/*.test.mjs",
+            "cargo test --locked --features viewport-measure --lib measurement::",
+            "cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize",
             "exec cargo test --locked",
         ):
             self.assertIn(command, script)

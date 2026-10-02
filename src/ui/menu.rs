@@ -344,6 +344,7 @@ fn control_for_action(action: ActionId) -> Control {
         ActionId::Xray => Control::Xray,
         ActionId::Ruler2D => Control::Ruler2DViewToggle,
         ActionId::Edges => Control::Edges,
+        ActionId::ToggleFpsMeter => Control::ShowFpsMeter,
         ActionId::ViewPerspective => Control::ViewPerspective,
         ActionId::ViewFront => Control::ViewFront,
         ActionId::ViewRight => Control::ViewRight,

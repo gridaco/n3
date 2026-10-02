@@ -11,6 +11,7 @@ repository's pre-push hook. The optional CI container supplies Node. Run
 `just fmt` before checking your changes with `just verify`.
 
 - [Development](docs/development.md): setup, commands, and document/import formats.
+- [Testing](TESTING.md): verification entry points, performance tooling, external suites, and fixture sources.
 - [Architecture](docs/architecture/architecture.md): responsibilities and state boundaries.
 - [Proposals](rfcs/README.md): concrete future ideas, rationale, and unresolved decisions; short work items stay in [TODO.md](TODO.md).
 - [Documentation pipeline](docs/architecture/documentation-pipeline.md): executable guides, input replay, callouts, and animation authoring.

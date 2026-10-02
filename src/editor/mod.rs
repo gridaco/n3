@@ -4,6 +4,8 @@ mod derived_edit;
 pub(crate) mod edit_history;
 mod geometry_edit;
 mod make_face;
+#[cfg(feature = "viewport-measure")]
+mod measurement;
 pub(crate) mod numeric_transform;
 pub(crate) mod snapping;
 mod transform_gizmo;
@@ -2196,6 +2198,7 @@ impl Editor {
     }
 
     fn prepare(&mut self, projection: &Projection) -> Result<(), String> {
+        crate::measurement::editor_prepared();
         if self.cache.is_none() {
             self.cache = Some(GeometryCache::with_assets(
                 &self.document,
@@ -3523,11 +3526,13 @@ impl GeometryCache {
                 position,
             }));
         }
+        let bvh = Bvh::build(triangles);
+        crate::measurement::geometry_rebuilt();
         Ok(Self {
             vertices,
             selectable_vertices,
             loose_edges,
-            bvh: Bvh::build(triangles),
+            bvh,
             projection: None,
             projected: Vec::new(),
         })
@@ -3577,6 +3582,7 @@ impl GeometryCache {
         if self.projection.as_ref() == Some(projection) {
             return;
         }
+        let probe = crate::measurement::projection_started();
         self.projected.clear();
         for vertex in &self.vertices {
             let Some(screen) = projection.screen(vertex.position) else {
@@ -3602,6 +3608,7 @@ impl GeometryCache {
             });
         }
         self.projection = Some(projection.clone());
+        probe.finish(self.vertices.len());
     }
 }
 

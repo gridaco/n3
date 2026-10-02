@@ -76,6 +76,7 @@ actions! {
     LocalView => ("view.local", "Local View", Command::ToggleLocalView, Some("Isolate selected objects; activate again to restore the scene")),
     Xray => ("view.xray", "X-ray", Command::ToggleXray, Some("See and select through surfaces")),
     Ruler2D => ("view.2d-ruler", "2D ruler", Command::ToggleRuler2D, None),
+    ToggleFpsMeter => ("view.fps-meter.toggle", "Show FPS Meter", Command::ToggleFpsMeter, Some("Measure completed application frame cadence without requesting extra frames")),
     Edges => ("view.edges", "Edges", Command::ToggleEdges, Some("Original polygon boundaries")),
     ViewPerspective => ("view.perspective", "Perspective", Command::View(View::Perspective), None),
     ViewFront => ("view.front", "Front", Command::View(View::Front), None),
@@ -136,6 +137,7 @@ mod tests {
                     | ActionId::AnimationPanel
                     | ActionId::TerminalPanel
                     | ActionId::CloseToolDock
+                    | ActionId::ToggleFpsMeter
                     | ActionId::Edges
                     | ActionId::InsertCube
                     | ActionId::InsertCylinder

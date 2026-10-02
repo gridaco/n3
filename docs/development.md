@@ -2,7 +2,8 @@
 
 The application is a single Rust package named `n3`, with private implementation
 modules. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
-guidance. Start at [the architecture map](architecture/architecture.md) and
+guidance. [Testing](../TESTING.md) indexes verification workflows, reference suites,
+and benchmark resources. Start at [the architecture map](architecture/architecture.md) and
 [the milestone review](architecture/milestone-review.md). The old viewer-only
 spike has been removed; the root package is the maintained source tree.
 
@@ -83,6 +84,11 @@ filesystem host remain target-specific. Both hosts use the same workspace and
 user guide; host capabilities omit or disable unsupported controls.
 Read [platform boundaries and performance](architecture/platform-boundaries.md)
 before extending the port or changing host ownership.
+
+For opt-in native/browser CPU-stage and frame-pacing measurements, use
+[`just measure-viewport`](architecture/viewport-measurement.md). It builds the
+production hosts with contributor instrumentation and records raw samples;
+ordinary builds do not include the recorder or measurement exports.
 
 ```sh
 just web-setup

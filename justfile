@@ -118,6 +118,36 @@ web-verify: web-test web-lint web-build
 web *args: web-build
     python3 tools/web.py serve "$@"
 
+# Opt-in real-host viewport measurements; raw evidence stays in ignored output.
+measure-viewport *args:
+    python3 -m tools.benchmark.measure "$@"
+
+# Repeat real host sessions and aggregate or compare their frame evidence.
+benchmark-viewport *args:
+    python3 -m tools.benchmark "$@"
+
+# Install an isolated optional Playwright/Chromium runner for viewport measurements.
+measure-browser-setup:
+    python3 -m tools.benchmark.measure setup-browser
+
+# Verify benchmark collection, reporting, browser policy, and Rust recorder contracts.
+# This needs no browser installation and records no performance baseline.
+benchmark-tools-test:
+    PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/benchmark/tests -t . -p 'test_*.py'
+    node --test tools/benchmark/tests/*.test.mjs
+
+# Exercise feature-gated recorder contracts and exact renderer composition parity.
+benchmark-rust-test:
+    just cargo test --locked --features viewport-measure --lib measurement::
+    just cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize
+
+# Compile and lint the opt-in browser recorder without launching a browser.
+benchmark-web-check:
+    cargo clippy --locked --target wasm32-unknown-unknown --features viewport-measure --lib -- -D warnings
+
+# Complete benchmark correctness gate; does not collect timings or install Chromium.
+benchmark-test: benchmark-tools-test benchmark-rust-test
+
 # Browse production UI components, or capture their deterministic internal evidence.
 workbench *args:
     cargo run --locked -- --workbench "$@"
@@ -179,7 +209,7 @@ runner-test:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -p 'test_ci_runner.py'
 
 # Run all development tooling regressions on the native host.
-tools-test: web-test
+tools-test: web-test benchmark-tools-test
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
 # Opt in to the pinned Ubuntu CI environment; requires Docker.
@@ -208,4 +238,4 @@ test-metal:
     cargo test --locked documentation::capture::tests::
 
 # Native development and pre-push checks. CI infrastructure is opt-in.
-verify: fmt-check lint tools-test test
+verify: fmt-check lint tools-test test benchmark-rust-test

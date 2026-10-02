@@ -1,0 +1,249 @@
+{
+  "schema": "n3.viewport-measure.v2",
+  "metadata": {
+    "host": "native",
+    "adapter": {
+      "name": "test GPU",
+      "backend": "Metal",
+      "device_type": "IntegratedGpu",
+      "vendor": 0,
+      "device": 0,
+      "driver": "",
+      "driver_info": ""
+    },
+    "architecture": "arm64",
+    "browser_mode": null,
+    "build_command": ["cargo", "build", "--release"],
+    "cargo_encoded_rustflags": null,
+    "dirty": true,
+    "input": {
+      "name": "test.glb",
+      "bytes": 100,
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "operating_system": "test OS",
+    "profile": "release",
+    "profile_overrides": {},
+    "recorded_at_utc": "2026-10-02T00:00:01Z",
+    "requested_device_scale_factor": null,
+    "requested_physical_size": [1280, 800],
+    "revision": "test revision",
+    "rustc": "test compiler",
+    "rustflags": null,
+    "source_fingerprint": {
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "paths": 10,
+      "scope": "source"
+    },
+    "surface": {
+      "width": 1280,
+      "height": 800,
+      "present_mode": "Fifo",
+      "scale_factor": 2,
+      "format": "Bgra8Unorm",
+      "alpha_mode": "Opaque",
+      "desired_maximum_frame_latency": 2
+    },
+    "loading": {
+      "duration": 100
+    }
+  },
+  "options": {
+    "mode": "editor",
+    "workload": "orbit",
+    "selected": false,
+    "instrument_stages": true,
+    "sample_frames": 3,
+    "warmup_frames": 20
+  },
+  "model": {
+    "vertices": 100,
+    "triangles": 150,
+    "faces": 0,
+    "objects": 1,
+    "linked_assets": 1
+  },
+  "render": {
+    "baseline_viewport_points": [240, 0, 400, 368.5],
+    "pixels_per_point": 2,
+    "initial_camera_view_projection": [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ],
+    "shading": "solid",
+    "grid": true,
+    "edges": true,
+    "theme": "light",
+    "selected_objects": 0,
+    "hovered_object": null,
+    "baseline_viewport_ui_points": [240, 0, 400, 368.5]
+  },
+  "validity": {
+    "all_frames_focused": true,
+    "constant_surface": true,
+    "constant_viewport": true,
+    "mode_contract_satisfied": true,
+    "no_frame_errors": true,
+    "unchanged_mesh_revision": true,
+    "viewport_matches_baseline": true
+  },
+  "samples": [
+    {
+      "frame": 0,
+      "cpu_frame_ms": 10,
+      "frame_start_interval_ms": 11,
+      "camera_view_projection": [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+      ],
+      "counters": {
+        "mesh_uploads": 0,
+        "base_mesh_upload_bytes": 0,
+        "viewport_resizes": 0,
+        "ui_jobs": 1,
+        "egui_passes": 1,
+        "egui_tessellations": 1,
+        "egui_texture_updates": 0,
+        "egui_composites": 1,
+        "editor_prepares": 1,
+        "editor_feedback_updates": 1,
+        "scene_renders": 1,
+        "scene_composites": 0
+      },
+      "cpu_stage_ms": {
+        "surface_acquire": 0,
+        "host_prepare": 0,
+        "cache_sync": 0,
+        "scene_encode": 1.0,
+        "submit_api": 0,
+        "present_api": 0,
+        "host_tail": 0,
+        "ui": 5.0,
+        "commands_and_refresh": 0,
+        "tessellation_and_textures": 0,
+        "feedback": 0,
+        "ui_encode": 0,
+        "editor_prepare": null,
+        "scene_composite": null
+      },
+      "error": null,
+      "focused": true,
+      "mesh_revision": 1,
+      "pixels_per_point": 2,
+      "projection": {
+        "cpu_ms": 2.5,
+        "geometry_rebuilds": 0,
+        "rebuilds": 0,
+        "vertices_tested": 0
+      },
+      "surface_pixels": [1280, 800],
+      "viewport_pixels": [320, 737],
+      "viewport_points": [240, 0, 400, 368.5]
+    },
+    {
+      "frame": 1,
+      "cpu_frame_ms": 20,
+      "frame_start_interval_ms": 21,
+      "camera_view_projection": [
+        2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+      ],
+      "counters": {
+        "mesh_uploads": 0,
+        "base_mesh_upload_bytes": 0,
+        "viewport_resizes": 0,
+        "ui_jobs": 1,
+        "egui_passes": 1,
+        "egui_tessellations": 1,
+        "egui_texture_updates": 0,
+        "egui_composites": 1,
+        "editor_prepares": 1,
+        "editor_feedback_updates": 1,
+        "scene_renders": 1,
+        "scene_composites": 0
+      },
+      "cpu_stage_ms": {
+        "surface_acquire": 0,
+        "host_prepare": 0,
+        "cache_sync": 0,
+        "scene_encode": 2.0,
+        "submit_api": 0,
+        "present_api": 0,
+        "host_tail": 0,
+        "ui": 10.0,
+        "commands_and_refresh": 0,
+        "tessellation_and_textures": 0,
+        "feedback": 0,
+        "ui_encode": 0,
+        "editor_prepare": null,
+        "scene_composite": null
+      },
+      "error": null,
+      "focused": true,
+      "mesh_revision": 1,
+      "pixels_per_point": 2,
+      "projection": {
+        "cpu_ms": 5.0,
+        "geometry_rebuilds": 0,
+        "rebuilds": 0,
+        "vertices_tested": 0
+      },
+      "surface_pixels": [1280, 800],
+      "viewport_pixels": [320, 737],
+      "viewport_points": [240, 0, 400, 368.5]
+    },
+    {
+      "frame": 2,
+      "cpu_frame_ms": 90,
+      "frame_start_interval_ms": 91,
+      "camera_view_projection": [
+        3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3
+      ],
+      "counters": {
+        "mesh_uploads": 0,
+        "base_mesh_upload_bytes": 0,
+        "viewport_resizes": 0,
+        "ui_jobs": 1,
+        "egui_passes": 1,
+        "egui_tessellations": 1,
+        "egui_texture_updates": 0,
+        "egui_composites": 1,
+        "editor_prepares": 1,
+        "editor_feedback_updates": 1,
+        "scene_renders": 1,
+        "scene_composites": 0
+      },
+      "cpu_stage_ms": {
+        "surface_acquire": 0,
+        "host_prepare": 0,
+        "cache_sync": 0,
+        "scene_encode": 9.0,
+        "submit_api": 0,
+        "present_api": 0,
+        "host_tail": 0,
+        "ui": 45.0,
+        "commands_and_refresh": 0,
+        "tessellation_and_textures": 0,
+        "feedback": 0,
+        "ui_encode": 0,
+        "editor_prepare": null,
+        "scene_composite": null
+      },
+      "error": null,
+      "focused": true,
+      "mesh_revision": 1,
+      "pixels_per_point": 2,
+      "projection": {
+        "cpu_ms": 22.5,
+        "geometry_rebuilds": 0,
+        "rebuilds": 0,
+        "vertices_tested": 0
+      },
+      "surface_pixels": [1280, 800],
+      "viewport_pixels": [320, 737],
+      "viewport_points": [240, 0, 400, 368.5]
+    }
+  ],
+  "summary": {
+    "cpu_frame_ms": {
+      "median": 99999999
+    }
+  }
+}

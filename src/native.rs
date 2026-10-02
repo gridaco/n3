@@ -1,8 +1,14 @@
 //! macOS window, dialogs and event-loop adapter.
+#[cfg(feature = "viewport-measure")]
+mod measurement;
+#[cfg(not(feature = "viewport-measure"))]
+#[path = "native/measurement_disabled.rs"]
+mod measurement;
 mod settings_host;
 mod settings_store;
 
 use crate::asset_io::LoadedDocument;
+use crate::measurement::Stage;
 use crate::render::workspace::{FrameTarget, WorkspaceRenderer};
 use crate::{
     document_io, keyboard_input, navigation_events, scroll_input,
@@ -85,6 +91,7 @@ struct NativeWindow {
     modifiers: egui::Modifiers,
     generation: u64,
     last_camera_tick: Instant,
+    frame_clock: Instant,
     proxy: EventLoopProxy<AppEvent>,
     next_repaint: Option<Instant>,
     pending_open: bool,
@@ -94,10 +101,15 @@ struct NativeWindow {
     settings_path: Option<PathBuf>,
     settings_open_error: Option<String>,
     settings_defaults: Settings,
+    measurement: measurement::Host,
 }
 
 impl NativeWindow {
-    async fn new(window: Arc<Window>, proxy: EventLoopProxy<AppEvent>) -> Result<Self, String> {
+    async fn new(
+        window: Arc<Window>,
+        proxy: EventLoopProxy<AppEvent>,
+        mut measurement: measurement::Host,
+    ) -> Result<Self, String> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::METAL,
             ..wgpu::InstanceDescriptor::new_without_display_handle()
@@ -145,6 +157,7 @@ impl NativeWindow {
             view_formats: vec![],
             color_space: wgpu::SurfaceColorSpace::Auto,
         };
+        measurement.set_adapter(&adapter.get_info());
         surface.configure(&device, &config);
         let context = egui::Context::default();
         configure_context(&context);
@@ -188,6 +201,7 @@ impl NativeWindow {
             modifiers: egui::Modifiers::NONE,
             generation: 0,
             last_camera_tick: Instant::now(),
+            frame_clock: Instant::now(),
             proxy,
             next_repaint: None,
             pending_open: false,
@@ -197,12 +211,19 @@ impl NativeWindow {
             settings_path: None,
             settings_open_error: None,
             settings_defaults,
+            measurement,
         };
         native.initialize_settings();
         Ok(native)
     }
 
     fn initialize_settings(&mut self) {
+        if self.measurement.configured() {
+            // Measurement sessions use isolated defaults and never touch the
+            // user's global store, including while the input file is loading.
+            self.state.apply_user_settings(&Settings::default());
+            return;
+        }
         let result = (|| {
             let store = FileSettingsStore::global()?;
             let path = store.path().to_path_buf();
@@ -258,6 +279,9 @@ impl NativeWindow {
     }
 
     fn service_settings(&mut self) {
+        if self.measurement.configured() {
+            return;
+        }
         let now = Instant::now();
         // Native input can be queued before egui has processed the next pass.
         // Do not let a timer apply preferences across that pending boundary.
@@ -322,6 +346,9 @@ impl NativeWindow {
     /// Called only after the user has resolved the document's Save/Discard
     /// decision. An unrelated malformed settings file must never trap quitting.
     fn flush_settings_before_quit(&mut self) -> bool {
+        if self.measurement.configured() {
+            return true;
+        }
         let local = self.state.user_settings();
         let result = match &mut self.settings {
             Some(host) if host.has_pending(&local) => {
@@ -530,6 +557,9 @@ impl NativeWindow {
         }
     }
     fn navigate(&mut self, event: navigation_events::Event) {
+        if self.measurement.configured() {
+            return;
+        }
         navigation_events::route(
             &mut self.state,
             &self.context,
@@ -707,6 +737,18 @@ impl NativeWindow {
         if self.window.inner_size().width == 0 || self.window.inner_size().height == 0 {
             return;
         }
+        let mut probe =
+            match self
+                .measurement
+                .begin_frame(&mut self.state, &self.window, &self.config)
+            {
+                Ok(probe) => probe,
+                Err(error) => {
+                    eprintln!("Viewport measurement failed: {error}");
+                    event_loop.exit();
+                    return;
+                }
+            };
         let (frame, reconfigure_after_present) = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
@@ -738,112 +780,161 @@ impl NativeWindow {
                 return;
             }
         };
-        let now = Instant::now();
-        self.state
-            .camera
-            .advance_transition(now.duration_since(self.last_camera_tick));
-        self.last_camera_tick = now;
-        // A pose or scene may pass CPU validation yet exceed this GPU's limits.
-        // Keep cheap Arc-backed state until this redraw's candidate is prepared.
+        probe.end(Stage::Acquire);
+        // Preserve the candidate rollback snapshot across either frame path.
         let previous_assets = self.state.asset_views.clone();
-        let input = self.input.take_egui_input(&self.window);
         let ctx = self.context.clone();
-        let mut shortcuts = ShortcutFrame::with_number_events(&ctx, self.number_keys.take());
-        let mut output = ctx.run_ui(input, |ui| {
-            let context = ui.ctx().clone();
-            let ctx = &context;
-            shortcuts.begin_pass(ctx);
-            self.state.ui(ui);
-            shortcuts
-                .collect_with_transform(ctx, self.state.transform_keyboard_context(ctx, false));
-            if self.state.camera.is_transitioning() {
-                ctx.request_repaint();
+        let mut output = if self.measurement.without_ui() {
+            // Drain host events without entering egui's frame/layout machinery.
+            let _ = self.input.take_egui_input(&self.window);
+            self.number_keys.reset();
+            self.measurement
+                .prepare_without_ui(&mut self.state, &mut probe);
+            None
+        } else {
+            let now = Instant::now();
+            self.state
+                .camera
+                .advance_transition(now.duration_since(self.last_camera_tick));
+            self.last_camera_tick = now;
+            let mut input = self.input.take_egui_input(&self.window);
+            if self.measurement.configured() {
+                // The synthetic camera workload excludes physical input latency.
+                // Keep real focus state, but prevent hover or typing from changing
+                // its selection, overlays, and camera while samples are collected.
+                input.events.clear();
+                input.events.push(egui::Event::PointerGone);
+                self.number_keys.reset();
             }
-        });
-        if std::mem::take(&mut self.state.tool_dock.terminal_start_requested) {
-            // Process creation is a native-host effect, outside repeated UI passes.
-            // Failure is retained in the terminal status with a Retry control.
-            let _ = self.state.tool_dock.terminal.start_shell(&ctx);
-            self.window.request_redraw();
-        }
+            let mut shortcuts = ShortcutFrame::with_number_events(&ctx, self.number_keys.take());
+            let mut output = ctx.run_ui(input, |ui| {
+                let context = ui.ctx().clone();
+                let ctx = &context;
+                probe.egui_pass();
+                shortcuts.begin_pass(ctx);
+                self.state.ui(ui);
+                shortcuts
+                    .collect_with_transform(ctx, self.state.transform_keyboard_context(ctx, false));
+                if self.state.camera.is_transitioning() {
+                    ctx.request_repaint();
+                }
+            });
+            probe.end(Stage::Ui);
+            if std::mem::take(&mut self.state.tool_dock.terminal_start_requested) {
+                // Process creation is a native-host effect, outside repeated UI passes.
+                // Failure is retained in the terminal status with a Retry control.
+                let _ = self.state.tool_dock.terminal.start_shell(&ctx);
+                self.window.request_redraw();
+            }
 
-        if self.applied_window_theme != self.state.theme_mode {
-            // Explicit preferences also theme the native titlebar. Resetting to
-            // None gives macOS ownership back; ThemeChanged then tracks the OS.
-            let native_theme = match self.state.theme_mode {
-                ThemeMode::System => None,
-                ThemeMode::Light => Some(winit::window::Theme::Light),
-                ThemeMode::Dark => Some(winit::window::Theme::Dark),
-            };
-            self.window.set_theme(native_theme);
-            self.applied_window_theme = self.state.theme_mode;
-            if native_theme.is_none() {
-                self.state
-                    .set_system_theme(resolved_window_theme(self.window.theme()));
+            if self.applied_window_theme != self.state.theme_mode {
+                // Explicit preferences also theme the native titlebar. Resetting to
+                // None gives macOS ownership back; ThemeChanged then tracks the OS.
+                let native_theme = match self.state.theme_mode {
+                    ThemeMode::System => None,
+                    ThemeMode::Light => Some(winit::window::Theme::Light),
+                    ThemeMode::Dark => Some(winit::window::Theme::Dark),
+                };
+                self.window.set_theme(native_theme);
+                self.applied_window_theme = self.state.theme_mode;
+                if native_theme.is_none() {
+                    self.state
+                        .set_system_theme(resolved_window_theme(self.window.theme()));
+                }
+                self.window.request_redraw();
             }
-            self.window.request_redraw();
-        }
-        for command in self
-            .state
-            .take_ui_commands()
-            .into_iter()
-            .chain(shortcuts.commands())
-        {
-            match self.state.dispatch(command, &ctx, false) {
-                HostEffect::None
-                | HostEffect::CancelNavigation
-                | HostEffect::NavigationContextChanged => {}
-                HostEffect::Open => self.pending_open = true,
-                HostEffect::Import => self.pending_import = true,
-                HostEffect::Quit => self.pending_quit = true,
+            for command in self
+                .state
+                .take_ui_commands()
+                .into_iter()
+                .chain(shortcuts.commands())
+            {
+                match self.state.dispatch(command, &ctx, false) {
+                    HostEffect::None
+                    | HostEffect::CancelNavigation
+                    | HostEffect::NavigationContextChanged => {}
+                    HostEffect::Open => self.pending_open = true,
+                    HostEffect::Import => self.pending_import = true,
+                    HostEffect::Quit => self.pending_quit = true,
+                }
+                self.window.request_redraw();
+                if egui::Popup::is_any_open(&ctx) {
+                    // A keyboard-opened menu owns the rest of this input batch.
+                    break;
+                }
             }
-            self.window.request_redraw();
-            if egui::Popup::is_any_open(&ctx) {
-                // A keyboard-opened menu owns the rest of this input batch.
-                break;
+            if let Err(error) = self.state.refresh_mesh() {
+                self.state.error = Some(error);
             }
-        }
-        if let Err(error) = self.state.refresh_mesh() {
-            self.state.error = Some(error);
-        }
-        self.input
-            .handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
-        let title = self
-            .state
-            .save_path
-            .as_deref()
-            .map(filename)
-            .unwrap_or_else(|| "Untitled".into());
-        self.window.set_title(&format!(
-            "{}{} — N3",
-            title,
-            if self.state.is_dirty() { " •" } else { "" }
-        ));
+            probe.end(Stage::Commands);
+            self.input
+                .handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
+            let title = self
+                .state
+                .save_path
+                .as_deref()
+                .map(filename)
+                .unwrap_or_else(|| "Untitled".into());
+            self.window.set_title(&format!(
+                "{}{} — N3",
+                title,
+                if self.state.is_dirty() { " •" } else { "" }
+            ));
+            Some(output)
+        };
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.graphics.paint(
-            FrameTarget {
-                device: &self.device,
-                queue: &self.queue,
-                view: &view,
-                size: [self.config.width, self.config.height],
-            },
-            &ctx,
-            &mut self.state,
-            &mut output,
-            previous_assets,
-        );
+        probe.end(Stage::HostPrepare);
+        if let Some(output) = &mut output {
+            self.graphics.paint(
+                FrameTarget {
+                    device: &self.device,
+                    queue: &self.queue,
+                    view: &view,
+                    size: [self.config.width, self.config.height],
+                },
+                &ctx,
+                &mut self.state,
+                output,
+                previous_assets,
+                &mut probe,
+            );
+        } else {
+            self.measurement.paint_without_ui(
+                &mut self.graphics,
+                FrameTarget {
+                    device: &self.device,
+                    queue: &self.queue,
+                    view: &view,
+                    size: [self.config.width, self.config.height],
+                },
+                &mut self.state,
+                previous_assets,
+                egui_winit::pixels_per_point(&ctx, &self.window),
+                &mut probe,
+            );
+        }
         self.window.pre_present_notify();
         self.queue.present(frame);
-        self.graphics
-            .finish_frame(std::mem::take(&mut output.textures_delta.free));
+        // Passive app cadence: one clock read per successful handoff when enabled.
+        // This does not observe GPU completion or change redraw scheduling.
+        if self.state.fps_meter.enabled() {
+            self.state
+                .fps_meter
+                .record_submission(self.frame_clock.elapsed());
+        }
+        if let Some(output) = &mut output {
+            self.graphics
+                .finish_frame(std::mem::take(&mut output.textures_delta.free));
+        }
+        probe.end(Stage::Present);
         if reconfigure_after_present {
             self.resize();
         }
         let delay = output
-            .viewport_output
-            .get(&egui::ViewportId::ROOT)
+            .as_ref()
+            .and_then(|output| output.viewport_output.get(&egui::ViewportId::ROOT))
             .map(|v| v.repaint_delay)
             .unwrap_or(Duration::MAX);
         self.next_repaint = Instant::now().checked_add(delay);
@@ -869,6 +960,22 @@ impl NativeWindow {
         {
             event_loop.exit();
         }
+        probe.end(Stage::HostTail);
+        match self
+            .measurement
+            .finish_frame(probe, &self.state, self.window.has_focus())
+        {
+            Ok(true) => event_loop.exit(),
+            Ok(false) => {
+                if self.measurement.active() {
+                    self.window.request_redraw();
+                }
+            }
+            Err(error) => {
+                eprintln!("Viewport measurement failed: {error}");
+                event_loop.exit();
+            }
+        }
     }
 }
 struct App {
@@ -880,6 +987,19 @@ struct App {
 impl ApplicationHandler<AppEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.workspace.is_some() {
+            return;
+        }
+        let measurement = match measurement::Host::from_environment() {
+            Ok(host) => host,
+            Err(error) => {
+                eprintln!("Viewport measurement configuration failed: {error}");
+                event_loop.exit();
+                return;
+            }
+        };
+        if measurement.configured() && self.initial.is_none() {
+            eprintln!("Viewport measurement requires an input document path.");
+            event_loop.exit();
             return;
         }
         let size = initial_window_size(
@@ -894,12 +1014,13 @@ impl ApplicationHandler<AppEvent> for App {
                 MINIMUM_WINDOW_SIZE.width.min(size.width),
                 MINIMUM_WINDOW_SIZE.height.min(size.height),
             ));
+        let attributes = measurement.window_attributes(attributes);
         let window = Arc::new(
             event_loop
                 .create_window(attributes)
                 .expect("create macOS window"),
         );
-        match pollster::block_on(NativeWindow::new(window, self.proxy.clone())) {
+        match pollster::block_on(NativeWindow::new(window, self.proxy.clone(), measurement)) {
             Ok(mut workspace) => {
                 workspace.state.editor.set_access(self.access);
                 if let Some(path) = self.initial.take() {
@@ -919,7 +1040,7 @@ impl ApplicationHandler<AppEvent> for App {
             workspace.event(&event, event_loop);
         }
     }
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: AppEvent) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
         let Some(workspace) = &mut self.workspace else {
             return;
         };
@@ -949,6 +1070,13 @@ impl ApplicationHandler<AppEvent> for App {
                         eprintln!("Open failed: {error}");
                         workspace.state.error = Some(error);
                     }
+                }
+                if workspace.measurement.configured()
+                    && let Some(error) = &workspace.state.error
+                {
+                    eprintln!("Viewport measurement input failed: {error}");
+                    event_loop.exit();
+                    return;
                 }
                 workspace.window.request_redraw();
             }

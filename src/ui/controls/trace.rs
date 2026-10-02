@@ -6,7 +6,7 @@ use std::{
 };
 
 impl Control {
-    pub const ALL: [Self; 175] = [
+    pub const ALL: [Self; 178] = [
         Self::ToolDock,
         Self::TerminalPanelToggle,
         Self::TerminalPanel,
@@ -37,6 +37,9 @@ impl Control {
         Self::Frame,
         Self::Projection,
         Self::ViewMenu,
+        Self::DeveloperMenu,
+        Self::ShowFpsMeter,
+        Self::FpsMeter,
         Self::LocalViewMenu,
         Self::Xray,
         Self::ViewPie,

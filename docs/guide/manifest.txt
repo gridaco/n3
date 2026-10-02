@@ -466,6 +466,29 @@ input: clean
 image: assets/terminal-resized.webp (362074 bytes)
 input: clean
 
+feature: fps-meter
+control: app.menu = N3
+control: view = N3 → View
+control: view.developer = N3 → View → Developer
+control: view.fps-meter.toggle = N3 → View → Developer → Show FPS Meter
+control: viewport = Viewport
+control: insert = Insert
+control: insert.cube = Insert → Cube
+shortcut-replay: history.undo = Command+Z
+shortcut-replay: ui.toggle = Command+\
+assert: The FPS meter starts disabled in a fresh workspace
+assert: Show FPS Meter is available in N3, View, Developer
+assert: The menu enables the meter at the window's bottom-right corner, outside the viewport bounds and waiting for host frame samples
+assert: Tutorial clock advances do not invent a measured application FPS
+assert: Hide UI hides the meter without disabling its measurement
+assert: Showing the UI restores the enabled FPS meter at the same window position
+assert: The same menu disables the meter without changing document, selection, settings, or camera
+assert: Meter toggles add no history: one Undo still removes the inserted cube
+image: assets/fps-meter-menu.webp (340736 bytes)
+input: clean
+image: assets/fps-meter-waiting.webp (352016 bytes)
+input: clean
+
 feature: toasts
 control: app.menu = N3
 control: preferences.open = N3 → Preferences
@@ -2506,7 +2529,7 @@ image: assets/navigation-frame-key.webp (470520 bytes)
 input: tutorial @ 4.861s: focused=true; pointer=960.0,524.5; cursor=Default; held_mouse=[]; held_keys=[Shift+1]; released_mouse=none; released_keys=none; gesture=none; trail=0
 image: assets/navigation-mouse-orbit.webp (489428 bytes)
 input: tutorial @ 0.681s: focused=true; pointer=331.0,994.0; cursor=Default; held_mouse=[Right drag]; held_keys=[]; released_mouse=none; released_keys=Escape/120ms; gesture=Pinch 1.16×/120ms; trail=2
-image: assets/navigation-view-menu.webp (466214 bytes)
+image: assets/navigation-view-menu.webp (463412 bytes)
 input: tutorial @ 5.461s: focused=true; pointer=343.0,203.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 image: assets/navigation.webp (54712 bytes)
 input: clean
@@ -3117,7 +3140,7 @@ frame @ 10.941s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held
 frame @ 10.991s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 11.041s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
 frame @ 11.091s + 50ms: focused=true; pointer=1091.5,776.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0
-image: assets/xray-menu.webp (692304 bytes)
+image: assets/xray-menu.webp (690564 bytes)
 input: tutorial @ 11.991s: focused=true; pointer=119.0,83.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=Left released@119.0,83.0/350ms; released_keys=none; gesture=none; trail=1
 image: assets/xray-selection-retained.webp (574034 bytes)
 input: tutorial @ 12.591s: focused=true; pointer=343.0,341.0; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=none; trail=0

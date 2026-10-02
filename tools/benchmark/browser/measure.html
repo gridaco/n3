@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>N3 viewport measurement</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 12px; background: #fafafa; color: #222; font: 13px system-ui, sans-serif; }
+      header { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+      canvas { display: block; outline: none; touch-action: none; }
+      pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <button id="run" disabled>Run</button>
+      <span id="status" role="status"
+        >Loading contributor measurement harness…</span
+      >
+    </header>
+    <canvas
+      data-n3-measure="true"
+      id="editor"
+      tabindex="0"
+      aria-label="N3 measurement viewport"
+    ></canvas>
+    <pre id="result"></pre>
+    <script type="module" src="./measure.js"></script>
+  </body>
+</html>

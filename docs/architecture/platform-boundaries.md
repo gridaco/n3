@@ -82,6 +82,11 @@ Compilation and architectural similarity establish neither frame-time parity nor
 the best achievable performance. Report the host, workload, and measured effect
 alongside any remaining limits.
 
+The [application frame meter](frame-meter.md) is a passive submission-cadence
+readout. It consumes host timestamps without adding wakeups or GPU waits; the
+[viewport measurement harness](viewport-measurement.md) owns repeatable workloads
+and comparisons.
+
 ## One product experience
 
 Keep one feature UI, semantic action catalog, and user guide. Each feature owns

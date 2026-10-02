@@ -1724,3 +1724,246 @@ fn linked_scene_evaluation_failure_preserves_native_and_valid_asset_siblings() {
     state.editor.select_object(native).unwrap();
     assert!(state.editor.enter_edit().unwrap());
 }
+
+#[test]
+fn fps_meter_toggle_is_transient_unbound_and_preserves_history() {
+    let ctx = test_context();
+    let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+    assert!(!state.fps_meter.enabled());
+    assert_eq!(
+        state.action_state(ActionId::ToggleFpsMeter).checked,
+        Some(false)
+    );
+    assert!(ActionId::ToggleFpsMeter.shortcut().is_none());
+    state.editor.insert(PrimitiveKind::Cube).unwrap();
+    let before = state.editor.document.clone();
+    let selected = state.editor.selected_objects.clone();
+    let settings = state.user_settings();
+    state.dispatch(Command::ToggleFpsMeter, &ctx, false);
+    assert!(state.fps_meter.enabled());
+    assert_eq!(
+        state.action_state(ActionId::ToggleFpsMeter).checked,
+        Some(true)
+    );
+    assert_eq!(state.editor.document, before);
+    assert_eq!(state.editor.selected_objects, selected);
+    assert_eq!(state.user_settings(), settings);
+    state.dispatch(Command::ToggleFpsMeter, &ctx, false);
+    assert!(!state.fps_meter.enabled());
+    assert!(state.editor.undo());
+    assert!(state.editor.document.objects.is_empty());
+    assert!(!state.editor.undo());
+    assert!(state.editor.redo());
+    assert_eq!(state.editor.document, before);
+}
+
+#[test]
+fn fps_meter_paints_real_sample_and_leaves_viewport_clicks_available() {
+    for theme in [ThemeMode::Light, ThemeMode::Dark] {
+        let ctx = test_context();
+        controls::enable(&ctx);
+        let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+        state.theme_mode = theme;
+        state.editor.insert(PrimitiveKind::Cube).unwrap();
+        state.fps_meter.toggle();
+        layout_test_frame(&mut state, &ctx, Vec::new());
+        let waiting = controls::snapshot(&ctx)
+            .get(Control::FpsMeter)
+            .unwrap()
+            .label
+            .clone();
+        assert!(waiting.contains("Waiting for frames"));
+        for milliseconds in (0..=500).step_by(10) {
+            state
+                .fps_meter
+                .record_submission(Duration::from_millis(milliseconds));
+        }
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 900.0),
+                )),
+                focused: true,
+                ..Default::default()
+            },
+            |ui| state.ui(ui),
+        );
+        output.textures_delta.clear();
+        let trace = controls::snapshot(&ctx);
+        let meter = trace.get(Control::FpsMeter).unwrap();
+        assert!(
+            output
+                .shapes
+                .iter()
+                .any(|shape| matches!(&shape.shape, egui::Shape::Rect(shape)
+            if shape.rect == meter.rect
+                && shape.fill == egui::Color32::BLACK
+                && shape.corner_radius == egui::CornerRadius::ZERO
+                && shape.stroke == egui::Stroke::NONE))
+        );
+        assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text)
+            if text.galley.job.text == "100.0 FPS · 10.00 ms"
+                && text.galley.job.sections.iter().all(|section| section.format.font_id.family == egui::FontFamily::Monospace))));
+        assert_eq!(
+            meter.label,
+            "App FPS · last sample\n100.0 FPS · 10.00 ms\nMeasured over 0.50 s"
+        );
+        assert_eq!(
+            meter.rect.right_bottom(),
+            ctx.viewport_rect().right_bottom()
+        );
+        assert!(!state.viewport_ui_rect.contains_rect(meter.rect));
+        assert!(output.shapes.iter().any(|shape| shape.clip_rect == ctx.viewport_rect()
+            && matches!(&shape.shape, egui::Shape::Rect(shape) if shape.rect == meter.rect)));
+        let point = state.viewport_ui_rect.right_bottom() - egui::Vec2::splat(24.0);
+        assert!(crate::navigation_events::viewport_accepts_pointer(
+            &ctx,
+            state.viewport,
+            point
+        ));
+        assert!(!state.editor.selected_objects.is_empty());
+        for pressed in [true, false] {
+            layout_test_frame(
+                &mut state,
+                &ctx,
+                vec![
+                    egui::Event::PointerMoved(point),
+                    egui::Event::PointerButton {
+                        pos: point,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+            );
+        }
+        assert!(
+            state.editor.selected_objects.is_empty(),
+            "the diagnostic must leave viewport selection routing unchanged"
+        );
+        assert_eq!(
+            ctx.memory(|memory| memory.focused()),
+            Some(shortcuts::viewport_focus_id())
+        );
+        state.dispatch(Command::ToggleUi, &ctx, false);
+        layout_test_frame(&mut state, &ctx, Vec::new());
+        assert!(state.fps_meter.enabled());
+        assert!(controls::snapshot(&ctx).get(Control::FpsMeter).is_err());
+    }
+}
+
+#[test]
+fn fps_meter_stays_at_window_corner_across_app_layout_and_adds_no_idle_repaint() {
+    let run = |state: &mut WorkspaceUi, ctx: &egui::Context, time| {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1160.0, 900.0),
+                )),
+                time: Some(time),
+                focused: true,
+                ..Default::default()
+            },
+            |ui| state.ui(ui),
+        );
+        output.textures_delta.clear();
+        output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+    };
+    let ctx = test_context();
+    controls::enable(&ctx);
+    let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+    state.fps_meter.toggle();
+    for frame in 0..10 {
+        run(&mut state, &ctx, frame as f64);
+    }
+    assert!(controls::snapshot(&ctx).get(Control::FpsMeter).is_ok());
+    let before = ctx.cumulative_pass_nr();
+    let delay = run(&mut state, &ctx, 11.0);
+    assert_eq!(ctx.cumulative_pass_nr() - before, 1);
+    assert_eq!(
+        delay,
+        Duration::MAX,
+        "a passive meter must leave idle redraws unscheduled"
+    );
+    let rect = controls::snapshot(&ctx)
+        .get(Control::FpsMeter)
+        .unwrap()
+        .rect;
+    let viewport = state.viewport;
+    state
+        .toasts
+        .push(Toast::new("A notification does not move diagnostics").persistent());
+    state.dispatch(Command::ToggleAnimationPanel, &ctx, false);
+    run(&mut state, &ctx, 12.0);
+    run(&mut state, &ctx, 13.0);
+    let trace = controls::snapshot(&ctx);
+    assert!(trace.get(Control::ToastStack).is_ok());
+    assert_ne!(state.viewport, viewport);
+    assert_eq!(trace.get(Control::FpsMeter).unwrap().rect, rect);
+    assert_eq!(rect.right_bottom(), ctx.viewport_rect().right_bottom());
+}
+
+#[test]
+fn fps_meter_paints_over_app_widgets_without_taking_their_input() {
+    let ctx = test_context();
+    controls::enable(&ctx);
+    let mut state = WorkspaceUi::new(egui::TextureId::User(0));
+    state.fps_meter.toggle();
+    let window = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0));
+    let button_rect = egui::Rect::from_min_size(egui::pos2(430.0, 350.0), egui::vec2(170.0, 50.0));
+    let mut clicks = 0;
+    let mut frame = |events| {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(window),
+                focused: true,
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                controls::begin_pass(ui.ctx());
+                if ui
+                    .put(button_rect, egui::Button::new("Underlying app button"))
+                    .clicked()
+                {
+                    clicks += 1;
+                }
+                state.paint_fps_meter(ui.ctx());
+            },
+        );
+        output.textures_delta.clear();
+        output
+    };
+    frame(Vec::new());
+    let output = frame(Vec::new());
+    let meter = controls::snapshot(&ctx)
+        .get(Control::FpsMeter)
+        .unwrap()
+        .rect;
+    let point = meter.intersect(button_rect).center();
+    assert!(meter.contains(point) && button_rect.contains(point));
+    assert_eq!(ctx.layer_id_at(point), Some(egui::LayerId::background()));
+    let meter_shape = output.shapes.iter().position(|shape| matches!(&shape.shape, egui::Shape::Rect(shape) if shape.rect == meter && shape.fill == egui::Color32::BLACK)).unwrap();
+    let button_text = output.shapes.iter().position(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == "Underlying app button")).unwrap();
+    assert!(
+        meter_shape > button_text,
+        "diagnostic paints above the existing UI"
+    );
+    for pressed in [true, false] {
+        frame(vec![
+            egui::Event::PointerMoved(point),
+            egui::Event::PointerButton {
+                pos: point,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ]);
+    }
+    assert_eq!(
+        clicks, 1,
+        "the visible diagnostic must let the underlying button receive the click"
+    );
+}
