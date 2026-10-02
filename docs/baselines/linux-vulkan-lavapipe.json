@@ -2,7 +2,7 @@
   "version": 1,
   "renderer": "linux-vulkan-lavapipe",
   "canonical_renderer": "macos-metal",
-  "canonical_guide_sha256": "6dfc9b2fbe0188b70c03933d4db501f308d7ad40fa12db5c5bec00a3be01e421",
+  "canonical_guide_sha256": "cc7355f856d22adcee6f3d3eaa7e6bbac6c4e54a05efeebeeefb758f9fdcbc4a",
   "artifacts": [
     {
       "path": "2d-ruler.md",
@@ -586,13 +586,13 @@
     },
     {
       "path": "manifest.txt",
-      "bytes": 412206,
-      "sha256": "a687f5453f07a0cd9c1e8b80ee705efb991102b98a051b3c28ca9e684af10ec8"
+      "bytes": 414413,
+      "sha256": "3a32c409bb90f84ca365f7e9d001b4e8462d3aae0d11d56c0663f59e22cbf97a"
     },
     {
       "path": "navigation.md",
-      "bytes": 4618,
-      "sha256": "bfda019826ab2e2d41d02c1de85433d8506970fa11dfa76299c0771f28fd58ca"
+      "bytes": 4699,
+      "sha256": "2d580ce151767d7e96e97c32b7475e96f1194e34304cd53a8ee5165d42fb2fbf"
     },
     {
       "path": "numeric-transforms.md",
@@ -626,8 +626,8 @@
     },
     {
       "path": "settings.md",
-      "bytes": 5129,
-      "sha256": "c4f97b286ced7b58aa2b308fd63d5dfadb06a9b3fc3f0042fff4c750d516816d"
+      "bytes": 5246,
+      "sha256": "373b6bb038c35ac502dfd28b68f04bf77d3f88e3565ab8ed11c6a3b948fa3e41"
     },
     {
       "path": "shading.md",
@@ -641,8 +641,8 @@
     },
     {
       "path": "terminal.md",
-      "bytes": 2192,
-      "sha256": "8c9508bd62bcc21de6d7c9038cd81330fe5bf0ccef94f82f4d2fafc30e76c856"
+      "bytes": 2265,
+      "sha256": "49692389ef06088589f38c0bd40a64d4fad30d85e9cf35793abcf9878e12adc1"
     },
     {
       "path": "toasts.md",

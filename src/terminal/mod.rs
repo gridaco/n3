@@ -4,16 +4,14 @@
 //! its implementation: https://github.com/zed-industries/zed/tree/main/crates/terminal_view
 //! Alacritty-specific types stay inside this feature. Only the native host opts
 //! into shell creation; workbench and test consumers use deterministic sessions.
-mod backend;
-mod colors;
-mod input;
-mod session;
-mod view;
+#[cfg_attr(target_arch = "wasm32", path = "browser.rs")]
+#[cfg_attr(not(target_arch = "wasm32"), path = "native.rs")]
+mod host;
 
-pub(crate) use session::{SessionStatus, TerminalSession};
-pub(crate) use view::TerminalView;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) use host::SessionStatus;
+pub(crate) use host::{TerminalSession, TerminalView};
 
-pub(crate) const PLACEHOLDER_NOTICE: &str = "Sample output · no shell process";
-
-#[cfg(test)]
-mod tests;
+// Exercise the unavailable-host contract in the ordinary native test suite.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod browser;

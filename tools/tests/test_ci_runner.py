@@ -104,12 +104,14 @@ class CIRunnerTests(unittest.TestCase):
             "python3 tools/format_docs.py --check", "cargo fmt --check",
             "cargo clippy --locked --all-targets -- -D warnings",
             "python3 -m unittest discover -s tools/tests -p 'test_*.py'",
+            "node --test tools/tests/web_wrapper.test.mjs",
             "exec cargo test --locked",
         ):
             self.assertIn(command, script)
         self.assertNotIn("just", script)
         self.assertNotIn("ci_runner", runner.CI_SCRIPT)
         self.assertIn("PYTHONDONTWRITEBYTECODE=1", arguments)
+        self.assertIn("RUST_TEST_THREADS=1", arguments)
         self.assertIn("GALLIUM_OVERRIDE_CPU_CAPS=sse2", arguments)
         self.assertIn("LP_NATIVE_VECTOR_WIDTH=256", arguments)
         self.assertIn("MESA_SHADER_CACHE_DISABLE=true", arguments)
@@ -137,8 +139,11 @@ class CIRunnerTests(unittest.TestCase):
         python.write_text("#!/bin/sh\nif [ \"$1\" = tools/ci_test_inventory.py ]; then\n    exit 7\nfi\n")
         cargo = commands / "cargo"
         cargo.write_text("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$N3_TEST_RECORD\"\n")
+        node = commands / "node"
+        node.write_text("#!/bin/sh\nexit 0\n")
         python.chmod(0o755)
         cargo.chmod(0o755)
+        node.chmod(0o755)
         record = self.root / "cargo-calls.txt"
         environment = {**os.environ, "PATH": f"{commands}:{os.environ['PATH']}", "N3_TEST_RECORD": str(record)}
         for mode in ("checks", "guide"):

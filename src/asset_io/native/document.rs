@@ -26,7 +26,7 @@ pub(crate) fn load_path(path: &Path) -> Result<Document, String> {
         .and_then(|s| s.to_str())
         .is_some_and(|s| s.eq_ignore_ascii_case("obj"))
     {
-        super::obj::load_path(path)
+        super::load_obj_path(path)
     } else {
         Document::from_json(&read_text(path)?)
     }

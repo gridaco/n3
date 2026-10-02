@@ -269,6 +269,19 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         s.state.editor.document == document && s.state.editor.revision == revision,
         "Settings reload, persistence, and recovery leave document geometry and edit history untouched",
     )?;
+    s.state.host_capabilities = crate::workspace_ui::HostCapabilities::BROWSER;
+    s.settle()?;
+    s.require(
+        s.trace.get(Control::SettingsJson).is_err()
+            && s.trace.get(Control::ReloadSettings).is_ok(),
+        "Hosts without external settings-file access omit that control from the same Preferences window",
+    )?;
+    s.click(Control::ReloadSettings)?;
+    let requested_reload = std::mem::take(&mut s.state.request_reload_settings);
+    s.require(
+        requested_reload,
+        "Reload remains available through the shared control when settings use browser storage",
+    )?;
     s.click(Control::PreferencesClose)?;
     Ok(())
 }

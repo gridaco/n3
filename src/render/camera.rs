@@ -266,6 +266,7 @@ impl Camera {
     }
 
     /// Snap to an orthographic view from this world direction, preserving target and zoom.
+    #[allow(dead_code)] // Instant orientation is also useful to replay and measurement consumers.
     pub fn look_from(&mut self, direction: Vec3) {
         self.look_from_with_transition(direction, Transition::Instant);
     }

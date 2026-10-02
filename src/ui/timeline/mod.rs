@@ -1,5 +1,9 @@
 //! Read-only time presentation. Hosts own evaluation, clocks, and accepted state.
+
+// Replay and workbench inspection, without a browser runtime dependency.
 pub(crate) mod data;
+#[cfg(not(target_arch = "wasm32"))]
+mod inspection;
 mod navigation;
 mod paint;
 #[cfg(test)]
@@ -70,7 +74,9 @@ pub(crate) struct Metrics {
     pub keys_considered: usize,
     pub markers: usize,
     pub prepared: bool,
+    #[allow(dead_code)] // Performance observers compare total and visible work.
     pub total_tracks: usize,
+    #[allow(dead_code)] // Performance observers compare total and visible work.
     pub total_keys: usize,
 }
 #[derive(Default)]
@@ -171,15 +177,6 @@ pub(crate) struct Timeline {
     frame: Option<u64>,
 }
 impl Timeline {
-    pub(crate) fn visible_range(&self) -> Option<TimeRange> {
-        self.visible
-    }
-    pub(crate) fn selection(&self) -> Option<&Selection> {
-        self.selected.as_ref()
-    }
-    pub(crate) fn is_scrubbing(&self) -> bool {
-        self.scrub.is_some()
-    }
     pub(crate) fn is_marquee_active(&self) -> bool {
         self.box_select
             .as_ref()
@@ -212,23 +209,6 @@ impl Timeline {
         self.visible = TimeRange::new(data.content.start, data.content.end)
             .ok()
             .map(TimeRange::fit_visible);
-    }
-    /// Read only selected identities through the current revision's indexes.
-    /// Hosts can present metadata without searching/cloning the whole snapshot.
-    pub(crate) fn inspected_keys<'a>(&'a self, data: &'a Data) -> impl Iterator<Item = &'a Key> {
-        self.selected.iter().flat_map(move |selection| {
-            selection.keys.iter().filter_map(move |key| {
-                let prepared = self.prepared.as_ref()?;
-                if self.source != Some((std::ptr::from_ref(data) as usize, data.revision)) {
-                    return None;
-                }
-                let track = prepared.track_index(key.track)?;
-                data.tracks
-                    .get(track)?
-                    .keys
-                    .get(prepared.key_index(key.track, key.key)?)
-            })
-        })
     }
 
     fn reconcile(&mut self, data: &Data) {

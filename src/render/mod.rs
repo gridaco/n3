@@ -9,3 +9,4 @@ pub(crate) mod renderer;
 pub(crate) mod scene_renderer;
 pub(crate) mod shading;
 pub(crate) mod transform_gizmo;
+pub(crate) mod workspace;

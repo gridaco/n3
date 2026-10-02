@@ -252,6 +252,9 @@ impl WorkspaceUi {
                     for &tab in TABS {
                         let action = tab.action();
                         let state = self.action_state(action);
+                        if !state.visible {
+                            continue;
+                        }
                         let response = ui
                             .add_enabled(
                                 state.enabled,

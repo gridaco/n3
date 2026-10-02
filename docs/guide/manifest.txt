@@ -130,6 +130,8 @@ assert: Reload settings emits an explicit host request
 assert: Invalid JSON leaves active preferences and file contents intact and supplies a visible error
 assert: The user can retry Reload after repairing their settings file
 assert: Settings reload, persistence, and recovery leave document geometry and edit history untouched
+assert: Hosts without external settings-file access omit that control from the same Preferences window
+assert: Reload remains available through the shared control when settings use browser storage
 image: assets/settings-dark.webp (71624 bytes)
 input: clean
 image: assets/settings-invalid-json.webp (88258 bytes)
@@ -454,6 +456,9 @@ assert: Closing the Tool Dock returns its tab bar to the viewport without a seco
 assert: Closing and reopening the Tool Dock retains the running shell and its real output
 assert: Terminal remains available when the application appearance changes to Dark
 assert: Opening, focusing, scrolling, resizing, switching, and closing Tool Dock panels do not alter geometry or add document history
+assert: Hosts without a local shell omit Terminal from the shared Tool Dock and retain Animation
+assert: Semantic dispatch cannot open a Terminal that the host does not support
+assert: Animation remains usable in the shared Tool Dock without Terminal
 image: assets/terminal-dark.webp (352142 bytes)
 input: clean
 image: assets/terminal-light.webp (364580 bytes)
@@ -2473,6 +2478,26 @@ assert: 2D pinch, wheel and Command-scroll magnify around the cursor with the ru
 assert: 2D pinch, wheel and Command-scroll magnify around the cursor with the ruler visible or hidden
 assert: 2D pinch, wheel and Command-scroll magnify around the cursor with the ruler visible or hidden
 assert: Releasing Command restores 2D panning during the scroll gesture
+assert: The navigation walkthrough reaches the browser checks with no pending edit or undo entry
+assert: Browser pinch-wheel applies the same zoom once as a native pinch, without orbiting or holding a synthetic Control key
+assert: Ordinary browser pixel scrolling follows the same 3D orbit and Shift-pan policy as native precise scrolling
+assert: Ordinary browser pixel scrolling follows the same 3D orbit and Shift-pan policy as native precise scrolling
+assert: Browser line-unit wheel input keeps the shared mouse-wheel zoom sensitivity
+assert: A different preset starts the configured camera transition
+assert: The preset transition completes at its configured duration
+assert: The requested preset reaches its exact orthographic axis
+assert: Browser pinch-wheel preserves the point beneath the pointer in 2D
+assert: A WebKit gesture starts with a valid cumulative baseline
+assert: Cumulative WebKit pinch samples compose to their total scale while simultaneous twist leaves 2D unchanged
+assert: Ending a browser gesture discards its cumulative baseline until the next start
+assert: Ordinary browser pixel scrolling pans a 2D view after pinch without a synthetic modifier or sticky zoom action
+assert: Browser page-unit scrolling uses the canvas CSS height and the shared 2D pan policy
+assert: A different preset starts the configured camera transition
+assert: The preset transition completes at its configured duration
+assert: The perspective preset restores perspective projection
+assert: A new WebKit gesture starts independently
+assert: A browser that exposes cumulative twist rotates the 3D view once with the shared direction and sensitivity
+assert: Browser navigation preserves authored geometry, selection and dirty state and creates no undo entry
 image: assets/navigation-aligned-trackpad.webp (53482 bytes)
 input: tutorial @ 2.001s: focused=true; pointer=970.0,534.5; cursor=Default; held_mouse=[]; held_keys=[]; released_mouse=none; released_keys=none; gesture=Scroll +18.0, -12.0 Point/600ms; trail=0
 image: assets/navigation-context-menu.webp (469014 bytes)

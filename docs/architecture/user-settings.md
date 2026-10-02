@@ -1,8 +1,9 @@
 # Global user settings
 
-Settings are independent of documents. A single user-level `settings.json`
-supplies preferences for every document; there is no workspace, project lookup,
-inheritance chain, or settings embedded in `.n3.json`.
+Settings are independent of documents. Native persists preferences in one
+user-level `settings.json`; the browser uses an origin-local store. Each store
+supplies preferences for every document opened by its host. There is no
+workspace or project lookup, inheritance chain, or settings embedded in `.n3.json`.
 
 ## Responsibilities
 
@@ -13,20 +14,22 @@ inheritance chain, or settings embedded in `.n3.json`.
   distinct from malformed or inaccessible data.
 - `src/native/settings_store.rs` resolves the macOS user path and implements
   bounded reads, guarded writes, permissions, and temporary-file ownership.
-- The native host schedules synchronization and handles opening the text file.
+- Each application host schedules synchronization; native also handles opening
+  the text file.
   `src/ui/user_settings.rs` maps validated settings into existing runtime behavior;
   Preferences emits host requests and displays errors without performing I/O.
-- The native host supplies the current OS appearance. The settings model keeps
+- Each host supplies its current appearance. The settings model keeps
   the user's `System`, `Light`, or `Dark` choice distinct from the resolved
   appearance used by egui. Style colors and measurements live in `src/theme.rs`;
   they are not serialized as a general theme configuration.
 - Core tests and documentation replay use memory stores. Native storage tests use
   temporary directories. None of them reads or writes the user's preferences.
 
-The interface follows the needs of this native feature. A different host can
-provide another store and an appropriate way to edit its text without changing
-the settings model or widgets. This is not a browser implementation, and it does
-not claim that other native application services are already portable.
+Both hosts use the shared controller and Preferences UI. Persistence guarantees
+belong to each store; sharing the controller does not make their storage APIs
+equivalent. The [browser host constraints](../development.md#browser-host-constraints)
+describe its storage, synchronization, and omitted controls. Native file
+guarantees are specified below.
 
 `src/theme.rs` follows [shadcn's semantic theme tokens](https://ui.shadcn.com/docs/theming#theme-tokens) for the interface:
 background, card, popover, primary, secondary, muted, accent, borders, focus rings,
@@ -40,10 +43,11 @@ interface components.
 
 ## Synchronization and interaction
 
-Startup reads the user's file or uses defaults if it is absent. Reading defaults
-does not create a file. A UI change or the explicit Open settings.json action
-creates it. The first write includes the complete known defaults; an existing
-partial file keeps omitted defaults and unknown keys.
+Startup reads the host's stored snapshot or uses defaults if it is absent.
+Reading defaults does not create stored data. A UI change requests persistence; native's
+explicit Open settings.json action also creates a missing file. The first write
+includes the complete known defaults; an existing partial snapshot keeps omitted
+defaults and unknown keys.
 
 UI changes apply immediately to the running editor. Persist them after an active
 gesture or text entry finishes, rather than writing on every intermediate drag
@@ -55,7 +59,7 @@ The controller compares three values per known key: the last successfully applie
 snapshot, current local preferences, and freshly read external preferences. It
 merges changes to different keys, accepts identical concurrent changes, and
 rejects conflicting changes to the same key. Failure does not advance the
-baseline or overwrite the file. Explicit Reload adopts valid file values and
+baseline or overwrite stored data. Explicit Reload adopts valid stored values and
 discards pending local preference edits. Invalid input retains active preferences
 and exposes an actionable error.
 
@@ -75,19 +79,22 @@ accent may adjust lightness for contrast in each appearance while preserving
 the saved RGB value. Applying either
 appearance preference changes only presentation, not the document or history.
 
-## File contract
+## JSON contract
 
-The macOS adapter uses `~/Library/Application Support/N3/settings.json`. The
-application does not search the current directory for settings. A plain UTF-8
-JSON object uses dotted keys. Unknown values are retained during UI writes;
+A plain UTF-8 JSON object uses dotted keys. Unknown values are retained during UI writes;
 known keys are validated before application. Duplicate keys, invalid known types
 or values, and input over 1 MiB are rejected. Comments and trailing commas are
 not supported. The [generated guide](../guide/settings.md) contains defaults and
 allowed values sourced from the settings model.
 
-Documentation replay uses an explicit Dark appearance for stable existing
+Documentation replay uses an explicit Light appearance for stable existing
 images. The settings feature deliberately selects Light and Dark before its
 respective captures; tests use isolated stores, never the host's actual file.
+
+## Native file persistence
+
+The macOS adapter uses `~/Library/Application Support/N3/settings.json`. The
+application does not search the current directory for settings.
 
 Writes use a sibling temporary file, preserve existing permissions, and replace
 the destination only after checking its expected bytes. Cooperating N3 writers

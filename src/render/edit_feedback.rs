@@ -32,6 +32,7 @@ impl EditSelection {
     /// One color per endpoint allows the GPU to interpolate the orange-to-dark
     /// transition. An edge becomes uniformly orange only when both ends are
     /// selected; it is not implicitly promoted to an edge-selection mode.
+    #[allow(dead_code)] // Guide assertions inspect the same endpoint-color contract.
     pub fn edge_colors(&self, object: u64, vertices: [u64; 2]) -> [egui::Color32; 2] {
         vertices.map(|vertex| {
             if self.vertex_selected(object, vertex) {

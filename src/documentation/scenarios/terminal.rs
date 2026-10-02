@@ -244,5 +244,29 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             && !s.state.is_dirty()
             && has_no_undo,
         "Opening, focusing, scrolling, resizing, switching, and closing Tool Dock panels do not alter geometry or add document history",
+    )?;
+
+    s.click(Control::ToolDockClose)?;
+    s.state.host_capabilities = crate::workspace_ui::HostCapabilities::BROWSER;
+    s.settle()?;
+    let action = crate::input::actions::ActionId::TerminalPanel;
+    let availability = s.state.action_state(action);
+    s.require(
+        !availability.visible
+            && !availability.enabled
+            && s.trace.get(Control::TerminalPanelToggle).is_err()
+            && s.trace.get(Control::AnimationPanelToggle).is_ok(),
+        "Hosts without a local shell omit Terminal from the shared Tool Dock and retain Animation",
+    )?;
+    s.state.dispatch(action.command(), &s.ctx, false);
+    s.settle()?;
+    s.require(
+        s.state.tool_dock.active.is_none() && s.trace.get(Control::TerminalPanel).is_err(),
+        "Semantic dispatch cannot open a Terminal that the host does not support",
+    )?;
+    s.click(Control::AnimationPanelToggle)?;
+    s.require(
+        s.state.animation_panel_is_open(),
+        "Animation remains usable in the shared Tool Dock without Terminal",
     )
 }

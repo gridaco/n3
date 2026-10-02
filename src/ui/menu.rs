@@ -60,6 +60,7 @@ impl Item {
     }
 
     /// Contextual presentation keeps the action and its shortcut authoritative.
+    #[allow(dead_code)] // Contextual labels are part of the shared menu contract.
     pub(crate) fn label(mut self, label: &'static str) -> Self {
         self.label = Some(label);
         self

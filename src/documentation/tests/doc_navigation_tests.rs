@@ -87,6 +87,19 @@ fn pose(s: &Session<'_>) -> glam::Mat4 {
     s.state.camera.view_projection(s.state.aspect())
 }
 
+fn browser_pinch() -> NavigationEvent {
+    use crate::input::browser_navigation::{self, Wheel, WheelUnit};
+    browser_navigation::wheel(Wheel {
+        delta: Vec2::new(0.0, -40.0),
+        unit: WheelUnit::Pixels,
+        ctrl: true,
+        modifiers: Modifiers::NONE,
+        points_per_css_pixel: 1.0,
+        page_height_css: HEIGHT as f32,
+    })
+    .expect("A finite browser pinch-wheel sample normalizes")
+}
+
 fn front(s: &mut Session<'_>) {
     s.click_path(&[Control::N3Menu, Control::ViewMenu]).unwrap();
     s.click(Control::ViewFront).unwrap();
@@ -153,6 +166,7 @@ fn replayed_gestures_obey_pointer_focus_popups_and_pending_pie() {
     s.trackpad_scroll(30.0, 15.0, Modifiers::NONE, ScrollPhase::Started)
         .unwrap();
     s.pinch(0.4).unwrap();
+    s.navigation(browser_pinch(), Duration::ZERO).unwrap();
     s.trackpad_rotate(35.0).unwrap();
     assert_eq!(
         pose(&s),
@@ -168,6 +182,7 @@ fn replayed_gestures_obey_pointer_focus_popups_and_pending_pie() {
     s.frame(vec![egui::Event::WindowFocused(false)], Duration::ZERO)
         .unwrap();
     s.pinch(0.4).unwrap();
+    s.navigation(browser_pinch(), Duration::ZERO).unwrap();
     assert_eq!(pose(&s), before, "Unfocused windows cannot navigate");
     assert!(!s.input.summary(s.cursor).contains("Pinch"));
     s.frame(vec![egui::Event::WindowFocused(true)], Duration::ZERO)
@@ -176,6 +191,7 @@ fn replayed_gestures_obey_pointer_focus_popups_and_pending_pie() {
     s.frame(vec![egui::Event::PointerGone], Duration::ZERO)
         .unwrap();
     s.pinch(0.4).unwrap();
+    s.navigation(browser_pinch(), Duration::ZERO).unwrap();
     assert_eq!(pose(&s), before, "Leaving the window blocks gestures");
     s.hover(Control::Viewport).unwrap();
     let event = NavigationEvent::Wheel {
@@ -197,6 +213,14 @@ fn replayed_gestures_obey_pointer_focus_popups_and_pending_pie() {
         &pending,
         event,
     );
+    navigation_events::route(
+        &mut s.state,
+        &s.ctx,
+        s.input.position(),
+        true,
+        &pending,
+        browser_pinch(),
+    );
     assert_eq!(
         pose(&s),
         before,
@@ -210,6 +234,7 @@ fn replayed_gestures_obey_pointer_focus_popups_and_pending_pie() {
     )
     .unwrap();
     s.pinch(0.4).unwrap();
+    s.navigation(browser_pinch(), Duration::ZERO).unwrap();
     assert_eq!(
         pose(&s),
         before,
@@ -280,6 +305,7 @@ fn mouse_camera_and_transform_drags_exclude_host_gestures() {
     s.trackpad_rotate(25.0).unwrap();
     s.trackpad_scroll(18.0, -12.0, Modifiers::NONE, ScrollPhase::Started)
         .unwrap();
+    s.navigation(browser_pinch(), Duration::ZERO).unwrap();
     assert_eq!(
         pose(&s),
         before,
@@ -307,6 +333,7 @@ fn mouse_camera_and_transform_drags_exclude_host_gestures() {
     s.pinch(0.5).unwrap();
     s.trackpad_rotate(25.0).unwrap();
     s.scroll(0.0, 2.0, false, Modifiers::NONE).unwrap();
+    s.navigation(browser_pinch(), Duration::ZERO).unwrap();
     assert_eq!(
         pose(&s),
         before,

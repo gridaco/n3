@@ -1,4 +1,8 @@
 use super::*;
+use crate::{
+    asset_io::linked::{validate_resource_cache, validate_resource_cache_with_budget},
+    scene::SceneAsset,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_SCRATCH: AtomicU64 = AtomicU64::new(0);
@@ -81,7 +85,8 @@ fn save_and_save_as_rebase_only_the_written_snapshot() {
     let loaded = load(&source).unwrap();
     let original_document = loaded.document.clone();
     let destination = scratch.0.join("project/model.n3.json");
-    let bytes = super::super::document::save(&destination, &loaded.document, None, false).unwrap();
+    let bytes =
+        crate::asset_io::document::save(&destination, &loaded.document, None, false).unwrap();
     let serialized = Document::from_json(std::str::from_utf8(&bytes).unwrap()).unwrap();
     assert_eq!(reference(&serialized).source, "assets/Triangle.gltf");
     let reopened = load(&destination).unwrap();
@@ -90,7 +95,7 @@ fn save_and_save_as_rebase_only_the_written_snapshot() {
 
     fs::create_dir(scratch.0.join("elsewhere")).unwrap();
     let save_as = scratch.0.join("elsewhere/copy.n3.json");
-    let second = super::super::document::save(&save_as, &loaded.document, None, false).unwrap();
+    let second = crate::asset_io::document::save(&save_as, &loaded.document, None, false).unwrap();
     let serialized = Document::from_json(std::str::from_utf8(&second).unwrap()).unwrap();
     assert_eq!(
         reference(&serialized).source,
@@ -108,7 +113,7 @@ fn relocating_document_and_its_asset_package_preserves_relative_links() {
     let source = triangle(&folder.join("resources"), "Triangle", 1.5);
     let loaded = load(&source).unwrap();
     let path = folder.join("model.n3.json");
-    super::super::document::save(&path, &loaded.document, None, false).unwrap();
+    crate::asset_io::document::save(&path, &loaded.document, None, false).unwrap();
     let relocated = scratch.0.join("relocated package");
     fs::rename(&folder, &relocated).unwrap();
     let reopened = load(&relocated.join("model.n3.json")).unwrap();
@@ -127,14 +132,14 @@ fn missing_dependency_keeps_the_authored_reference_and_remains_saveable() {
     let source = triangle(&scratch.0.join("assets"), "Triangle", 1.);
     let loaded = load(&source).unwrap();
     let path = scratch.0.join("model.n3.json");
-    let saved = super::super::document::save(&path, &loaded.document, None, false).unwrap();
+    let saved = crate::asset_io::document::save(&path, &loaded.document, None, false).unwrap();
     fs::remove_file(source.with_extension("bin")).unwrap();
     let missing = load(&path).unwrap();
     assert_eq!(missing.document, loaded.document);
     assert!(missing.assets.is_empty());
     assert_eq!(missing.diagnostics.len(), 1);
     assert!(missing.diagnostics[0].contains("Cannot load linked asset"));
-    let resaved = super::super::document::save(
+    let resaved = crate::asset_io::document::save(
         &path,
         &missing.document,
         missing.saved_bytes.as_deref(),
@@ -163,7 +168,7 @@ fn missing_source_and_missing_parent_are_retained_as_recoverable_links() {
         .unwrap()
         .into();
     let path = scratch.0.join("model.n3.json");
-    super::super::document::save(&path, &document, None, false).unwrap();
+    crate::asset_io::document::save(&path, &document, None, false).unwrap();
     let missing = load(&path).unwrap();
     assert_eq!(missing.document, document);
     assert!(missing.assets.is_empty());
@@ -177,14 +182,14 @@ fn load_is_a_snapshot_and_reopen_uses_current_source_bytes() {
     let loaded = load(&source).unwrap();
     let key = reference(&loaded.document).source.clone();
     let path = scratch.0.join("model.n3.json");
-    super::super::document::save(&path, &loaded.document, None, false).unwrap();
+    crate::asset_io::document::save(&path, &loaded.document, None, false).unwrap();
     triangle(source.parent().unwrap(), "Triangle", 2.);
     let changed_bytes = fs::read(&source).unwrap();
     assert_eq!(width(&loaded.assets[&key]), 100.);
     let reopened = load(&path).unwrap();
     assert_eq!(width(&reopened.assets[&key]), 200.);
     assert_eq!(reopened.document, loaded.document);
-    super::super::document::save(
+    crate::asset_io::document::save(
         &path,
         &reopened.document,
         reopened.saved_bytes.as_deref(),
@@ -208,7 +213,7 @@ fn duplicate_references_share_one_source_and_invalid_scene_is_diagnostic() {
     instance.scene = 42;
     document.objects.push(second);
     let path = scratch.0.join("model.n3.json");
-    super::super::document::save(&path, &document, None, false).unwrap();
+    crate::asset_io::document::save(&path, &document, None, false).unwrap();
     let loaded = load(&path).unwrap();
     assert_eq!(loaded.assets.len(), 1);
     assert_eq!(loaded.document.objects.len(), 2);
@@ -223,10 +228,10 @@ fn native_save_conflicts_still_compare_exact_bytes_after_reference_rebasing() {
     let source = triangle(&scratch.0.join("assets"), "Triangle", 1.);
     let loaded = load(&source).unwrap();
     let path = scratch.0.join("model.n3.json");
-    super::super::document::save(&path, &loaded.document, None, false).unwrap();
+    crate::asset_io::document::save(&path, &loaded.document, None, false).unwrap();
     let loaded = load(&path).unwrap();
     fs::write(&path, b"external change").unwrap();
-    let error = super::super::document::save(
+    let error = crate::asset_io::document::save(
         &path,
         &loaded.document,
         loaded.saved_bytes.as_deref(),
@@ -264,7 +269,7 @@ fn unresolved_relative_references_cannot_be_rebased_from_an_unknown_origin() {
     instance.source = "assets/Triangle.gltf".into();
     let path = scratch.0.join("model.n3.json");
     assert!(
-        super::super::document::save(&path, &document, None, false)
+        crate::asset_io::document::save(&path, &document, None, false)
             .unwrap_err()
             .contains("Resolve relative")
     );

@@ -205,6 +205,7 @@ fn legible_accent(
 }
 
 pub const ROW_HEIGHT: f32 = size::XL_3;
+#[allow(dead_code)] // Shared layout expectation witnessed by the executable guide.
 pub const TOOL_DOCK_TAB_BAR_HEIGHT: f32 = size::STEP_8;
 pub const TOOL_DOCK_TAB_BAR_INSET: f32 = space::SM;
 /// Tailwind's default font-size scale in egui points, plus N3's compact and

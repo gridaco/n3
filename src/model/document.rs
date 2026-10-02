@@ -788,6 +788,7 @@ impl Document {
         Ok(())
     }
 
+    #[allow(dead_code)] // Explicit conversion supports fixtures; editing uses transactions.
     pub fn convert_object(&mut self, id: u64) -> Result<()> {
         let mesh = self.eval_object(id)?;
         self.transact(move |document| {

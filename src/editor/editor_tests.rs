@@ -1388,7 +1388,7 @@ fn deleting_multiple_objects_is_one_undo_step_with_full_selection_restore() {
 #[test]
 fn vertex_delete_removes_incident_imported_polygons_without_cleanup_or_renumbering() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/obj/cube-quads.obj");
-    let document = crate::asset_io::obj::load_path(&path).unwrap();
+    let document = crate::asset_io::document::load_path(&path).unwrap();
     let mut editor = Editor::new(document).unwrap();
     let id = editor.document.objects[0].id;
     editor.select_object(id).unwrap();

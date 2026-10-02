@@ -1,31 +1,42 @@
 # Architecture
 
-N3 is one Rust package with one native application and an executable documentation
-harness. Module boundaries are useful now; separate crates would imply an API
-contract that the editor does not yet have. The package is not a published SDK.
+N3 is one Rust package with native and browser application hosts and an executable
+documentation harness. Module boundaries are useful now; separate crates would
+imply an API contract that the editor does not yet have. The package is not a
+published SDK.
 
 ## Source layout
 
 | Territory            | Responsibility                                                                           |
 | -------------------- | ---------------------------------------------------------------------------------------- |
 | `src/model/`         | Authored documents, geometry evaluation, units, validation, and the native text codec.   |
-| `src/asset_io/`      | Format adapters, resource resolution, open dispatch, and native document persistence.    |
+| `src/asset_io/`      | Shared format adapters and resource policy; filesystem operations in `native/`.          |
 | `src/scene/`         | Internal imported scene model, validation, hierarchy and animation evaluation.           |
 | `src/scene_view.rs`  | Asset inspection, playback clock and independent view state.                             |
 | `src/editor/`        | Selection, editing sessions, history integration, transforms, and derived picking state. |
 | `src/input/`         | Physical input identity, semantic shortcuts, ownership, and shared navigation routing.   |
-| `src/render/`        | Camera projection, derived mesh data, GPU resources, and scene rendering.                |
+| `src/render/`        | Camera projection, GPU resources, scene rendering, and shared workspace frame mechanics. |
 | `src/ui/`            | egui panels and viewport controls, properties, gizmo, rulers, and feedback.              |
 | `src/terminal/`      | Terminal emulator session and its egui view, outside authored documents and history.     |
 | `src/documentation/` | Executable scenarios, virtual input, annotations, captures, and media generation.        |
 | `src/native.rs`      | Window lifecycle, native events, dialogs, filesystem effects, and GPU presentation.      |
+| `src/web.rs`         | Browser canvas lifecycle, event delivery, WebGPU presentation, and application bridge.   |
 | `src/settings/`      | Global preferences, validation, merging, and the host storage interface.                 |
-| `src/main.rs`        | Composition and application entry points.                                                |
+| `src/lib.rs`         | Shared composition and target-specific application entry points.                         |
+| `src/main.rs`        | Native executable entry point.                                                           |
+| `web/`               | Framework-neutral browser wrapper, DOM file effects, and local demo page.                |
 
 The composition root retains internal module aliases so implementation modules
 can refer to each other without a broad import rewrite. They remain private to
 the application crate. These aliases are not public kernel exports, and the
 directory layout alone does not enforce a strict dependency graph.
+
+Native and browser hosts share `WorkspaceUi`, `WorkspaceRenderer`, semantic
+commands, and navigation policy. Hosts own execution and external effects.
+[Platform boundaries and performance](platform-boundaries.md) defines this
+contract, including target selection, independent performance policies, and the
+shared UI and guide. Build, embedding, and platform limits belong in the
+[development guide](../development.md#browser-build).
 
 [Actions and menus](actions-and-menus.md) describes shared command metadata,
 live availability, shortcut presentation, and menu authoring.
@@ -225,7 +236,8 @@ Split only when a second host or independent headless consumer needs a stable
 pure model/editing interface. First separate evaluation output from render
 adapters, and selection/transaction operations from egui coordinates and paint.
 A crate split should enforce those verified seams, not merely move the existing
-coupling across package boundaries. Browser delivery remains future work.
+coupling across package boundaries. The browser host currently reuses the
+application modules in the same package; it does not require a crate split.
 
 ## Evidence boundaries
 
@@ -234,3 +246,5 @@ renderer. Deterministic replay proves application routing, state transitions, an
 rendered outcomes. It does not prove macOS gesture recognition, actual device
 feel, file-dialog behavior, or window-system delivery. Keep focused native/manual
 acceptance alongside headless assertions and visual review of generated media.
+Browser build and runtime checks establish a separate host boundary and do not
+replace the native guide baseline or physical browser/device testing.

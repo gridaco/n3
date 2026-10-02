@@ -91,6 +91,33 @@ cargo +args:
 check *args:
     cargo check --locked "$@"
 
+# Install the optional browser target and the matching local WASM glue generator.
+web-setup:
+    python3 tools/web.py setup
+
+# Check browser compilation without linking or generating the static site.
+web-check:
+    cargo check --locked --target wasm32-unknown-unknown --lib
+
+# Lint the browser library with warnings denied, independently of native lint.
+web-lint:
+    cargo clippy --locked --target wasm32-unknown-unknown --lib -- -D warnings
+
+# Check browser wrapper lifecycle and concurrency without building WASM.
+web-test:
+    node --test tools/tests/web_wrapper.test.mjs
+
+# Build the shared editor as WASM and write a self-contained site to build/web.
+web-build:
+    python3 tools/web.py build
+
+# Optional browser gate: lint Rust and generate runnable WASM/glue output.
+web-verify: web-test web-lint web-build
+
+# Build and serve the browser baseline locally (supports --port and --no-open).
+web *args: web-build
+    python3 tools/web.py serve "$@"
+
 # Browse production UI components, or capture their deterministic internal evidence.
 workbench *args:
     cargo run --locked -- --workbench "$@"
@@ -152,7 +179,7 @@ runner-test:
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -p 'test_ci_runner.py'
 
 # Run all development tooling regressions on the native host.
-tools-test:
+tools-test: web-test
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
 # Opt in to the pinned Ubuntu CI environment; requires Docker.

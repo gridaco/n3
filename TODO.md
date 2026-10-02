@@ -31,7 +31,9 @@ and document the implemented behavior in the executable user guide.
 | Inspector number overflow | Keep each numeric field frame fixed while clipping or scrolling only its value text; egui's `DragValue` currently expands both. |
 | Native accessibility | Wire egui's AccessKit adapter through the native event loop, add polite live announcements for toasts, and verify with VoiceOver. Keyboard focus and widget labels alone do not provide screen-reader announcements. |
 | OS font support | Fonts as document materials; discovery/loading boundary suitable for a later web implementation. Separate from bundled interface fonts. |
-| Initial WASM spike | Prove a minimal browser build and identify platform dependencies before deciding on a full port. |
+| Web platform follow-up | Build on the [WASM browser baseline](docs/development.md#browser-build): browser/device coverage, touch/IME, external asset resource workflows, persistence/recovery, and multiple embedded workspaces. |
+| Native/browser viewport profiling | [Issue #2](https://github.com/gridaco/n3/issues/2): reproduce large-mesh orbit stutter with comparable builds, real browser runs, and stage-level timings. Distinguish shared costs, web-host mistakes, and measured platform constraints before optimizing; follow the WASM baseline delivery. |
+| Linux capture test concurrency | Diagnose allocator aborts and segmentation faults in parallel lavapipe tests, reproduced on the native baseline. The [opt-in CI runner](docs/development.md#verification-and-git-hooks) uses one test thread while retaining every test and exact capture; establish the cause before restoring parallel execution. |
 | Exact macOS 27 guide frame | Replace the approximate static window chrome with measurements from a native macOS 27 N3 capture or Apple's design kit. Evaluate the translucent traffic-light material, highlights, and shadow only if exact mirroring is worth the rendering complexity. |
 
 Existing context: [UX ideas](docs/research/ux-ideas.md),
