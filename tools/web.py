@@ -66,11 +66,13 @@ def setup(root=ROOT):
     require_bindgen(root)
 
 
-def build(root=ROOT):
+def build(root=ROOT, *, profile="web"):
+    if profile not in ("web", "release"):
+        raise ValueError("Browser build profile must be web or release")
     environment = cargo_environment(root)
     generator = require_bindgen(root)
     subprocess.run(
-        ["cargo", "build", "--locked", "--target", TARGET, "--lib", "--profile", "web"],
+        ["cargo", "build", "--locked", "--target", TARGET, "--lib", "--profile", profile],
         cwd=root, env=environment, check=True,
     )
     # Build in a staging directory so failures preserve the last runnable site.
@@ -83,7 +85,7 @@ def build(root=ROOT):
         licenses.mkdir(exist_ok=True)
         shutil.copyfile(root / "assets/fonts/inter/LICENSE.txt", licenses / "Inter.txt")
         shutil.copyfile(root / "assets/fonts/lucide/LICENSE", licenses / "Lucide.txt")
-        artifact = Path(environment["CARGO_TARGET_DIR"]) / TARGET / "web/n3.wasm"
+        artifact = Path(environment["CARGO_TARGET_DIR"]) / TARGET / profile / "n3.wasm"
         subprocess.run([
             str(generator), str(artifact), "--target", "web", "--out-name", "n3",
             "--out-dir", str(stage / "pkg"),
@@ -163,7 +165,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("setup", help="install the optional target and matching glue generator")
-    commands.add_parser("build", help="compile WASM and copy the authored web wrapper")
+    build_parser = commands.add_parser("build", help="compile WASM and copy the authored web wrapper")
+    build_parser.add_argument("--profile", choices=("web", "release"), default="web")
     serve = commands.add_parser("serve", help="serve the existing build on localhost")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--no-open", action="store_true")
@@ -173,7 +176,7 @@ def main(argv=None):
             setup()
             return 0
         if args.command == "build":
-            build()
+            build(profile=args.profile)
             return 0
         if not 0 <= args.port <= 65535:
             parser.error("port must be between 0 and 65535")

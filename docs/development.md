@@ -95,21 +95,24 @@ just web-setup
 just web-check
 just web-verify
 just web-build
+just web-build --profile release
 just web
 ```
 
 `web-setup` installs the `wasm32-unknown-unknown` target for the repository's Rust
 toolchain and the matching `wasm-bindgen-cli` version, 0.2.129, under
 `.cache/web-tools`. `web-check` checks the library for that target with the locked
-dependency graph. `web-build` uses the `web` Cargo profile and writes the static
+dependency graph. `web-build` defaults to the `web` development Cargo profile;
+`--profile release` selects the optimized production build. Both write the static
 application to ignored `build/web/`, including `pkg/n3.js`, `pkg/n3_bg.wasm`, and
 the bundled font licenses.
 It requires no Node, bundler, React installation, Docker, or application server.
 
 `web-verify` runs the wrapper lifecycle regressions with Node.js 24, Clippy with
 warnings denied for the WASM library, and the complete static-site build. A
-dedicated Ubuntu WASM CI job installs the optional tooling and runs this gate;
-it supplements the native jobs without requiring a browser GPU on that runner.
+dedicated Ubuntu WASM CI job runs the same wrapper tests and lint, builds the
+release artifact, and checks the optional measurement adapter. It supplements the
+native jobs without requiring a browser GPU on that runner.
 
 The pinned `egui-winit` 0.36.2 adapter requires narrow WASM compatibility patches
 for its dropped-file trait and browser OS modifier mapping. The maintained source, upstream
@@ -127,8 +130,8 @@ just web --no-open --port 8001
 Keep the server running while using the application; Ctrl-C stops it. A desktop
 browser with WebGPU enabled and available is required. Remote hosting requires
 HTTPS; opening the generated HTML as a local `file:` URL is not the supported
-launch path. The output is static and can be copied to an appropriate host when
-deployment is separately requested.
+launch path. The output is static; module and WASM URLs resolve relative to the
+site, including when it is hosted under a repository subpath.
 
 Target compilation and browser runtime checks are separate from `just verify`.
 The native verification command continues to check shared behavior and the
@@ -151,6 +154,28 @@ WebGPU setup; the canvas may already have received its initial focus event befor
 the input adapter exists. Keep subsequent focus events ordered through the usual
 adapter. The local server disables HTTP caching, but an already-open tab retains
 its loaded WASM until reloaded after a rebuild.
+
+### GitHub Pages
+
+The canonical repository publishes the web app through
+[the CI workflow](../.github/workflows/ci.yml). Its WASM job packages only
+`build/web/` as a GitHub Pages artifact. The deployment job runs for a push to
+`gridaco/n3`'s `main` branch after all four CI lanes succeed. Pull requests and
+forks build and verify without publishing. Failed verification leaves the
+previous deployment in place.
+
+GitHub Pages uses the **GitHub Actions** source and the `github-pages` environment.
+Only the deployment job receives Pages and OIDC write permissions. Main CI runs
+finish before their successor starts, so a new push cannot interrupt an active
+deployment. To retry a failed deployment, rerun the failed job while its artifact
+is retained; otherwise rerun the entire main CI run to rebuild the artifact.
+
+Generated WASM, JavaScript glue, and site copies stay in ignored `build/` and
+Actions artifacts. No deployment branch or generated commits are needed. The
+published site tracks verified main development; it is not a versioned release.
+See GitHub's [custom Pages workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+for the hosting contract. A new fork must explicitly configure its own site and
+adjust the canonical-repository deployment conditions before publishing.
 
 ### Browser gestures
 

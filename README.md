@@ -11,6 +11,7 @@ N3 is open source, macOS-first, and in early development.
 
 ![N3 workspace with Layers, a 3D viewport, and live Properties](docs/guide/assets/workspace-layout.webp)
 
+[Open web app](https://gridaco.github.io/n3/) ·
 [User guide](docs/guide/README.md) · [Animated walkthroughs](docs/guide/gizmo.md) ·
 [Contributing](CONTRIBUTING.md)
 
@@ -54,6 +55,10 @@ The [guide](docs/guide/README.md) includes screenshots and animated tutorials
 generated from the application, with visible cursor, key, and gesture cues.
 
 ## Try N3
+
+[Open N3 in your browser](https://gridaco.github.io/n3/). Use a desktop browser
+with WebGPU available. The web app follows verified `main` builds and shares the
+editor UI and guide; native-only capabilities such as the shell are omitted.
 
 Run N3 from source on macOS. Install Rust through `rustup`, `just` (verified with
 1.46.0), and the macOS command-line developer tools. The repository selects Rust

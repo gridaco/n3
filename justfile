@@ -108,8 +108,8 @@ web-test:
     node --test tools/tests/web_wrapper.test.mjs
 
 # Build the shared editor as WASM and write a self-contained site to build/web.
-web-build:
-    python3 tools/web.py build
+web-build *args:
+    python3 tools/web.py build "$@"
 
 # Optional browser gate: lint Rust and generate runnable WASM/glue output.
 web-verify: web-test web-lint web-build

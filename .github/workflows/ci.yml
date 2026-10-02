@@ -7,7 +7,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Finish a main run's Pages deployment before starting its successor.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   ubuntu-checks:
@@ -210,17 +211,17 @@ jobs:
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
-            target/web/deps
-            target/web/build
-            target/web/.fingerprint
+            target/release/deps
+            target/release/build
+            target/release/.fingerprint
             target/wasm32-unknown-unknown/debug/deps
             target/wasm32-unknown-unknown/debug/build
             target/wasm32-unknown-unknown/debug/.fingerprint
-            target/wasm32-unknown-unknown/web/deps
-            target/wasm32-unknown-unknown/web/build
-            target/wasm32-unknown-unknown/web/.fingerprint
+            target/wasm32-unknown-unknown/release/deps
+            target/wasm32-unknown-unknown/release/build
+            target/wasm32-unknown-unknown/release/.fingerprint
             target/.rustc_info.json
-          key: n3-v1-wasm-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'vendor/**') }}
+          key: n3-v2-wasm-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Restore pinned browser build tools
         id: tools
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -239,10 +240,18 @@ jobs:
           just web-setup
       # Compile and generate glue on every run. The native lanes continue to
       # own behavioral tests and exact guide receipts; this job needs no GPU.
-      - name: Lint the WASM target and generate the browser application
-        run: just web-verify
+      - name: Test and lint WASM, then build the optimized browser application
+        run: |
+          just web-test
+          just web-lint
+          just web-build --profile release
       - name: Check the optional WASM measurement adapter
         run: just benchmark-web-check
+      - name: Upload the production site for GitHub Pages
+        if: github.repository == 'gridaco/n3' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/web
       - name: Save verified WASM dependencies and build output
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -253,15 +262,15 @@ jobs:
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
-            target/web/deps
-            target/web/build
-            target/web/.fingerprint
+            target/release/deps
+            target/release/build
+            target/release/.fingerprint
             target/wasm32-unknown-unknown/debug/deps
             target/wasm32-unknown-unknown/debug/build
             target/wasm32-unknown-unknown/debug/.fingerprint
-            target/wasm32-unknown-unknown/web/deps
-            target/wasm32-unknown-unknown/web/build
-            target/wasm32-unknown-unknown/web/.fingerprint
+            target/wasm32-unknown-unknown/release/deps
+            target/wasm32-unknown-unknown/release/build
+            target/wasm32-unknown-unknown/release/.fingerprint
             target/.rustc_info.json
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - name: Save verified browser build tools
@@ -276,3 +285,23 @@ jobs:
             .cache/web-tools/.crates.toml
             .cache/web-tools/.crates2.json
           key: ${{ steps.tools.outputs.cache-primary-key }}
+
+  pages:
+    name: Publish web app to GitHub Pages
+    if: github.repository == 'gridaco/n3' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ubuntu-checks, ubuntu-guide, macos-native, wasm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Read the configured Pages site
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Deploy the verified site artifact
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
