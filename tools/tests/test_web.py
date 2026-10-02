@@ -1,4 +1,5 @@
 from http.client import HTTPConnection
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -106,8 +107,9 @@ class WebBuildTests(unittest.TestCase):
     def test_compile_and_glue_failures_preserve_previous_site_and_remove_staging(self):
         self.install_generator()
         self.prepare_site()
-        for failure in ["cargo", str(self.generator)]:
-            with self.subTest(failure=failure):
+        for profile, failure in [(profile, failure) for profile in ("web", "release")
+                                 for failure in ("cargo", str(self.generator))]:
+            with self.subTest(profile=profile, failure=failure):
                 def run(command, **kwargs):
                     if command[0] == failure:
                         raise subprocess.CalledProcessError(1, command)
@@ -115,7 +117,7 @@ class WebBuildTests(unittest.TestCase):
                 with patch.object(web.subprocess, "run", side_effect=run), patch.object(
                     web.subprocess, "check_output", return_value=f"wasm-bindgen {self.version}",
                 ), self.assertRaises(subprocess.CalledProcessError):
-                    web.build(self.root)
+                    web.build(self.root, profile=profile)
                 self.assertEqual(
                     (self.root / "build/web/index.html").read_text(), "previous runnable wrapper",
                 )
@@ -123,6 +125,35 @@ class WebBuildTests(unittest.TestCase):
                     (self.root / "build/web/pkg/n3_bg.wasm").read_text(), "previous runnable WASM",
                 )
                 self.assertEqual(list((self.root / "build").glob("web-stage-*")), [])
+
+    def test_invalid_api_profile_preserves_site_without_running_tools(self):
+        self.prepare_site()
+        for profile in ("dev", "debug", "", None):
+            with self.subTest(profile=profile), patch.object(web, "require_bindgen") as generator, patch.object(
+                web.subprocess, "run",
+            ) as process, self.assertRaisesRegex(ValueError, "web or release"):
+                web.build(self.root, profile=profile)
+            generator.assert_not_called()
+            process.assert_not_called()
+        self.assertEqual(
+            (self.root / "build/web/pkg/n3_bg.wasm").read_text(), "previous runnable WASM",
+        )
+
+    def test_build_cli_defaults_to_web_and_restricts_explicit_profiles(self):
+        for arguments, expected in [
+            (["build"], "web"),
+            (["build", "--profile", "web"], "web"),
+            (["build", "--profile", "release"], "release"),
+        ]:
+            with self.subTest(arguments=arguments), patch.object(web, "build") as build:
+                self.assertEqual(web.main(arguments), 0)
+                build.assert_called_once_with(profile=expected)
+        with patch.object(web, "build") as build, patch("sys.stderr", new_callable=io.StringIO), self.assertRaises(
+            SystemExit,
+        ) as error:
+            web.main(["build", "--profile", "dev"])
+        self.assertEqual(error.exception.code, 2)
+        build.assert_not_called()
 
     def test_successful_build_honors_cargo_overrides_and_ships_font_notices(self):
         self.install_generator()
@@ -141,26 +172,35 @@ class WebBuildTests(unittest.TestCase):
                 (output / "n3.js").write_text("new glue", encoding="utf-8")
                 (output / "n3_bg.wasm").write_bytes(b"new WASM")
 
-        with patch.dict(os.environ, {"CARGO_HOME": cargo_home, "CARGO_TARGET_DIR": target_dir}), patch.object(
-            web.subprocess, "run", side_effect=run,
-        ) as process, patch.object(
-            web.subprocess, "check_output", return_value=f"wasm-bindgen {self.version}",
-        ), patch("builtins.print"):
-            web.build(self.root)
-            self.assertEqual(os.environ["CARGO_TARGET_DIR"], target_dir)
-        compile_step, glue = process.call_args_list
-        self.assertEqual(compile_step.kwargs["env"]["CARGO_HOME"], cargo_home)
-        self.assertEqual(compile_step.kwargs["env"]["CARGO_TARGET_DIR"], target_dir)
-        self.assertEqual(glue.args[0][1], str(Path(target_dir) / web.TARGET / "web/n3.wasm"))
-        site = self.root / "build/web"
-        self.assertEqual((site / "index.html").read_text(), "new wrapper")
-        self.assertEqual((site / "n3.js").read_text(), "new interface")
-        self.assertEqual((site / "pkg/n3_bg.wasm").read_bytes(), b"new WASM")
-        self.assertEqual((site / "licenses/Inter.txt").read_text(), "Inter notice")
-        self.assertEqual((site / "licenses/Lucide.txt").read_text(), "Lucide notice")
-        self.assertFalse((site / "measure.html").exists())
-        self.assertFalse((site / "measure.js").exists())
-        self.assertEqual(list((self.root / "build").glob("web-stage-*")), [])
+        for profile in ("web", "release"):
+            with self.subTest(profile=profile):
+                with patch.dict(os.environ, {"CARGO_HOME": cargo_home, "CARGO_TARGET_DIR": target_dir}), patch.object(
+                    web.subprocess, "run", side_effect=run,
+                ) as process, patch.object(
+                    web.subprocess, "check_output", return_value=f"wasm-bindgen {self.version}",
+                ), patch("builtins.print"):
+                    if profile == "web":
+                        web.build(self.root)
+                    else:
+                        web.build(self.root, profile=profile)
+                    self.assertEqual(os.environ["CARGO_TARGET_DIR"], target_dir)
+                compile_step, glue = process.call_args_list
+                self.assertEqual(compile_step.args[0], [
+                    "cargo", "build", "--locked", "--target", web.TARGET,
+                    "--lib", "--profile", profile,
+                ])
+                self.assertEqual(compile_step.kwargs["env"]["CARGO_HOME"], cargo_home)
+                self.assertEqual(compile_step.kwargs["env"]["CARGO_TARGET_DIR"], target_dir)
+                self.assertEqual(glue.args[0][1], str(Path(target_dir) / web.TARGET / profile / "n3.wasm"))
+                site = self.root / "build/web"
+                self.assertEqual((site / "index.html").read_text(), "new wrapper")
+                self.assertEqual((site / "n3.js").read_text(), "new interface")
+                self.assertEqual((site / "pkg/n3_bg.wasm").read_bytes(), b"new WASM")
+                self.assertEqual((site / "licenses/Inter.txt").read_text(), "Inter notice")
+                self.assertEqual((site / "licenses/Lucide.txt").read_text(), "Lucide notice")
+                self.assertFalse((site / "measure.html").exists())
+                self.assertFalse((site / "measure.js").exists())
+                self.assertEqual(list((self.root / "build").glob("web-stage-*")), [])
 
 
 class WebServerTests(unittest.TestCase):
