@@ -45,6 +45,12 @@ pub(super) const FEATURES: &[Feature] = &[
         scenario: terminal::run,
     },
     Feature {
+        slug: "fps-meter",
+        title: "FPS meter",
+        template: include_str!("../../docs/templates/fps-meter.md.in"),
+        scenario: fps_meter::run,
+    },
+    Feature {
         slug: "toasts",
         title: "Toasts and shortcut hints",
         template: include_str!("../../docs/templates/toasts.md.in"),

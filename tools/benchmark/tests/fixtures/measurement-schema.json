@@ -1,0 +1,60 @@
+{
+  "schema": "n3.viewport-measure.v2",
+  "stage_names": [
+    "cache_sync",
+    "commands_and_refresh",
+    "editor_prepare",
+    "feedback",
+    "host_prepare",
+    "host_tail",
+    "present_api",
+    "scene_composite",
+    "scene_encode",
+    "submit_api",
+    "surface_acquire",
+    "tessellation_and_textures",
+    "ui",
+    "ui_encode"
+  ],
+  "counter_names": [
+    "base_mesh_upload_bytes",
+    "editor_feedback_updates",
+    "editor_prepares",
+    "egui_composites",
+    "egui_passes",
+    "egui_tessellations",
+    "egui_texture_updates",
+    "mesh_uploads",
+    "scene_composites",
+    "scene_renders",
+    "ui_jobs",
+    "viewport_resizes"
+  ],
+  "sample_fields": [
+    "camera_view_projection",
+    "counters",
+    "cpu_frame_ms",
+    "cpu_stage_ms",
+    "error",
+    "focused",
+    "fps_meter_enabled",
+    "frame",
+    "frame_start_interval_ms",
+    "mesh_revision",
+    "pixels_per_point",
+    "projection",
+    "surface_pixels",
+    "viewport_pixels",
+    "viewport_points"
+  ],
+  "validity_fields": [
+    "all_frames_focused",
+    "constant_surface",
+    "constant_viewport",
+    "fps_meter_constant",
+    "mode_contract_satisfied",
+    "no_frame_errors",
+    "unchanged_mesh_revision",
+    "viewport_matches_baseline"
+  ]
+}

@@ -5,6 +5,10 @@ edition = "2024"
 rust-version = "1.95"
 publish = false
 
+[features]
+# Contributor-only instrumentation; normal builds contain no clocks or recorder.
+viewport-measure = []
+
 [lib]
 crate-type = ["rlib", "cdylib"]
 # This private application library owns the existing single test inventory.

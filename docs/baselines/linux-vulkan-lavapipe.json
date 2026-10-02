@@ -2,7 +2,7 @@
   "version": 1,
   "renderer": "linux-vulkan-lavapipe",
   "canonical_renderer": "macos-metal",
-  "canonical_guide_sha256": "cc7355f856d22adcee6f3d3eaa7e6bbac6c4e54a05efeebeeefb758f9fdcbc4a",
+  "canonical_guide_sha256": "053811ae10792db8cc797e488ec726fd446326d561f0960d88882009c0dac2a7",
   "artifacts": [
     {
       "path": "2d-ruler.md",
@@ -16,8 +16,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 1295,
-      "sha256": "66a7a25fba95bf9e7a2fb5fc258d3195b386e996e6093dbc121ed0563ebf0431"
+      "bytes": 1323,
+      "sha256": "58dde32c89fe920ed3e25a30f91036540c6e03df0f400a944e3bddc2e6afafd3"
     },
     {
       "path": "animation.md",
@@ -153,6 +153,16 @@
       "path": "assets/editing-scale-handles.webp",
       "bytes": 405572,
       "sha256": "baebffa9f6f34b9f28633b1de9d50090656e7006f10adb456cee2f8d357dab74"
+    },
+    {
+      "path": "assets/fps-meter-menu.webp",
+      "bytes": 327900,
+      "sha256": "0f694d4b58f6c8cc95f41ee7678b550f1a41b1b180a03fa7b49af5234182a6cd"
+    },
+    {
+      "path": "assets/fps-meter-waiting.webp",
+      "bytes": 344208,
+      "sha256": "0850b56610ddf5c6129b77f52a4b078e74a003ea1edc7045b133aedbcfca18be"
     },
     {
       "path": "assets/gizmo-aligned.webp",
@@ -291,8 +301,8 @@
     },
     {
       "path": "assets/navigation-view-menu.webp",
-      "bytes": 456936,
-      "sha256": "9ee30f1fd03e6ea9058f95d9b007ebe1389d4915dc910f6aa247d9246fb1cd9b"
+      "bytes": 453928,
+      "sha256": "10558658ba47498216c3110faf876ec331412ff33f295884a8daaeaeaaeafa7b"
     },
     {
       "path": "assets/navigation.webp",
@@ -526,8 +536,8 @@
     },
     {
       "path": "assets/xray-menu.webp",
-      "bytes": 685912,
-      "sha256": "8ce67807876f834cf8625456c348e60f878eb90b2df95de4d067a96608e98a0a"
+      "bytes": 684000,
+      "sha256": "aebc992be270dbe528ab07470f7378ddfcd9d8ed83dacaffcdddad5bf7bd211f"
     },
     {
       "path": "assets/xray-selection-retained.webp",
@@ -560,6 +570,11 @@
       "sha256": "972f80e3573c3034a23addfd18d61a4027a142bfad63d7fa3eee70afdcb382b6"
     },
     {
+      "path": "fps-meter.md",
+      "bytes": 1707,
+      "sha256": "89f4eba21a34a6b6ca65f54536232d4832c15d0e9b15067a08912ead2cbdacb3"
+    },
+    {
       "path": "gizmo.md",
       "bytes": 5979,
       "sha256": "c4420faa7b3b112efd89362dd737a1c632579a767c69d8a7c35b70bf9c67dd26"
@@ -586,8 +601,8 @@
     },
     {
       "path": "manifest.txt",
-      "bytes": 414413,
-      "sha256": "3a32c409bb90f84ca365f7e9d001b4e8462d3aae0d11d56c0663f59e22cbf97a"
+      "bytes": 415567,
+      "sha256": "615fd4951bce995ccad3cfe011bf2341da7e6f86486fe666be7ee1c3c5bf0a65"
     },
     {
       "path": "navigation.md",

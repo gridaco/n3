@@ -14,6 +14,10 @@ impl WorkspaceUi {
             New | Open => idle,
             Import | Save | SaveAs => idle && self.editor.can_edit(),
             Preferences => true,
+            ToggleFpsMeter => {
+                state.checked = Some(self.fps_meter.enabled());
+                true
+            }
             AnimationPanel => {
                 state.checked = Some(self.animation_panel_is_open());
                 !self.editor.is_interacting() && !self.mouse_navigation.wants_input()

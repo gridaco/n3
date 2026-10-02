@@ -9,6 +9,7 @@
     "/docs/preview/vendor/**",
     "/vendor/**",
     "/examples/**",
-    "/fixtures/gltf/*/**"
+    "/fixtures/gltf/*/**",
+    "/fixtures/benchmarks/*/source/**"
   ]
 }

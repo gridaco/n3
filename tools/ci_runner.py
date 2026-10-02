@@ -47,13 +47,17 @@ cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 node --test tools/tests/web_wrapper.test.mjs
+python3 -m unittest discover -s tools/benchmark/tests -t . -p 'test_*.py'
+node --test tools/benchmark/tests/*.test.mjs
 """
-CI_SCRIPT = CI_CHECKS_PREFIX + "exec cargo test --locked\n"
+BENCHMARK_RUST_CHECKS = """\
+cargo test --locked --features viewport-measure --lib measurement::
+cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize
+"""
+CI_SCRIPT = CI_CHECKS_PREFIX + BENCHMARK_RUST_CHECKS + "exec cargo test --locked\n"
 CI_PARTITION_SCRIPTS = {
-    "checks": CI_CHECKS_PREFIX + """\
-python3 tools/ci_test_inventory.py
-exec cargo test --locked -- --skip documentation::tests::generated_documentation_is_current --exact
-""",
+    "checks": CI_CHECKS_PREFIX + "python3 tools/ci_test_inventory.py\n" + BENCHMARK_RUST_CHECKS
+    + "exec cargo test --locked -- --skip documentation::tests::generated_documentation_is_current --exact\n",
     "guide": """\
 python3 tools/ci_test_inventory.py
 exec cargo test --locked documentation::tests::generated_documentation_is_current -- --exact --nocapture

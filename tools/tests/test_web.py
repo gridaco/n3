@@ -127,6 +127,10 @@ class WebBuildTests(unittest.TestCase):
     def test_successful_build_honors_cargo_overrides_and_ships_font_notices(self):
         self.install_generator()
         self.prepare_site()
+        benchmark = self.root / "tools/benchmark/browser"
+        benchmark.mkdir(parents=True)
+        (benchmark / "measure.html").write_text("contributor harness")
+        (benchmark / "measure.js").write_text("contributor driver")
         cargo_home = str(self.root / "custom cargo")
         target_dir = str(self.root / "custom target")
 
@@ -154,6 +158,8 @@ class WebBuildTests(unittest.TestCase):
         self.assertEqual((site / "pkg/n3_bg.wasm").read_bytes(), b"new WASM")
         self.assertEqual((site / "licenses/Inter.txt").read_text(), "Inter notice")
         self.assertEqual((site / "licenses/Lucide.txt").read_text(), "Lucide notice")
+        self.assertFalse((site / "measure.html").exists())
+        self.assertFalse((site / "measure.js").exists())
         self.assertEqual(list((self.root / "build").glob("web-stage-*")), [])
 
 

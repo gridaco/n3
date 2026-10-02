@@ -23,9 +23,15 @@ use winit::{
 };
 
 mod gestures;
+#[cfg(feature = "viewport-measure")]
+mod measurement;
+#[cfg(not(feature = "viewport-measure"))]
+#[path = "web/measurement_disabled.rs"]
+mod measurement;
 mod settings;
 mod settings_events;
 mod status;
+use crate::measurement::Stage;
 
 const SETTINGS_KEY: &str = "n3.settings.v1";
 struct BrowserSettingsStore;
@@ -89,11 +95,13 @@ struct WebWindow {
     webkit_gesture: crate::input::browser_navigation::WebKitGesture,
     webkit_gesture_owned: bool,
     last_camera_tick: Instant,
+    frame_clock: Instant,
     next_repaint: Option<Instant>,
     settings: settings::BrowserSettings<BrowserSettingsStore>,
     settings_clock: Instant,
     frames: u64,
     status: status::StatusCache,
+    measurement: measurement::Host,
 }
 impl WebWindow {
     async fn new(window: Arc<Window>, proxy: EventLoopProxy<AppEvent>) -> Result<Self, String> {
@@ -171,6 +179,7 @@ impl WebWindow {
             Some("Preferences are stored in this browser for this site.".into());
         let settings_defaults = state.user_settings();
         let settings = settings::BrowserSettings::new(BrowserSettingsStore, settings_defaults)?;
+        let measurement = measurement::Host::new(&window, &adapter.get_info());
         let mut native = Self {
             instance,
             window,
@@ -188,11 +197,13 @@ impl WebWindow {
             webkit_gesture: Default::default(),
             webkit_gesture_owned: false,
             last_camera_tick: Instant::now(),
+            frame_clock: Instant::now(),
             next_repaint: None,
             settings,
             settings_clock: Instant::now(),
             frames: 0,
             status: status::StatusCache::default(),
+            measurement,
         };
         native.service_settings(true);
         // Creating the canvas can focus it before async WebGPU setup completes.
@@ -223,6 +234,9 @@ impl WebWindow {
         )
     }
     fn navigate(&mut self, event: navigation_events::Event) {
+        if self.measurement.isolated() {
+            return;
+        }
         navigation_events::route(
             &mut self.state,
             &self.context,
@@ -339,6 +353,7 @@ impl WebWindow {
         if self.window.inner_size().width == 0 || self.window.inner_size().height == 0 {
             return;
         }
+        let mut probe = self.measurement.begin_frame(&mut self.state);
         let (frame, reconfigure_after_present) = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => (frame, false),
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => (frame, true),
@@ -376,71 +391,117 @@ impl WebWindow {
                 return;
             }
         };
-        let now = Instant::now();
-        self.state
-            .camera
-            .advance_transition(now.duration_since(self.last_camera_tick));
-        self.last_camera_tick = now;
-        // A pose or scene may pass CPU validation yet exceed this GPU's limits.
-        // Keep cheap Arc-backed state until this redraw's candidate is prepared.
+        probe.end(Stage::Acquire);
+        // Preserve the candidate rollback snapshot across either frame path.
         let previous_assets = self.state.asset_views.clone();
-        let input = self.input.take_egui_input(&self.window);
         let ctx = self.context.clone();
-        let mut shortcuts = ShortcutFrame::with_number_events(&ctx, self.number_keys.take());
-        let mut output = ctx.run_ui(input, |ui| {
-            let context = ui.ctx().clone();
-            let ctx = &context;
-            shortcuts.begin_pass(ctx);
-            self.state.ui(ui);
-            shortcuts
-                .collect_with_transform(ctx, self.state.transform_keyboard_context(ctx, false));
-            if self.state.camera.is_transitioning() {
-                ctx.request_repaint();
+        let mut output = if self.measurement.without_ui() {
+            // Drain host events without entering egui's frame/layout machinery.
+            let _ = self.input.take_egui_input(&self.window);
+            self.number_keys.reset();
+            self.measurement
+                .prepare_without_ui(&mut self.state, &mut probe);
+            None
+        } else {
+            let now = Instant::now();
+            self.state
+                .camera
+                .advance_transition(now.duration_since(self.last_camera_tick));
+            self.last_camera_tick = now;
+            let mut input = self.input.take_egui_input(&self.window);
+            if self.measurement.isolated() {
+                input.events.clear();
+                input.events.push(egui::Event::PointerGone);
+                self.number_keys.reset();
             }
-        });
-        for command in self
-            .state
-            .take_ui_commands()
-            .into_iter()
-            .chain(shortcuts.commands())
-        {
-            self.dispatch(command);
-            self.window.request_redraw();
-            if egui::Popup::is_any_open(&ctx) {
-                // A keyboard-opened menu owns the rest of this input batch.
-                break;
+            let mut shortcuts = ShortcutFrame::with_number_events(&ctx, self.number_keys.take());
+            let mut output = ctx.run_ui(input, |ui| {
+                let context = ui.ctx().clone();
+                let ctx = &context;
+                probe.egui_pass();
+                shortcuts.begin_pass(ctx);
+                self.state.ui(ui);
+                shortcuts
+                    .collect_with_transform(ctx, self.state.transform_keyboard_context(ctx, false));
+                if self.state.camera.is_transitioning() {
+                    ctx.request_repaint();
+                }
+            });
+            probe.end(Stage::Ui);
+            for command in self
+                .state
+                .take_ui_commands()
+                .into_iter()
+                .chain(shortcuts.commands())
+            {
+                self.dispatch(command);
+                self.window.request_redraw();
+                if egui::Popup::is_any_open(&ctx) {
+                    // A keyboard-opened menu owns the rest of this input batch.
+                    break;
+                }
             }
-        }
-        if let Err(error) = self.state.refresh_mesh() {
-            self.state.error = Some(error);
-        }
-        self.input
-            .handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
+            if let Err(error) = self.state.refresh_mesh() {
+                self.state.error = Some(error);
+            }
+            probe.end(Stage::Commands);
+            self.input
+                .handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
+            Some(output)
+        };
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.graphics.paint(
-            FrameTarget {
-                device: &self.device,
-                queue: &self.queue,
-                view: &view,
-                size: [self.config.width, self.config.height],
-            },
-            &ctx,
-            &mut self.state,
-            &mut output,
-            previous_assets,
-        );
+        probe.end(Stage::HostPrepare);
+        if let Some(output) = &mut output {
+            self.graphics.paint(
+                FrameTarget {
+                    device: &self.device,
+                    queue: &self.queue,
+                    view: &view,
+                    size: [self.config.width, self.config.height],
+                },
+                &ctx,
+                &mut self.state,
+                output,
+                previous_assets,
+                &mut probe,
+            );
+        } else {
+            self.measurement.paint_without_ui(
+                &mut self.graphics,
+                FrameTarget {
+                    device: &self.device,
+                    queue: &self.queue,
+                    view: &view,
+                    size: [self.config.width, self.config.height],
+                },
+                &mut self.state,
+                previous_assets,
+                egui_winit::pixels_per_point(&ctx, &self.window),
+                &mut probe,
+            );
+        }
         self.window.pre_present_notify();
         self.queue.present(frame);
-        self.graphics
-            .finish_frame(std::mem::take(&mut output.textures_delta.free));
+        // Use the browser's monotonic clock only when enabled, once per handoff.
+        // This is app submission cadence, not GPU completion or display timing.
+        if self.state.fps_meter.enabled() {
+            self.state
+                .fps_meter
+                .record_submission(self.frame_clock.elapsed());
+        }
+        if let Some(output) = &mut output {
+            self.graphics
+                .finish_frame(std::mem::take(&mut output.textures_delta.free));
+        }
+        probe.end(Stage::Present);
         if reconfigure_after_present {
             self.resize();
         }
         let delay = output
-            .viewport_output
-            .get(&egui::ViewportId::ROOT)
+            .as_ref()
+            .and_then(|output| output.viewport_output.get(&egui::ViewportId::ROOT))
             .map(|v| v.repaint_delay)
             .unwrap_or(Duration::MAX);
         self.next_repaint = Instant::now().checked_add(delay);
@@ -460,6 +521,12 @@ impl WebWindow {
         );
         if let Some(snapshot) = self.status.update(status) {
             self.emit("n3-state", &snapshot);
+        }
+        probe.end(Stage::HostTail);
+        self.measurement
+            .finish_frame(probe, &self.state, self.window.has_focus());
+        if self.measurement.active() {
+            self.window.request_redraw();
         }
     }
 
@@ -495,6 +562,9 @@ impl WebWindow {
     }
 
     fn service_settings(&mut self, force: bool) {
+        if self.measurement.isolated() {
+            return;
+        }
         let reload = self.state.request_reload_settings;
         let export = self.state.request_open_settings;
         if force || export {
@@ -728,6 +798,9 @@ impl WebApp {
     }
     pub fn settings_json(&self) -> Result<String, JsValue> {
         self.with_mut(|workspace| {
+            if workspace.measurement.isolated() {
+                return Err("Preference storage is disabled in the measurement harness".into());
+            }
             if !workspace.settings_ready_for_sync() {
                 return Err(
                     "Finish the active input or edit, then retry exporting preferences.".into(),

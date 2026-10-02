@@ -137,3 +137,110 @@ fn imported_render_fingerprints_scene_inputs_are_finite_and_reproducible() {
         }
     }
 }
+
+#[test]
+fn chess_set_glb_preserves_external_scene_through_browser_byte_loading() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/benchmarks/chess-set");
+    let source = load_path(&root.join("source/chess_set_1k.gltf")).unwrap();
+    let bytes = std::fs::read(root.join("chess-set-1k.glb")).unwrap();
+    let loaded = crate::asset_io::load_bytes("chess-set-1k.glb", &bytes).unwrap();
+    assert!(loaded.diagnostics.is_empty());
+    assert_eq!(loaded.document.objects.len(), 1);
+    assert_eq!(loaded.assets.len(), 1);
+    let embedded = loaded.assets.values().next().unwrap();
+
+    for asset in [&source, embedded.as_ref()] {
+        assert_eq!(asset.scenes.len(), 1);
+        assert_eq!(asset.default_scene, 0);
+        assert_eq!(asset.nodes.len(), 33);
+        assert_eq!(
+            asset
+                .nodes
+                .iter()
+                .filter(|node| node.mesh.is_some())
+                .count(),
+            33
+        );
+        assert_eq!(asset.meshes.len(), 33);
+        // The importer appends one fallback material after the three authored ones.
+        assert_eq!(asset.materials.len(), 4);
+        assert_eq!(asset.textures.len(), 9);
+        assert_eq!(asset.images.len(), 9);
+        assert!(asset.animations.is_empty());
+        assert!(asset.skins.is_empty());
+        let frame = asset.evaluate(asset.default_scene, None).unwrap();
+        assert_eq!(frame.draws.len(), 37);
+        assert_eq!(
+            frame
+                .draws
+                .iter()
+                .map(|draw| draw.vertices.len())
+                .sum::<usize>(),
+            49_150
+        );
+        assert_eq!(
+            frame
+                .draws
+                .iter()
+                .map(|draw| draw.indices.len() / 3)
+                .sum::<usize>(),
+            76_920
+        );
+        assert!(
+            frame
+                .draws
+                .iter()
+                .all(|draw| draw.topology == Topology::Triangles)
+        );
+    }
+    let source_frame = source.evaluate(source.default_scene, None).unwrap();
+    let embedded_frame = embedded.evaluate(embedded.default_scene, None).unwrap();
+    assert_eq!(source_frame.bounds, embedded_frame.bounds);
+    assert_eq!(
+        frame_fingerprints(&source_frame),
+        frame_fingerprints(&embedded_frame)
+    );
+
+    for (original, packed) in source.materials.iter().zip(&embedded.materials) {
+        assert_eq!(original.name, packed.name);
+        assert_eq!(original.base_color, packed.base_color);
+        assert_eq!(original.metallic, packed.metallic);
+        assert_eq!(original.roughness, packed.roughness);
+        assert_eq!(original.emissive, packed.emissive);
+        assert_eq!(original.normal_scale, packed.normal_scale);
+        assert_eq!(original.occlusion_strength, packed.occlusion_strength);
+        assert_eq!(original.alpha_mode, packed.alpha_mode);
+        assert_eq!(original.alpha_cutoff, packed.alpha_cutoff);
+        assert_eq!(original.double_sided, packed.double_sided);
+        assert_eq!(original.unlit, packed.unlit);
+        let slots = |material: &Material| {
+            [
+                material.base_color_texture,
+                material.metallic_roughness_texture,
+                material.normal_texture,
+                material.occlusion_texture,
+                material.emissive_texture,
+            ]
+            .map(|slot| slot.map(|info| (info.texture, info.tex_coord, info.transform)))
+        };
+        assert_eq!(slots(original), slots(packed));
+    }
+    for (original, packed) in source.textures.iter().zip(&embedded.textures) {
+        assert_eq!(original.image, packed.image);
+        assert_eq!(original.sampler.wrap_s, packed.sampler.wrap_s);
+        assert_eq!(original.sampler.wrap_t, packed.sampler.wrap_t);
+        assert_eq!(original.sampler.mag, packed.sampler.mag);
+        assert_eq!(original.sampler.min, packed.sampler.min);
+        assert_eq!(original.sampler.mipmap, packed.sampler.mipmap);
+    }
+    for (original, packed) in source.images.iter().zip(&embedded.images) {
+        assert_eq!(original.name, packed.name);
+        assert_eq!(original.width, packed.width);
+        assert_eq!(original.height, packed.height);
+        assert_eq!(original.rgba8.len(), packed.rgba8.len());
+        assert_eq!(
+            Sha256::digest(&original.rgba8),
+            Sha256::digest(&packed.rgba8)
+        );
+    }
+}

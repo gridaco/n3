@@ -4,7 +4,9 @@ mod asset_io;
 #[cfg(not(target_arch = "wasm32"))]
 mod documentation;
 mod editor;
+mod frame_meter;
 mod input;
+mod measurement;
 mod model;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;

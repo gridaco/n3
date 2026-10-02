@@ -73,3 +73,10 @@ just run fixtures/obj/suzanne.obj
 [glTF fixtures](gltf/README.md) cover embedded PBR textures, external-resource
 skinning, and morph animation through the read-only scene viewer. Their upstream
 revision, licenses, and exact bytes are recorded separately from the OBJ fixtures.
+
+## Benchmark scenes
+
+[Chess Set](benchmarks/chess-set/README.md) is a bounded CC0 Poly Haven scene for
+native/browser viewport measurements. It includes the unchanged 1K source bundle,
+a reproducibly packed GLB, and source/derivative checksums. Benchmark workload and
+validation limits are documented alongside the fixture.

@@ -48,6 +48,8 @@ mod action_state;
 mod animation_panel;
 #[path = "asset_instances.rs"]
 mod asset_instances;
+#[path = "fps_meter.rs"]
+mod fps_meter;
 #[path = "tool_dock.rs"]
 mod tool_dock;
 #[path = "user_settings.rs"]
@@ -435,6 +437,8 @@ pub struct WorkspaceUi {
     pub show_2d_ruler: bool,
     pub show_grid: bool,
     pub show_ui: bool,
+    pub(crate) fps_meter: crate::frame_meter::FrameMeter,
+    fps_meter_display: fps_meter::Display,
     pub show_preferences: bool,
     preferences_focus_pending: bool,
     pub settings_error: Option<String>,
@@ -523,6 +527,8 @@ impl WorkspaceUi {
             show_2d_ruler: true,
             show_grid: true,
             show_ui: true,
+            fps_meter: Default::default(),
+            fps_meter_display: Default::default(),
             show_preferences: false,
             preferences_focus_pending: false,
             settings_error: None,
@@ -1408,6 +1414,12 @@ impl WorkspaceUi {
                 ctx.memory_mut(|memory| memory.request_focus(shortcuts::viewport_focus_id()));
                 ctx.request_repaint();
             }
+            Command::ToggleFpsMeter => {
+                self.fps_meter.toggle();
+                // The command changes visible UI once; the meter itself never
+                // schedules a frame. Recording follows ordinary host redraws.
+                ctx.request_repaint();
+            }
             Command::SelectAll => {
                 self.cancel_mouse_navigation();
                 let result = self
@@ -1987,6 +1999,10 @@ impl WorkspaceUi {
                         for &action in crate::ui::workspace_menus::VIEW_TOGGLE_ACTIONS {
                             self.menu_action(ui, action, None);
                         }
+                        menu::separator(ui);
+                        menu::submenu(ui, Control::DeveloperMenu, |ui| {
+                            self.menu_action(ui, ActionId::ToggleFpsMeter, None);
+                        });
                     });
                 });
                 menu::separator(ui);
@@ -2606,6 +2622,7 @@ impl WorkspaceUi {
             self.error = Some(e)
         }
         menu::finish_frame(ctx);
+        self.paint_fps_meter(ctx);
     }
 
     fn toasts_available(&self, ctx: &egui::Context) -> bool {

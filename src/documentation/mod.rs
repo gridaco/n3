@@ -42,6 +42,8 @@ mod edit_selection;
 mod edit_toolbar_tests;
 #[path = "scenarios/editing.rs"]
 mod editing;
+#[path = "scenarios/fps_meter.rs"]
+mod fps_meter;
 #[path = "scenarios/gizmo.rs"]
 mod gizmo;
 #[path = "scenarios/hand_tool.rs"]
