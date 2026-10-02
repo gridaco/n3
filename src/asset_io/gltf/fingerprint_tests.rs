@@ -1,5 +1,6 @@
 //! Portable input fingerprints isolate CPU preparation from renderer drift.
 use super::*;
+use crate::asset_io::native::load_scene_path as load_path;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 

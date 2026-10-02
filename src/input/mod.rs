@@ -1,5 +1,6 @@
 pub(crate) mod actions;
 pub(crate) mod bindings;
+pub(crate) mod browser_navigation;
 pub(crate) mod keyboard_input;
 pub(crate) mod move_input;
 pub(crate) mod navigation_events;

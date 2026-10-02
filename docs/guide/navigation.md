@@ -48,7 +48,7 @@ keeping the current pan and zoom. Manual orbit continues from the visible
 angle; it does not perform that recall. The gizmo preferences configure the
 3D tab's return behavior.
 
-Pinching and a mouse wheel zoom. In **2D mode**, zoom keeps the point beneath
+Pinching and a mouse wheel zoom the viewport. In **2D mode**, zoom keeps the point beneath
 the pointer in place. <kbd>Command</kbd> + two-finger scrolling also zooms
 around the pointer; ordinary two-finger scrolling pans. In **3D mode**, zoom
 stays centered on the camera target.
@@ -57,7 +57,8 @@ A two-finger twist is ignored in **2D**, so a
 twist during panning or pinching cannot switch the view to 3D. In **3D**, twisting
 rotates the view. Panning
 and zooming preserve the viewing direction. These trackpad bindings work in
-object and vertex edit modes.
+object and vertex edit modes. Twisting is available only when the host exposes
+rotation gestures.
 
 1. Press <kbd>Shift</kbd> + <kbd>1</kbd> or choose <code>N3 → View → Frame</code> in <code>N3 → View</code> to fit and recenter
    the model and restore its default viewing angle.

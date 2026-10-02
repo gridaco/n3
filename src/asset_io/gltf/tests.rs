@@ -4,6 +4,8 @@ use base64::Engine;
 use serde_json::{Value, json};
 
 use super::*;
+use crate::asset_io::FileResolver;
+use crate::asset_io::native::load_scene_path as load_path;
 
 #[derive(Default)]
 struct Memory(BTreeMap<String, Vec<u8>>);

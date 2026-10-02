@@ -46,6 +46,7 @@ python3 tools/format_docs.py --check
 cargo fmt --check
 cargo clippy --locked --all-targets -- -D warnings
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
+node --test tools/tests/web_wrapper.test.mjs
 """
 CI_SCRIPT = CI_CHECKS_PREFIX + "exec cargo test --locked\n"
 CI_PARTITION_SCRIPTS = {
@@ -182,6 +183,11 @@ def container_command(root, identity, update, command, uid, gid):
         "HOME=/n3-cache/home",
         "npm_config_cache=/n3-cache/home/.npm",
         "PYTHONDONTWRITEBYTECODE=1",
+        # Parallel GPU-backed tests crash with the pinned software renderer on
+        # both the committed native baseline and the browser port. Serialize
+        # libtest only in this opt-in container; native verification stays free
+        # to use its host's concurrency. Every test and exact capture still runs.
+        "RUST_TEST_THREADS=1",
         "GALLIUM_DRIVER=llvmpipe",
         f"GALLIUM_OVERRIDE_CPU_CAPS={cpu_caps}",
         # Float8 sRGB uses accurate sqrt with AVX masked by the SSE2 profile.

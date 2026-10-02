@@ -1,4 +1,4 @@
-//! Host navigation events shared by the native window and executable tutorials.
+//! Host navigation events shared by native, browser and executable tutorials.
 //!
 //! Deltas are logical points (precise scroll), wheel lines, native pinch delta,
 //! or native rotation degrees. The replay cue is derived from the same event
@@ -41,7 +41,7 @@ impl Event {
     }
 
     /// Match egui-winit's translation. Native windows already receive these
-    /// events from egui-winit; replay derives them here for UI input and cues.
+    /// events from egui-winit; browser scrolling and replay derive them here.
     pub fn egui_event(self) -> Option<egui::Event> {
         match self {
             Self::ModifiersChanged(modifiers) => Some(egui::Event::ModifiersChanged(modifiers)),

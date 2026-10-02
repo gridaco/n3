@@ -8,8 +8,8 @@ decision.
 
 ## Product and interaction principles
 
-- Focus on hard-surface mesh modeling. Broader modeling tools, web support, and
-  speculative UX ideas are separate work; do not silently expand a task to add them.
+- Focus on hard-surface mesh modeling. Broader modeling tools and speculative
+  UX ideas are separate work; do not silently expand a task to add them.
 - Keep actions semantic and key bindings separate. UI controls, shortcuts, and
   tutorial replay should reuse the same behavior rather than implement variants.
 - Respect input ownership: text fields, popups, active gestures, and edit sessions
@@ -73,6 +73,12 @@ Keep one application crate until a real consumer and a clear dependency boundary
 justify extraction. Prefer focused modules over speculative crates, public APIs,
 or generic frameworks.
 
+Read [platform boundaries and performance](docs/architecture/platform-boundaries.md)
+before changing host adapters or platform-dependent behavior. Share product
+semantics, keep target selection at module boundaries, and preserve each host's
+execution policy. Browser constraints must not lower the primary native target's
+capabilities, performance policy, or verification baseline.
+
 | Location             | Responsibility                                                        |
 | -------------------- | --------------------------------------------------------------------- |
 | `src/model/`         | Authored documents, units, native text codec, geometry evaluation     |
@@ -107,6 +113,10 @@ for user-visible feature work, executable guides, and changes to their harness.
 The user guide is a primary development and review contract: maintainers give
 feedback on the same narrative and evidence that real users read. Important
 promises must be executable and fail visibly when they drift.
+
+Native and web share one feature UI and user guide. Follow the
+[shared product contract](docs/architecture/platform-boundaries.md#one-product-experience)
+for capability-based availability and the boundary with contributor documentation.
 
 Every guide feature owns one Rust scenario in `src/documentation/scenarios/` and
 one template in `docs/templates/`, registered in

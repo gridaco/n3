@@ -19,8 +19,11 @@ impl WorkspaceUi {
                 !self.editor.is_interacting() && !self.mouse_navigation.wants_input()
             }
             TerminalPanel => {
+                state.visible = self.host_capabilities.local_terminal;
                 state.checked = Some(self.tool_dock.active == Some(ToolDockPanel::Terminal));
-                !self.editor.is_interacting() && !self.mouse_navigation.wants_input()
+                state.visible
+                    && !self.editor.is_interacting()
+                    && !self.mouse_navigation.wants_input()
             }
             CloseToolDock => {
                 self.tool_dock.active.is_some()

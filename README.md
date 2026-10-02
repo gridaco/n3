@@ -99,13 +99,29 @@ Read the illustrated guide in your browser with `just docs` (requires Python 3).
 It opens a local preview of the checked-in documentation; press Ctrl-C in the
 terminal to stop the server.
 
+### Browser baseline
+
+The same Rust editor and viewport also run in a browser through WebAssembly and
+WebGPU. To build and serve the local baseline:
+
+```sh
+just web-setup
+just web
+```
+
+Use a desktop browser with WebGPU available. Native and web use the same
+workspace and [user guide](docs/guide/README.md); unsupported host features are
+omitted. See [development](docs/development.md#browser-build) for setup,
+embedding, and platform limits.
+
 ## Current scope
 
 N3 currently supports object transforms, vertex editing,
 [making a face](docs/guide/make-face.md) from a triangle or a single flat outline,
 and explicit [X-ray selection](docs/guide/xray.md). Broader topology tools,
 edge/face selection, geometry snapping, and sculpting are future work.
-Web support is also deferred.
+The browser build is a technical baseline; full browser and device coverage is
+still under evaluation.
 
 OBJ import focuses on vertex positions and polygon faces. Materials, textures,
 UVs, and authored normals are not preserved, and OBJ export is not implemented.

@@ -7,9 +7,9 @@ mod materials;
 mod resources;
 mod units;
 
-use crate::asset_io::{FileResolver, ResourceResolver};
+use crate::asset_io::ResourceResolver;
 use crate::scene::*;
-pub(crate) use decode::{load, load_path};
+pub(crate) use decode::load;
 use glam::{DMat4, DQuat, DVec3};
 
 #[cfg(test)]

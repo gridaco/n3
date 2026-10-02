@@ -3,7 +3,8 @@ use crate::document::{
     Document, EditableMesh, Face, Geometry, MAX_FACE_CORNERS, MAX_OBJECTS, MAX_VERTICES,
     MeshVertex, Object, Transform, check_budget,
 };
-use std::{collections::BTreeSet, path::Path};
+use std::collections::BTreeSet;
+
 type Result<T> = std::result::Result<T, String>;
 
 /// Preserve OBJ position indices and source polygons. Each object owns its
@@ -14,14 +15,6 @@ type Result<T> = std::result::Result<T, String>;
 /// and interpreted as centimeters, without guessing or applying a scale factor.
 /// Non-surface records
 /// (materials, UVs, normals, lines and points) are outside this importer.
-pub(crate) fn load_path(path: &Path) -> Result<Document> {
-    let name = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("Imported object");
-    parse_obj(&super::document::read_text(path)?, name)
-}
-
 pub(crate) fn parse_obj(text: &str, default_name: &str) -> Result<Document> {
     let mut positions = Vec::<[f64; 3]>::new();
     let mut groups: Vec<(String, Vec<Face>)> = vec![(default_name.into(), Vec::new())];

@@ -713,7 +713,8 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.settle()?;
     s.witness(Control::Projection)?;
     s.capture_image("navigation")?;
-    verify_planar_zoom(s)
+    verify_planar_zoom(s)?;
+    verify_browser_navigation(s)
 }
 
 /// Exercise pointer anchoring through the native/replay funnel without adding
@@ -763,4 +764,191 @@ fn verify_planar_zoom(s: &mut Session<'_>) -> Result<()> {
         s.trackpad_scroll(0.0, 0.0, egui::Modifiers::NONE, ScrollPhase::Ended)?;
     }
     Ok(())
+}
+
+/// Host conversion belongs to the same navigation contract. These samples
+/// exercise browser units through the production router without adding a
+/// platform-specific illustration or claiming physical browser event delivery.
+fn verify_browser_navigation(s: &mut Session<'_>) -> Result<()> {
+    use crate::input::browser_navigation::{self, WebKitGesture, Wheel, WheelUnit};
+    let wheel = |delta, unit, ctrl, modifiers| {
+        browser_navigation::wheel(Wheel {
+            delta,
+            unit,
+            ctrl,
+            modifiers,
+            points_per_css_pixel: 1.0,
+            page_height_css: 720.0,
+        })
+        .ok_or_else(|| "A finite browser wheel sample must normalize".to_string())
+    };
+    let document = s.state.editor.document.clone();
+    let selected = s.state.editor.selected_objects.clone();
+    let dirty = s.state.is_dirty();
+    let undo_changed = s.state.editor.undo();
+    s.require(
+        !undo_changed,
+        "The navigation walkthrough reaches the browser checks with no pending edit or undo entry",
+    )?;
+    s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
+    s.hover(Control::Viewport)?;
+    let facing = orientation(s);
+    let mut expected = s.state.camera.clone();
+    expected.zoom(0.25 * 1.5);
+    s.navigation(
+        wheel(
+            egui::vec2(0.0, -25.0),
+            WheelUnit::Pixels,
+            true,
+            egui::Modifiers::NONE,
+        )?,
+        Duration::ZERO,
+    )?;
+    s.require(
+        matrix(s).abs_diff_eq(expected.view_projection(s.state.aspect()), 1e-5)
+            && orientation(s).abs_diff_eq(facing, 1e-5)
+            && s.input.modifiers() == egui::Modifiers::NONE,
+        "Browser pinch-wheel applies the same zoom once as a native pinch, without orbiting or holding a synthetic Control key",
+    )?;
+    for modifiers in [egui::Modifiers::NONE, egui::Modifiers::SHIFT] {
+        let mut expected = s.state.camera.clone();
+        if modifiers.shift {
+            expected.pan(18.0, -12.0, s.state.viewport.height());
+        } else {
+            expected.orbit(18.0, -12.0);
+        }
+        s.navigation(
+            wheel(egui::vec2(-18.0, 12.0), WheelUnit::Pixels, false, modifiers)?,
+            Duration::ZERO,
+        )?;
+        s.require(
+            matrix(s).abs_diff_eq(expected.view_projection(s.state.aspect()), 1e-5),
+            "Ordinary browser pixel scrolling follows the same 3D orbit and Shift-pan policy as native precise scrolling",
+        )?;
+    }
+    let mut expected = s.state.camera.clone();
+    expected.zoom(2.0 * 0.12);
+    s.navigation(
+        wheel(
+            egui::vec2(0.0, -2.0),
+            WheelUnit::Lines,
+            false,
+            egui::Modifiers::NONE,
+        )?,
+        Duration::ZERO,
+    )?;
+    s.require(
+        matrix(s).abs_diff_eq(expected.view_projection(s.state.aspect()), 1e-5),
+        "Browser line-unit wheel input keeps the shared mouse-wheel zoom sensitivity",
+    )?;
+
+    complete_view(s, Control::ViewFront, Some(Vec3::Z))?;
+    let rect = s.state.viewport;
+    let pointer = rect.center() + egui::vec2(rect.width() * 0.2, rect.height() * 0.15);
+    let anchor = Vec2::new(0.4, -0.3);
+    s.frame(vec![egui::Event::PointerMoved(pointer)], Duration::ZERO)?;
+    let point = matrix(s).inverse().project_point3(anchor.extend(0.5));
+    let scale = screen_geometry(s).1;
+    s.navigation(
+        wheel(
+            egui::vec2(0.0, -12.0),
+            WheelUnit::Pixels,
+            true,
+            egui::Modifiers::NONE,
+        )?,
+        Duration::ZERO,
+    )?;
+    s.require(
+        matrix(s)
+            .project_point3(point)
+            .truncate()
+            .abs_diff_eq(anchor, 1e-4)
+            && screen_geometry(s).1 > scale + 1e-5
+            && s.state.is_planar_navigation(),
+        "Browser pinch-wheel preserves the point beneath the pointer in 2D",
+    )?;
+    let facing = orientation(s);
+    let mut expected = s.state.camera.clone();
+    expected.zoom_at(1.25_f32.ln() * 1.5, anchor, s.state.aspect());
+    let mut gesture = WebKitGesture::default();
+    s.require(
+        gesture.begin(1.0, 0.0),
+        "A WebKit gesture starts with a valid cumulative baseline",
+    )?;
+    for (scale, rotation) in [(1.1, 12.0), (1.25, 25.0)] {
+        for event in gesture
+            .update(scale, rotation, egui::Modifiers::NONE)
+            .ok_or("A valid WebKit sample must normalize")?
+        {
+            s.navigation(event, Duration::ZERO)?;
+        }
+    }
+    s.require(
+        matrix(s).abs_diff_eq(expected.view_projection(s.state.aspect()), 1e-5)
+            && orientation(s).abs_diff_eq(facing, 1e-5)
+            && s.state.is_planar_navigation(),
+        "Cumulative WebKit pinch samples compose to their total scale while simultaneous twist leaves 2D unchanged",
+    )?;
+    gesture.reset();
+    s.require(
+        !gesture.is_active() && gesture.update(1.5, 35.0, egui::Modifiers::NONE).is_none(),
+        "Ending a browser gesture discards its cumulative baseline until the next start",
+    )?;
+    let before = screen_geometry(s);
+    s.navigation(
+        wheel(
+            egui::vec2(-18.0, 12.0),
+            WheelUnit::Pixels,
+            false,
+            egui::Modifiers::NONE,
+        )?,
+        Duration::ZERO,
+    )?;
+    s.require(
+        panned(before, screen_geometry(s)) && orientation(s).abs_diff_eq(facing, 1e-5),
+        "Ordinary browser pixel scrolling pans a 2D view after pinch without a synthetic modifier or sticky zoom action",
+    )?;
+    let mut expected = s.state.camera.clone();
+    expected.pan(0.0, -12.0, s.state.viewport.height());
+    s.navigation(
+        wheel(
+            egui::vec2(0.0, 12.0 / 720.0),
+            WheelUnit::Pages,
+            false,
+            egui::Modifiers::NONE,
+        )?,
+        Duration::ZERO,
+    )?;
+    s.require(
+        matrix(s).abs_diff_eq(expected.view_projection(s.state.aspect()), 1e-5),
+        "Browser page-unit scrolling uses the canvas CSS height and the shared 2D pan policy",
+    )?;
+    complete_view(s, Control::ViewPerspective, None)?;
+    s.hover(Control::Viewport)?;
+    let mut expected = s.state.camera.clone();
+    expected.orbit(25.0_f32.to_radians() / 0.006, 0.0);
+    s.require(
+        gesture.begin(1.0, 0.0),
+        "A new WebKit gesture starts independently",
+    )?;
+    for rotation in [12.0, 25.0] {
+        for event in gesture
+            .update(1.0, rotation, egui::Modifiers::NONE)
+            .ok_or("A valid WebKit twist must normalize")?
+        {
+            s.navigation(event, Duration::ZERO)?;
+        }
+    }
+    s.require(
+        matrix(s).abs_diff_eq(expected.view_projection(s.state.aspect()), 1e-5),
+        "A browser that exposes cumulative twist rotates the 3D view once with the shared direction and sensitivity",
+    )?;
+    let undo_changed = s.state.editor.undo();
+    s.require(
+        !undo_changed
+            && s.state.editor.document == document
+            && s.state.editor.selected_objects == selected
+            && s.state.is_dirty() == dirty,
+        "Browser navigation preserves authored geometry, selection and dirty state and creates no undo entry",
+    )
 }

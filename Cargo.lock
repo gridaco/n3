@@ -410,6 +410,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -625,8 +635,6 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.36.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98466000559d66ba4db786a30448b01483946add4188e7f10f522a27b4fb89cc"
 dependencies = [
  "arboard",
  "bytemuck",
@@ -1485,6 +1493,7 @@ dependencies = [
  "alacritty_terminal",
  "base64",
  "bytemuck",
+ "console_error_panic_hook",
  "earcutr",
  "egui",
  "egui-wgpu",
@@ -1492,6 +1501,7 @@ dependencies = [
  "glam",
  "gltf",
  "image",
+ "js-sys",
  "libc",
  "percent-encoding",
  "pollster 1.0.1",
@@ -1500,6 +1510,10 @@ dependencies = [
  "serde_json",
  "sha2",
  "tobj",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
  "wgpu",
  "winit",
 ]

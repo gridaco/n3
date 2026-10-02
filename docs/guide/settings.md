@@ -13,7 +13,7 @@ length inputs show bare numbers, and the chosen unit determines what an
 unsuffixed number means. You can still type an explicit unit suffix.
 
 Under Appearance, choose System, Light, or Dark in
-<code>Preferences → Theme</code>. System is the default and follows macOS
+<code>Preferences → Theme</code>. System is the default and follows the host's
 appearance changes while N3 is open. Light and Dark keep the chosen appearance
 regardless of the OS setting. Use <code>Preferences → Accent color</code> for a personal
 highlight color, or <code>Preferences → Reset accent</code> to restore N3's default.
@@ -33,7 +33,8 @@ With an explicit Dark choice:
 
 ![settings dark](assets/settings-dark.webp)
 
-Choose <code>Preferences → Open settings.json</code> to open the same preferences as text
+The browser saves preferences in local browser storage and omits the settings-file
+control. In the desktop app, choose <code>Preferences → Open settings.json</code> to open the same preferences as text
 in your default text editor. N3 creates the file if it does not exist:
 
 ```text

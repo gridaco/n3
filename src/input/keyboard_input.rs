@@ -42,6 +42,7 @@ impl NumberKey {
     }
 
     /// Logical event used by scripted inputs. Physical origin stays in metadata.
+    #[allow(dead_code)] // Replay supplies logical keys alongside physical metadata.
     pub fn egui_key(self) -> Option<Key> {
         let (Self::TopRow(digit) | Self::Numpad(digit)) = self;
         [

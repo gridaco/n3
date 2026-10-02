@@ -237,6 +237,7 @@ struct NumericTransform {
 pub enum EditorAccess {
     #[default]
     ReadWrite,
+    #[allow(dead_code)] // Hosts may opt into the shared read-only access policy.
     ReadOnly,
 }
 
@@ -1675,6 +1676,7 @@ impl Editor {
     /// vertex-sampled: a face sliver whose vertices are occluded does not qualify.
     /// Near-clipped or otherwise unprojectable objects are excluded. The configurable
     /// hit policy compares these screen bounds, not the exact mesh silhouette.
+    #[allow(dead_code)] // Read-only projection query used by executable guides.
     pub fn object_selection_bounds(
         &mut self,
         viewport: Rect,

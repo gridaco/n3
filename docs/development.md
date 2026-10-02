@@ -61,10 +61,11 @@ tests. `just ci` still runs the complete sequence in one container, and native
 `just verify`, `just test`, and the pre-push hook always retain the full suite.
 
 Hosted jobs cache dependency downloads and compiled build output under keys
-that include their platform, pinned toolchain/environment, and Cargo manifests.
+that include their platform, pinned toolchain/environment, Cargo manifests, and
+vendored dependency source.
 Incremental compilation output, generated guide artifacts, renderer receipts,
 diagnostics, and account files are excluded. Pull requests can restore caches;
-only successful checks and native jobs on pushes to `main` save them. The guide
+only successful checks, native, and WASM jobs on pushes to `main` save them. The guide
 job restores the shared Ubuntu cache without publishing it. Cache hits still
 execute every check, including the exact guide replay. The macOS job also caches
 the pinned `just` installation while retaining its ordinary installation command.
@@ -73,6 +74,214 @@ Containers retain the invoking user's numeric UID/GID so writable cache and
 review files keep their host ownership. The runner mounts isolated passwd/group
 entries read-only from its cache; the terminal backend needs a resolvable account
 even when its controlled shell is explicitly configured.
+
+## Browser build
+
+The browser target uses the same package with an additional WASM library entry
+point. The native application, documentation renderer, terminal backend, and
+filesystem host remain target-specific. Both hosts use the same workspace and
+user guide; host capabilities omit or disable unsupported controls.
+Read [platform boundaries and performance](architecture/platform-boundaries.md)
+before extending the port or changing host ownership.
+
+```sh
+just web-setup
+just web-check
+just web-verify
+just web-build
+just web
+```
+
+`web-setup` installs the `wasm32-unknown-unknown` target for the repository's Rust
+toolchain and the matching `wasm-bindgen-cli` version, 0.2.129, under
+`.cache/web-tools`. `web-check` checks the library for that target with the locked
+dependency graph. `web-build` uses the `web` Cargo profile and writes the static
+application to ignored `build/web/`, including `pkg/n3.js`, `pkg/n3_bg.wasm`, and
+the bundled font licenses.
+It requires no Node, bundler, React installation, Docker, or application server.
+
+`web-verify` runs the wrapper lifecycle regressions with Node.js 24, Clippy with
+warnings denied for the WASM library, and the complete static-site build. A
+dedicated Ubuntu WASM CI job installs the optional tooling and runs this gate;
+it supplements the native jobs without requiring a browser GPU on that runner.
+
+The pinned `egui-winit` 0.36.2 adapter requires narrow WASM compatibility patches
+for its dropped-file trait and browser OS modifier mapping. The maintained source, upstream
+licenses, and exact change are recorded in
+[vendor/egui-winit/N3-PATCH.md](../vendor/egui-winit/N3-PATCH.md). Native behavior
+is preserved; browser file contents enter through N3's selected-byte adapter.
+
+`just web` builds and serves that directory on localhost port 8000, then opens
+the browser. To select another port or leave browser opening to another tool:
+
+```sh
+just web --no-open --port 8001
+```
+
+Keep the server running while using the application; Ctrl-C stops it. A desktop
+browser with WebGPU enabled and available is required. Remote hosting requires
+HTTPS; opening the generated HTML as a local `file:` URL is not the supported
+launch path. The output is static and can be copied to an appropriate host when
+deployment is separately requested.
+
+Target compilation and browser runtime checks are separate from `just verify`.
+The native verification command continues to check shared behavior and the
+strict documentation baseline. Browser runtime evidence must additionally record
+successful WebGPU initialization, rendering, interaction, file round-tripping,
+and lifecycle behavior on the browser actually tested. These host checks use the
+same feature contract; they do not create a second guide or media baseline.
+
+Include a fresh-load input check before switching focus away from the canvas or
+using controls in an embedding page. Move the pointer into the viewport, use
+Shift+I to open Insert, create an object, click empty space to deselect, and
+double-click the object to enter edit mode. Check held Z and Space through the
+shared shading and navigation behavior, then verify focus loss cancels held
+input and returning to the canvas restores ordinary interaction. Repeat with
+multiple objects to check selection changes. Using wrapper buttons first can
+hide a startup focus bug by causing an extra blur/focus transition.
+
+The browser host initializes egui focus from the current window after asynchronous
+WebGPU setup; the canvas may already have received its initial focus event before
+the input adapter exists. Keep subsequent focus events ordered through the usual
+adapter. The local server disables HTTP caching, but an already-open tab retains
+its loaded WASM until reloaded after a rebuild.
+
+### Browser gestures
+
+The browser host captures wheel and WebKit gesture events on its canvas, then
+passes them through [browser_navigation](../src/input/browser_navigation.rs)
+into the shared [navigation router](../src/input/navigation_events.rs). The
+router retains viewport, focus, popup, and active-edit ownership. Canvas capture
+prevents the browser's default page zoom for an editor pinch; it does not install
+page-wide gesture handlers. Ordinary scrolling over egui controls remains UI
+input rather than camera input.
+
+Browsers encode trackpad pinch as a wheel event with `ctrlKey`, or as WebKit's
+cumulative `scale` and `rotation`. The wheel flag identifies the zoom event; it
+must not become a synthetic held keyboard Control modifier. A real Control-wheel
+combination is indistinguishable from pinch and also zooms. WebKit samples become
+relative zoom and rotation deltas; events from the same gesture must not also
+reach the camera through winit's wheel path.
+
+Pixel deltas use CSS pixels converted to egui logical points, independently of
+the display's backing-pixel ratio. Line deltas retain wheel-line units; page
+deltas use the canvas's CSS height. Browsers provide no reliable wheel-device
+identity: unmodified pixel scrolling uses the shared precise-scroll policy,
+including when a high-resolution mouse produces it. The adapter does not infer
+finger or momentum start/end phases from timing. WebKit exposes rotation;
+Chromium's pinch-wheel events contain no twist information.
+
+The shared navigation scenario exercises these conversions and ownership rules.
+DOM delivery, browser default prevention, and physical trackpad feel require
+browser testing; native replay alone cannot establish them.
+
+### Embedding
+
+The framework-neutral [wrapper](../web/n3.js) exports
+`mountN3(container, { onState, onError })`. It creates and sizes the canvas, awaits
+GPU startup, and returns a controller:
+
+| Method                   | Behavior                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| `command(id)`            | Dispatch a semantic action, such as `insert.cube` or `history.undo`, then focus the canvas. |
+| `open(file, { append })` | Read a browser `File` and confirm replacement when needed; `append` defaults to `false`.    |
+| `download(filename)`     | Request a document download; the default name is `Untitled.n3.json`.                        |
+| `documentJSON()`         | Return serialized document text.                                                            |
+| `snapshot()`             | Return the parsed status object.                                                            |
+| `destroy()`              | Stop the editor, disconnect observation, and remove listeners and the canvas.               |
+
+The controller exposes its `canvas`. `onState` receives status changes including
+object and selection counts, dirty state, dimensions, and errors; callbacks run
+after the Rust state borrow is released. A JavaScript or React application may
+own surrounding UI while Rust retains workspace behavior and document editing.
+This experimental bridge does not expose arbitrary document mutation, GPU
+resources, or a stable UI-independent editor API.
+
+```js
+import { mountN3 } from "/n3/n3.js";
+
+const editor = await mountN3(document.querySelector("#editor"), {
+  onState: (state) => console.log(state.objects, state.dirty),
+  onError: (error) => console.error(error),
+});
+```
+
+Serve `n3.js` and its generated `pkg/` together under `/n3/` in this example.
+Give the container an explicit usable size. Preserve the wrapper's file
+confirmation and teardown behavior when extending it.
+
+The lower-level generated `start(canvas)` export returns a `WebApp` handle and
+initializes the GPU asynchronously. The canvas emits `n3-ready` or `n3-error`;
+methods require a ready application. Its methods are `command(id)`,
+`load_file(name, bytes, append)`, `document_json()`, `new_document()`,
+`settings_json()`, `snapshot()`, `resize(width, height)`, and `destroy()`.
+Direct callers must resolve unsaved changes before replacing the document.
+
+Mounting is asynchronous: unmounting before startup completes must still destroy
+the eventual controller. The baseline supports one editor lifetime per WASM
+module; destroying it does not establish that the module can mount again.
+Direct React effects that remount, including development StrictMode, therefore
+require additional lifecycle work. Ordinary React mounting and removal can use
+an iframe, which gives each frame its own module lifetime:
+
+```jsx
+export function N3Panel() {
+  return (
+    <iframe
+      title="N3 editor"
+      src="/n3/index.html"
+      style={{ width: "100%", height: "80vh", border: 0 }}
+    />
+  );
+}
+```
+
+A cross-frame command/state bridge is not implemented. Direct mounting provides
+that integration in a persistent page; multiple editors within one module need
+a separate lifecycle design and verification.
+
+### Browser host constraints
+
+The host accepts selected bytes for `.n3.json`, OBJ, and self-contained glTF/GLB.
+Parsing and unit conversion remain in `asset_io`. Selected filenames are labels,
+not directory access: external buffers, textures, and linked source files need a
+resource resolution workflow. External asset resources fail explicitly; native
+documents preserve unresolved references for recovery. Saving does not embed
+imported assets or make those references portable.
+
+Downloads cannot confirm durable storage or promise an in-place overwrite or
+native save-conflict detection. The dirty indicator therefore remains set after
+a download request. The wrapper confirms destructive replacement and requests a
+`beforeunload` warning, subject to
+[browser restrictions](https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event);
+this is not a recovery store.
+
+Preferences use the shared typed controller and an origin-local store, separate
+from documents and history. A different host or port has a different store.
+Storage can be [denied, cleared, or temporary](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage);
+failures remain visible without preventing editing. The read-before-write merge
+check is optimistic and has no atomic cross-tab lock.
+Local edits, storage events from other tabs, and focus recovery trigger merges
+at safe input boundaries. Successful synchronization has no periodic polling;
+storage failures retry with a bounded backoff. The native filesystem store keeps
+its independent synchronization policy.
+
+- WebGPU requires a [secure context](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API)
+  and a compatible browser, device, and policy. There is no WebGL fallback;
+  initialization failures remain visible.
+- The host cannot launch a local shell/PTY or open a settings file in an external
+  editor. Those controls are omitted from the shared UI.
+- Browser-reserved shortcuts may not reach the canvas. Focused-workspace input
+  must preserve surrounding page controls. The gesture adapter above maps the
+  events the browser exposes without claiming native phase or momentum parity.
+- The egui adapter uses an internal clipboard fallback; external clipboard
+  integration requires a browser adapter.
+- The application runs on the main thread. Large decoding and geometry work can
+  interrupt responsiveness; workers and shared memory require separate work.
+- Touch, IME, accessibility, physical trackpads, and browser/GPU coverage remain
+  review gates. A desktop smoke test does not establish these capabilities.
+- One canvas is the presentation unit. Native multi-window delivery and multiple
+  editors in one module remain outside the baseline.
 
 ## Formatting
 
@@ -128,10 +337,11 @@ It runs `just verify` and checks that the checkout did not change during the run
 Switch to the branch to be verified before pushing it. Deletion-only pushes have
 no source to verify. The hook never rewrites files or updates generated baselines.
 
-`just verify` runs Oxfmt and rustfmt checks, Clippy with warnings denied, all
-Python tooling tests, and all Rust tests on the host. The Rust suite includes
+`just verify` runs Oxfmt and rustfmt checks, Clippy with warnings denied, Python
+tooling tests, JavaScript wrapper regressions, and all Rust tests on the host. The Rust suite includes
 required documentation replay and exact artifact comparisons. `just test`
-forwards optional Cargo test arguments; `just tools-test` runs the Python suite.
+forwards optional Cargo test arguments; `just tools-test` runs the Python and
+JavaScript suites.
 Checks never update the guide, including when a renderer or driver changes.
 
 The optional [CI image](../tools/ci/Dockerfile) fixes Ubuntu 24.04 on
@@ -141,6 +351,13 @@ selects accurate sqrt for sRGB conversion and prevents cached 128-bit code from
 bypassing that choice. The [baseline contract](baselines/README.md) records the
 cross-host evidence and diagnostic commands. It requests `N3_DOCS_RENDERER=lavapipe` explicitly;
 normal developer commands select the native backend without that setting.
+The opt-in container uses one Rust test thread. Default parallel execution
+reproduced allocator aborts and a segmentation fault among GPU-backed tests on
+both the committed native baseline and the browser port. The underlying fault
+is not established; serial test scheduling is the contained CI policy. All
+tests and exact captures still execute, and native `just verify` retains the
+host's ordinary concurrency. Explicit `ci-test` arguments can override test
+thread count for diagnosis.
 Updating a rendering profile requires reviewing its generated output. A Docker
 build alone does not establish that the guide agrees with its baseline.
 

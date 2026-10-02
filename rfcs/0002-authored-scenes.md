@@ -62,7 +62,7 @@ These are observations from the local code, not proposed behavior:
   display frame, geometry cache, and `EditHistory<Snapshot>`.
 - [`WorkspaceUi`](../src/ui/workspace_ui.rs) owns one camera/navigation state,
   Local View return state, ruler/inspector caches, and asset previews.
-- [`asset_io::load`](../src/asset_io/linked.rs) both loads external content and
+- [`asset_io::load`](../src/asset_io/native/linked.rs) both loads external content and
   immediately chooses its document organization. A scene asset becomes one
   object referencing `asset.default_scene`.
 - Imported `SceneAsset` retains multiple source scenes. An `AssetInstance` stores
@@ -557,14 +557,14 @@ Stages describe the eventual scope. The readiness review above gates proceeding
 beyond the initial integrated proof. They are not separate editor implementations
 or permission to publish an incomplete persistence change.
 
-| Current owner                                               | Required change                                                                            | Main risk                                                              |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `model/document.rs`, `asset_geometry.rs`                    | Scene-scoped geometry/bounds; all-document structural validation; explicit codec migration | Wrong scope silently joins unrelated scenes or drops inactive objects  |
-| `editor/mod.rs`, `edit_history.rs`, `geometry_edit.rs`      | Explicit target, entry context, session and ID ownership                                   | Redo focuses the wrong scene; primitive provenance leaks across scenes |
-| `ui/workspace_ui.rs`, `local_view.rs`, `asset_instances.rs` | One active scene with separate remembered view/preview state                               | Camera normalization, held input, Local View, stale selection          |
-| `asset_io/linked.rs`, `document.rs`, `native.rs`            | All-scene reference traversal; import intent/preparation/publication                       | Wrong async target, ID collision, partial import, broken Save As links |
-| `render/renderer.rs`, `placed_scenes.rs`                    | Active-scene submission and bounded cache residency                                        | Mixing display frames or defeating existing Local View caches          |
-| Documentation scenarios/builders                            | Explicit scene targets in setup; production controls in illustrated operations             | Tests accidentally keep proving only the former flat document          |
+| Current owner                                                           | Required change                                                                            | Main risk                                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `model/document.rs`, `asset_geometry.rs`                                | Scene-scoped geometry/bounds; all-document structural validation; explicit codec migration | Wrong scope silently joins unrelated scenes or drops inactive objects  |
+| `editor/mod.rs`, `edit_history.rs`, `geometry_edit.rs`                  | Explicit target, entry context, session and ID ownership                                   | Redo focuses the wrong scene; primitive provenance leaks across scenes |
+| `ui/workspace_ui.rs`, `local_view.rs`, `asset_instances.rs`             | One active scene with separate remembered view/preview state                               | Camera normalization, held input, Local View, stale selection          |
+| `asset_io/native/linked.rs`, `asset_io/native/document.rs`, `native.rs` | All-scene reference traversal; import intent/preparation/publication                       | Wrong async target, ID collision, partial import, broken Save As links |
+| `render/renderer.rs`, `placed_scenes.rs`                                | Active-scene submission and bounded cache residency                                        | Mixing display frames or defeating existing Local View caches          |
+| Documentation scenarios/builders                                        | Explicit scene targets in setup; production controls in illustrated operations             | Tests accidentally keep proving only the former flat document          |
 
 History/activation is the highest-risk part. Most geometry math, material
 rendering and imported pose evaluation should survive unchanged. This is a

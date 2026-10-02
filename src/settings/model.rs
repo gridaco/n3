@@ -189,12 +189,14 @@ impl Settings {
 
     /// Decode a strict JSON object with built-in defaults for omitted keys.
     /// Unknown data is ignored here; the controller retains it for file updates.
+    #[allow(dead_code)] // Standalone codec for validation and guide consumers.
     pub fn from_json(json: &str) -> Result<Self, String> {
         Ok(SettingsFile::parse(Some(json.as_bytes()), &Self::default())?.effective)
     }
 
     /// Canonical, readable JSON for the known preferences. Controller writes
     /// additionally preserve unknown data already present in the user's file.
+    #[allow(dead_code)] // Standalone codec for validation and guide consumers.
     pub fn to_json(&self) -> Result<String, String> {
         let bytes = SettingsFile::encode(&self.raw_values()?)?;
         String::from_utf8(bytes).map_err(|error| error.to_string())

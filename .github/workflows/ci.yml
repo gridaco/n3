@@ -38,7 +38,7 @@ jobs:
             .cache/ci/linux-amd64/target/debug/.fingerprint
             .cache/ci/linux-amd64/target/.rustc_info.json
             .cache/ci/linux-amd64/home/.npm
-          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Check formatting, lint, tooling, and focused regressions
         env:
           N3_CI_FAILURE_ARTIFACTS: "1"
@@ -94,7 +94,7 @@ jobs:
             .cache/ci/linux-amd64/target/debug/.fingerprint
             .cache/ci/linux-amd64/target/.rustc_info.json
             .cache/ci/linux-amd64/home/.npm
-          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
+          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Replay every guide feature and check exact artifacts
         env:
           N3_CI_FAILURE_ARTIFACTS: "1"
@@ -142,7 +142,7 @@ jobs:
             target/debug/build
             target/debug/.fingerprint
             target/.rustc_info.json
-          key: n3-v1-macos15-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock') }}
+          key: n3-v1-macos15-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Restore the pinned just installation
         id: just
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -177,3 +177,100 @@ jobs:
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
           key: ${{ steps.just.outputs.cache-primary-key }}
+
+  wasm:
+    name: WASM lint and browser build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up the contributor Node.js version
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: Identify the browser build runner
+        id: environment
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import hashlib
+          import os
+          image = os.environ.get("ImageVersion", "unreported")
+          print(f"platform={hashlib.sha256(image.encode()).hexdigest()}")
+          PY
+      - name: Restore WASM dependencies and build output
+        id: dependencies
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/cargo/registry/cache
+            .cache/cargo/registry/index
+            target/debug/deps
+            target/debug/build
+            target/debug/.fingerprint
+            target/web/deps
+            target/web/build
+            target/web/.fingerprint
+            target/wasm32-unknown-unknown/debug/deps
+            target/wasm32-unknown-unknown/debug/build
+            target/wasm32-unknown-unknown/debug/.fingerprint
+            target/wasm32-unknown-unknown/web/deps
+            target/wasm32-unknown-unknown/web/build
+            target/wasm32-unknown-unknown/web/.fingerprint
+            target/.rustc_info.json
+          key: n3-v1-wasm-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'vendor/**') }}
+      - name: Restore pinned browser build tools
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/just
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            .cache/web-tools/bin/wasm-bindgen
+            .cache/web-tools/.crates.toml
+            .cache/web-tools/.crates2.json
+          key: n3-v1-wasm-tools-just1.46.0-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}
+      - name: Install optional browser tooling using the repository Rust toolchain
+        run: |
+          cargo install just --version 1.46.0 --locked
+          just web-setup
+      # Compile and generate glue on every run. The native lanes continue to
+      # own behavioral tests and exact guide receipts; this job needs no GPU.
+      - name: Lint the WASM target and generate the browser application
+        run: just web-verify
+      - name: Save verified WASM dependencies and build output
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .cache/cargo/registry/cache
+            .cache/cargo/registry/index
+            target/debug/deps
+            target/debug/build
+            target/debug/.fingerprint
+            target/web/deps
+            target/web/build
+            target/web/.fingerprint
+            target/wasm32-unknown-unknown/debug/deps
+            target/wasm32-unknown-unknown/debug/build
+            target/wasm32-unknown-unknown/debug/.fingerprint
+            target/wasm32-unknown-unknown/web/deps
+            target/wasm32-unknown-unknown/web/build
+            target/wasm32-unknown-unknown/web/.fingerprint
+            target/.rustc_info.json
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - name: Save verified browser build tools
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/just
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            .cache/web-tools/bin/wasm-bindgen
+            .cache/web-tools/.crates.toml
+            .cache/web-tools/.crates2.json
+          key: ${{ steps.tools.outputs.cache-primary-key }}

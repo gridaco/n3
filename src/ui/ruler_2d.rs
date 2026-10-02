@@ -26,6 +26,7 @@ pub fn content_rect(viewport: Rect) -> Rect {
 pub struct Tick {
     /// Absolute logical screen coordinate along this ruler.
     pub position: f32,
+    #[allow(dead_code)] // Preserve the measured value alongside its formatted label.
     pub value: f64,
     /// Each tick is a labeled graduation.
     pub label: Option<String>,

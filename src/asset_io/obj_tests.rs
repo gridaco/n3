@@ -1,6 +1,8 @@
 use super::*;
+use crate::asset_io::native::load_obj_path as load_path;
 use crate::{document::DisplayFrame, mesh::EditFace, units::CanonicalLengthUnit};
 use glam::{DQuat, DVec3};
+use std::path::Path;
 
 fn fixture(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

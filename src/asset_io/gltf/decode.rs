@@ -1,10 +1,10 @@
-use std::{collections::BTreeSet, io::Cursor, path::Path};
+use std::{collections::BTreeSet, io::Cursor};
 
 use ::gltf::accessor::Dimensions;
 
 use super::units::length_cm;
 use super::*;
-use crate::asset_io::resources::{MAX_FILE_BYTES, MAX_RESOURCE_BYTES, MAX_TOTAL_BYTES, read_file};
+use crate::asset_io::resources::{MAX_FILE_BYTES, MAX_RESOURCE_BYTES, MAX_TOTAL_BYTES};
 use crate::scene::validate::hierarchy_roots;
 
 const SUPPORTED_EXTENSIONS: &[&str] = &[
@@ -12,22 +12,6 @@ const SUPPORTED_EXTENSIONS: &[&str] = &[
     "KHR_materials_unlit",
     "KHR_texture_transform",
 ];
-
-pub(crate) fn load_path(path: &Path) -> Result<SceneAsset> {
-    let bytes = read_file(path, MAX_FILE_BYTES)?;
-    let resolver = FileResolver::new(
-        path.parent()
-            .filter(|path| !path.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new(".")),
-    )?;
-    super::load(
-        path.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("glTF scene"),
-        &bytes,
-        &resolver,
-    )
-}
 
 pub(crate) fn load(
     name: &str,

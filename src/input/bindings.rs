@@ -10,6 +10,7 @@ pub enum HeldModifier {
 }
 
 impl HeldModifier {
+    #[allow(dead_code)] // Replay builds input from the same binding vocabulary.
     pub fn modifiers(self) -> Modifiers {
         match self {
             Self::Alt => Modifiers::ALT,

@@ -2,6 +2,8 @@
 
 # Terminal
 
+Terminal requires a local shell. Its control is omitted in the browser.
+
 Choose <code>Tool Dock tab bar → Terminal</code> in the Tool Dock tab bar to open a local shell
 in the Terminal panel. The Tool Dock is the shared container for Animation and
 Terminal. Its tab bar floats near the viewport's lower-left when the Tool Dock

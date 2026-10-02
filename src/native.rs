@@ -3,13 +3,13 @@ mod settings_host;
 mod settings_store;
 
 use crate::asset_io::LoadedDocument;
+use crate::render::workspace::{FrameTarget, WorkspaceRenderer};
 use crate::{
-    document_io, keyboard_input, navigation_events, renderer, scroll_input,
+    document_io, keyboard_input, navigation_events, scroll_input,
     settings::{ResolvedTheme, Settings, ThemeMode},
     shortcuts, workspace_ui,
 };
 use keyboard_input::{NumberKey, NumberKeyInput};
-use renderer::{SceneRenderer, ViewportRenderOptions};
 use settings_host::SettingsHost;
 use settings_store::FileSettingsStore;
 use shortcuts::{HostEffect, ShortcutFrame};
@@ -76,12 +76,9 @@ struct NativeWindow {
     config: wgpu::SurfaceConfiguration,
     context: egui::Context,
     input: egui_winit::State,
-    ui_renderer: egui_wgpu::Renderer,
-    scene: SceneRenderer,
+    graphics: WorkspaceRenderer,
     state: WorkspaceUi,
     applied_window_theme: ThemeMode,
-    scene_size: [u32; 2],
-    uploaded_revision: u64,
     load_document: crate::document::Document,
     cursor: Option<egui::Pos2>,
     number_keys: NumberKeyInput,
@@ -165,12 +162,8 @@ impl NativeWindow {
             window.theme(),
             Some(device.limits().max_texture_dimension_2d as usize),
         );
-        let mut ui_renderer =
-            egui_wgpu::Renderer::new(&device, format, egui_wgpu::RendererOptions::default());
-        let scene = SceneRenderer::new(&device, config.width, config.height);
-        let scene_texture =
-            ui_renderer.register_native_texture(&device, &scene.view, wgpu::FilterMode::Linear);
-        let scene_size = [config.width, config.height];
+        let (graphics, scene_texture) =
+            WorkspaceRenderer::new(&device, format, [config.width, config.height]);
         let mut state = WorkspaceUi::new(scene_texture);
         // Native sessions are opt-in: guide/workbench hosts keep isolated fixtures.
         // The process starts only after opening Terminal and measuring its grid.
@@ -186,12 +179,9 @@ impl NativeWindow {
             config,
             context,
             input,
-            ui_renderer,
-            scene,
+            graphics,
             state,
             applied_window_theme: ThemeMode::System,
-            scene_size,
-            uploaded_revision: u64::MAX,
             load_document: crate::document::Document::default(),
             cursor: None,
             number_keys: NumberKeyInput::default(),
@@ -434,58 +424,14 @@ impl NativeWindow {
         loaded: LoadedDocument,
         append: bool,
     ) -> Result<(), String> {
-        // Prepare against an isolated candidate before publishing either CPU or
-        // GPU state. Opening/importing a file is infrequent; placement afterwards
-        // reuses the normal renderer resource cache.
-        let mut candidate = WorkspaceUi::new(self.state.scene_texture);
-        let copy = LoadedDocument {
-            document: loaded.document.clone(),
-            assets: loaded.assets.clone(),
-            diagnostics: loaded.diagnostics.clone(),
-            saved_bytes: loaded.saved_bytes.clone(),
-        };
-        if append {
-            candidate.editor = crate::editor::Editor::new(self.state.editor.document.clone())?;
-            candidate.editor.frame = self.state.editor.frame;
-            candidate.asset_views = self.state.asset_views.clone();
-            candidate
-                .editor
-                .set_asset_frames(self.state.editor.asset_frames().clone())?;
-            candidate.import_loaded_document(copy)?;
-        } else {
-            candidate.install_loaded_document(path.clone(), copy)?;
-        }
-        if let Some(mesh) = &candidate.mesh {
-            SceneRenderer::validate_mesh(&self.device, mesh)?;
-        }
-        let mut gpu = SceneRenderer::new(
-            &self.device,
-            self.scene_size[0].max(1),
-            self.scene_size[1].max(1),
-        );
-        gpu.set_assets(
+        self.graphics.install(
             &self.device,
             &self.queue,
-            &candidate.placed_scenes(),
-            &candidate.editor.frame,
-        )?;
-        if let Some(mesh) = &candidate.mesh {
-            gpu.set_mesh(&self.device, mesh)?;
-        }
-        if append {
-            self.state.import_loaded_document(loaded)?;
-        } else {
-            self.state.install_loaded_document(path, loaded)?;
-        }
-        self.ui_renderer.update_egui_texture_from_wgpu_texture(
-            &self.device,
-            &gpu.view,
-            wgpu::FilterMode::Linear,
-            self.state.scene_texture,
-        );
-        self.scene = gpu;
-        self.uploaded_revision = self.state.mesh_revision;
-        Ok(())
+            &mut self.state,
+            path,
+            loaded,
+            append,
+        )
     }
     fn save_document(&mut self, save_as: bool) -> bool {
         if !self.state.editor.can_edit() {
@@ -861,77 +807,7 @@ impl NativeWindow {
             self.state.error = Some(error);
         }
         self.input
-            .handle_platform_output(&self.window, output.platform_output);
-        let pixels_per_point = output.pixels_per_point;
-        let limit = self.device.limits().max_texture_dimension_2d;
-        let width = (self.state.viewport.width() * pixels_per_point)
-            .round()
-            .clamp(1.0, limit as f32) as u32;
-        let height = (self.state.viewport.height() * pixels_per_point)
-            .round()
-            .clamp(1.0, limit as f32) as u32;
-        let resized = self.scene_size != [width, height];
-        if resized {
-            self.scene.resize(&self.device, width, height);
-        }
-        // Preflight expanded proxy buffers before updating imported geometry:
-        // either cache must retain the previous frame if this GPU cannot upload.
-        let upload_allowed = match self
-            .state
-            .mesh
-            .as_ref()
-            .map(|mesh| SceneRenderer::validate_mesh(&self.device, mesh))
-            .transpose()
-        {
-            Ok(_) => true,
-            Err(error) => {
-                self.state.error = Some(error);
-                false
-            }
-        };
-        if upload_allowed
-            && let Err(error) = self.scene.set_assets(
-                &self.device,
-                &self.queue,
-                &self.state.placed_scenes(),
-                &self.state.editor.frame,
-            )
-        {
-            self.state.asset_views = previous_assets;
-            for view in self.state.asset_views.values_mut() {
-                view.playback.playing = false;
-            }
-            let frames = self
-                .state
-                .asset_views
-                .iter()
-                .map(|(key, view)| (key.clone(), view.frame.clone()))
-                .collect();
-            let _ = self.state.editor.set_asset_frames(frames);
-            let _ = self.state.refresh_mesh();
-            self.state.error = Some(error);
-        }
-        if resized {
-            self.ui_renderer.update_egui_texture_from_wgpu_texture(
-                &self.device,
-                &self.scene.view,
-                wgpu::FilterMode::Linear,
-                self.state.scene_texture,
-            );
-            self.scene_size = [width, height];
-        }
-        if upload_allowed && self.uploaded_revision != self.state.mesh_revision {
-            let result = if let Some(mesh) = &self.state.mesh {
-                self.scene.set_mesh(&self.device, mesh)
-            } else {
-                self.scene.clear_mesh();
-                Ok(())
-            };
-            match result {
-                Ok(()) => self.uploaded_revision = self.state.mesh_revision,
-                Err(error) => self.state.error = Some(error),
-            }
-        }
+            .handle_platform_output(&self.window, std::mem::take(&mut output.platform_output));
         let title = self
             .state
             .save_path
@@ -943,89 +819,25 @@ impl NativeWindow {
             title,
             if self.state.is_dirty() { " •" } else { "" }
         ));
-        let jobs = ctx.tessellate(output.shapes, pixels_per_point);
-        for (id, deltas) in std::mem::take(&mut output.textures_delta.set) {
-            for delta in deltas {
-                self.ui_renderer
-                    .update_texture(&self.device, &self.queue, id, &delta);
-            }
-        }
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("workspace frame"),
-            });
-        self.scene.set_visible_objects(self.state.visible_objects());
-        self.scene.set_highlights(self.state.object_highlights());
-        self.scene
-            .set_edit_selection(&self.device, self.state.edit_selection());
-        self.scene.set_pixel_scale(pixels_per_point);
-        let gizmo = self
-            .state
-            .editor
-            .transform_gizmo_vertices(self.state.viewport, &self.state.camera, self.state.z_up)
-            .unwrap_or_else(|error| {
-                self.state.error = Some(error);
-                Vec::new()
-            });
-        self.scene.set_transform_gizmo(&self.queue, gizmo);
-        if let Err(error) = self.scene.render(
-            &self.queue,
-            &mut encoder,
-            &self.state.camera,
-            ViewportRenderOptions {
-                shading: self.state.shading,
-                xray: self.state.editor.xray_enabled(),
-                show_edges: self.state.show_edges,
-                show_grid: self.state.show_grid,
-                z_up: self.state.z_up,
-                background: crate::theme::Palette::new(
-                    self.state.resolved_theme(),
-                    self.state.accent_color,
-                )
-                .workbench_viewport,
+        self.graphics.paint(
+            FrameTarget {
+                device: &self.device,
+                queue: &self.queue,
+                view: &view,
+                size: [self.config.width, self.config.height],
             },
-        ) {
-            self.state.error = Some(error);
-        }
-        let screen = egui_wgpu::ScreenDescriptor {
-            size_in_pixels: [self.config.width, self.config.height],
-            pixels_per_point,
-        };
-        let buffers = self.ui_renderer.update_buffers(
-            &self.device,
-            &self.queue,
-            &mut encoder,
-            &jobs,
-            &screen,
+            &ctx,
+            &mut self.state,
+            &mut output,
+            previous_assets,
         );
-        {
-            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("egui composite"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    depth_slice: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
-            self.ui_renderer
-                .render(&mut pass.forget_lifetime(), &jobs, &screen);
-        }
-        self.queue
-            .submit(buffers.into_iter().chain(std::iter::once(encoder.finish())));
         self.window.pre_present_notify();
         self.queue.present(frame);
-        for id in std::mem::take(&mut output.textures_delta.free) {
-            self.ui_renderer.free_texture(&id);
-        }
+        self.graphics
+            .finish_frame(std::mem::take(&mut output.textures_delta.free));
         if reconfigure_after_present {
             self.resize();
         }

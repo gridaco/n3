@@ -77,7 +77,11 @@ separate from physical key events; a native key/text pair must not type twice.
 Native scroll, pinch, and twist arrive outside egui's normal pointer routing.
 [navigation_events](../../src/input/navigation_events.rs) represents those inputs with logical-point or wheel-line
 deltas, native pinch deltas, rotation degrees, modifiers, and scroll phases.
-The native window and documentation session call the same navigation router.
+The native window, browser host, and documentation session call the same
+navigation router. The browser adapter converts DOM wheel units and cumulative
+WebKit gestures before routing; the existing navigation scenario exercises those
+normalized events through `Session::navigation` without a separate guide or
+capture baseline.
 It respects pointer location, window focus, floating UI, open menus, a pending
 view pie, and active mouse gestures. Active editor pointer gestures and property
 edits exclude camera input; released transform previews allow navigation while
