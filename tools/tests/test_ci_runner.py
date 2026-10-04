@@ -101,12 +101,15 @@ class CIRunnerTests(unittest.TestCase):
         arguments = self.command(["ci"])
         script = arguments[arguments.index("-c") + 1]
         for command in (
-            "python3 tools/format_docs.py --check", "cargo fmt --check",
-            "cargo clippy --locked --all-targets -- -D warnings",
+            "python3 tools/format_docs.py --check", "cargo fmt --all --check",
+            "cargo clippy --locked --workspace --all-targets -- -D warnings",
             "python3 -m unittest discover -s tools/tests -p 'test_*.py'",
             "node --test tools/tests/web_wrapper.test.mjs",
             "python3 -m unittest discover -s tools/benchmark/tests -t . -p 'test_*.py'",
             "node --test tools/benchmark/tests/*.test.mjs",
+            "cargo test --locked -p executable-docs -p doc-example-config --all-targets",
+            "cargo test --locked -p executable-docs --doc",
+            "RUSTDOCFLAGS='-D warnings' cargo doc --locked -p executable-docs --no-deps",
             "cargo test --locked --features viewport-measure --lib measurement::",
             "cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize",
             "exec cargo test --locked",
@@ -133,6 +136,7 @@ class CIRunnerTests(unittest.TestCase):
                 self.assertIn("exec " + " ".join(selected) + "\n", script)
                 self.assertLess(script.index("python3 tools/ci_test_inventory.py"), script.index("exec cargo test"))
                 self.assertEqual(runner.CI_CHECKS_PREFIX in script, mode == "checks")
+                self.assertEqual(runner.DOC_FRAMEWORK_CHECKS in script, mode == "checks")
                 self.assertIn("LP_NATIVE_VECTOR_WIDTH=256", arguments)
                 self.assertIn("MESA_SHADER_CACHE_DISABLE=true", arguments)
 
@@ -156,7 +160,36 @@ class CIRunnerTests(unittest.TestCase):
                 result = subprocess.run(["/bin/sh", "-eu", "-c", runner.CI_PARTITION_SCRIPTS[mode]], cwd=self.root, env=environment, check=False)
                 self.assertEqual(result.returncode, 7)
                 calls = record.read_text().splitlines() if record.exists() else []
-                self.assertEqual(calls, ["fmt --check", "clippy --locked --all-targets -- -D warnings"] if mode == "checks" else [])
+                self.assertEqual(calls, ["fmt --all --check", "clippy --locked --workspace --all-targets -- -D warnings"] if mode == "checks" else [])
+
+    def test_documentation_framework_failure_stops_the_remaining_rust_gates(self):
+        commands = self.root / "commands"
+        commands.mkdir()
+        cargo = commands / "cargo"
+        cargo.write_text(
+            "#!/bin/sh\n"
+            "printf '%s\\n' \"$*\" >> \"$N3_TEST_RECORD\"\n"
+            "if [ \"$*\" = 'test --locked -p executable-docs -p doc-example-config --all-targets' ]; then\n"
+            "    exit 19\n"
+            "fi\n"
+        )
+        cargo.chmod(0o755)
+        for name in ("python3", "node"):
+            command = commands / name
+            command.write_text("#!/bin/sh\nexit 0\n")
+            command.chmod(0o755)
+        record = self.root / "cargo-calls.txt"
+        environment = {**os.environ, "PATH": f"{commands}:{os.environ['PATH']}", "N3_TEST_RECORD": str(record)}
+        for label, script in (("ci", runner.CI_SCRIPT), ("checks", runner.CI_PARTITION_SCRIPTS["checks"])):
+            with self.subTest(mode=label):
+                record.unlink(missing_ok=True)
+                result = subprocess.run(["/bin/sh", "-eu", "-c", script], cwd=self.root, env=environment, check=False)
+                self.assertEqual(result.returncode, 19)
+                self.assertEqual(record.read_text().splitlines(), [
+                    "fmt --all --check",
+                    "clippy --locked --workspace --all-targets -- -D warnings",
+                    "test --locked -p executable-docs -p doc-example-config --all-targets",
+                ])
 
     def test_environment_receipt_reports_only_architecture_libc_and_cpu_features(self):
         cpuinfo = """processor : 0

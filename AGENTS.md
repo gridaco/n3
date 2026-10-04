@@ -69,9 +69,13 @@ boundaries. The current Editor still depends on egui and is not a public kernel 
 
 ## Code organization
 
-Keep one application crate until a real consumer and a clear dependency boundary
-justify extraction. Prefer focused modules over speculative crates, public APIs,
-or generic frameworks.
+Keep N3 as one application crate. The workspace also maintains the portable
+`executable-docs` SDK in `crates/doc-harness` and its consumer examples in
+`crates/doc-example-config`; N3's documentation adapter is a real SDK consumer.
+This extraction is justified by a tested boundary between application replay and
+document composition/publication. It does not make the editor a public kernel.
+Prefer focused modules over further speculative crates or APIs. See
+[executable documents](docs/architecture/executable-documents.md) for this boundary.
 
 Read [platform boundaries and performance](docs/architecture/platform-boundaries.md)
 before changing host adapters or platform-dependent behavior. Share product
@@ -79,19 +83,21 @@ semantics, keep target selection at module boundaries, and preserve each host's
 execution policy. Browser constraints must not lower the primary native target's
 capabilities, performance policy, or verification baseline.
 
-| Location             | Responsibility                                                        |
-| -------------------- | --------------------------------------------------------------------- |
-| `src/model/`         | Authored documents, units, native text codec, geometry evaluation     |
-| `src/asset_io/`      | Format adapters, resource resolution, native document persistence     |
-| `src/scene/`         | Internal imported scene model, validation and pose evaluation         |
-| `src/scene_view.rs`  | Transient asset inspection and playback; separate from edit history   |
-| `src/editor/`        | Selection, edits, sessions, history, transform policies               |
-| `src/input/`         | Key mapping, semantic actions, pointer and navigation routing         |
-| `src/render/`        | Camera, wgpu rendering, derived visual feedback                       |
-| `src/ui/`            | Panels, controls, gizmo, rulers                                       |
-| `src/native.rs`      | Window lifecycle, native events, dialogs, filesystem effects          |
-| `src/settings/`      | Typed global preferences, validation, merge policy, storage interface |
-| `src/documentation/` | Headless replay, virtual input, annotations, capture, scenarios       |
+| Location                     | Responsibility                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| `src/model/`                 | Authored documents, units, native text codec, geometry evaluation             |
+| `src/asset_io/`              | Format adapters, resource resolution, native document persistence             |
+| `src/scene/`                 | Internal imported scene model, validation and pose evaluation                 |
+| `src/scene_view.rs`          | Transient asset inspection and playback; separate from edit history           |
+| `src/editor/`                | Selection, edits, sessions, history, transform policies                       |
+| `src/input/`                 | Key mapping, semantic actions, pointer and navigation routing                 |
+| `src/render/`                | Camera, wgpu rendering, derived visual feedback                               |
+| `src/ui/`                    | Panels, controls, gizmo, rulers                                               |
+| `src/native.rs`              | Window lifecycle, native events, dialogs, filesystem effects                  |
+| `src/settings/`              | Typed global preferences, validation, merge policy, storage interface         |
+| `src/documentation/`         | Headless replay, virtual input, annotations, capture, scenarios               |
+| `crates/doc-harness/`        | Portable document composition, evidence, audience exports, artifact lifecycle |
+| `crates/doc-example-config/` | Standalone CLI and library consumers of the documentation SDK                 |
 
 Keep code, identifiers, comments, tests, logs, and authored UI strings in English.
 Explain non-obvious behavior and platform limitations near the owning code.
@@ -118,10 +124,14 @@ Native and web share one feature UI and user guide. Follow the
 [shared product contract](docs/architecture/platform-boundaries.md#one-product-experience)
 for capability-based availability and the boundary with contributor documentation.
 
-Every guide feature owns one Rust scenario in `src/documentation/scenarios/` and
-one template in `docs/templates/`, registered in
-`src/documentation/features.rs`. Edit those sources; never hand-edit generated
-pages, media, or the manifest in `docs/guide/`.
+Every guide feature owns one Rust scenario in `src/documentation/scenarios/`
+and exactly one narrative source, selected in `src/documentation/features.rs`.
+Rust-authored guides compose their narrative in the scenario through the N3
+`Guide` adapter and register `template: None`; retained legacy features use one
+`docs/templates/*.md.in` template. `hand-tool` and `navigation` are Rust-authored.
+Do not keep a parallel template or generated-prose copy for an authored guide.
+Edit the registered source; never hand-edit pages, media, or the manifest in
+`docs/guide/`.
 
 - Assert actual behavior, including meaningful intermediate states for a gesture.
   Fixture setup may prepare state; an illustrated interaction must use production
@@ -129,8 +139,11 @@ pages, media, or the manifest in `docs/guide/`.
 - Bind labels and paths to witnessed controls. Bind callouts to live control IDs,
   not stale screen coordinates. Virtual input and annotations only paint; they
   must not alter focus, hover, selection, or document state.
-- Use `{{shortcut:semantic-id}}` for application shortcuts, `{{control:id}}` for
-  witnessed menu paths, and `{{key:Name}}` / `{{modifier:name}}` for literal
+- Rust-authored guides use the `Guide` adapter's typed control, shortcut, and
+  captured-resource handles. A presented label is not evidence that an action
+  ran; retain the actual replay and behavioral assertions.
+- In retained templates, use `{{shortcut:semantic-id}}` for application shortcuts,
+  `{{control:id}}` for witnessed menu paths, and `{{key:Name}}` / `{{modifier:name}}` for literal
   text-entry keys or physical gesture modifiers. Do not copy remappable keys
   into prose or scenario values. Replay actions with `Session::shortcut` and its
   held-key helpers; reserve raw keys for literal input or intentional ownership
@@ -146,6 +159,9 @@ pages, media, or the manifest in `docs/guide/`.
 
 The [pipeline contract](docs/architecture/documentation-pipeline.md) documents
 replay, timing, bindings, overlays, encoding limits, and authoring examples.
+`just docs build --out .cache/docs-candidate` runs one replay and writes fresh
+Reader and Contributor review trees. It does not accept a canonical baseline;
+`just docs check/update` retain their existing reader-guide roles.
 
 ## Iteration and verification
 
@@ -153,7 +169,8 @@ For an implementation change:
 
 1. Identify the owning model/input/UI boundary and any affected guide scenario.
 2. Make a focused change and add meaningful behavioral regressions where needed.
-   For visible interactions, update the owning scenario and template together.
+   For visible interactions, update the owning scenario and its registered
+   narrative together.
 3. If guide output intentionally changes, run `just docs update`, then inspect the
    generated text, stills, and animation playback before accepting the baseline.
    Use the native host renderer; local development must not require CI infrastructure.
@@ -167,7 +184,8 @@ Contributor setup is `just setup` (Node.js 24/npm with `npx`, a warmed cache for
 the Oxfmt version pinned in `tools/format_docs.py`, and a repository-local
 pre-push hook). `just fmt` formats Rust and authored docs;
 `TODO.md` is excluded. Generated guide files are excluded from formatting: format
-their templates, then regenerate through the ordinary pipeline when needed.
+the authored Rust scenario or retained template, then regenerate through the
+ordinary pipeline when its output intentionally changes.
 The pre-push hook verifies a clean current `HEAD`, not arbitrary refs or dirty
 working content. `just test`, `just docs update/check`, and `just verify` run
 natively, as does the pre-push hook. Developer experience comes first: never make

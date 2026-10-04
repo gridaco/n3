@@ -34,7 +34,8 @@ that contain no useful reasoning do not need an RFC.
 
 ## Index
 
-| RFC                                    | Status   | Topic                                                                               |
-| -------------------------------------- | -------- | ----------------------------------------------------------------------------------- |
-| [0001](0001-paired-selection-in-2d.md) | Deferred | Pair corresponding front/back vertices during selection in an aligned 2D view.      |
-| [0002](0002-authored-scenes.md)        | Draft    | N3-owned scenes, editor/history boundaries, migration, and interchange feasibility. |
+| RFC                                                | Status              | Topic                                                                                      |
+| -------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| [0001](0001-paired-selection-in-2d.md)             | Deferred            | Pair corresponding front/back vertices during selection in an aligned 2D view.             |
+| [0002](0002-authored-scenes.md)                    | Draft               | N3-owned scenes, editor/history boundaries, migration, and interchange feasibility.        |
+| [0003](0003-executable-documentation-framework.md) | Implemented locally | A reusable Rust-first documentation SDK, evidence contract, and staged extraction from N3. |

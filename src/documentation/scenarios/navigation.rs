@@ -1,5 +1,6 @@
-use super::{Result, Session};
+use super::{Result, Session, guide::Guide};
 use crate::{controls::Control, pointer_policy::DRAG_THRESHOLD, scroll_input::ScrollPhase};
+use executable_docs::prose;
 use glam::{Mat4, Vec2, Vec3};
 use std::time::Duration;
 
@@ -107,6 +108,42 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.load_fixture("bracket.obj")?;
     s.settle()?;
     s.witness(Control::Viewport)?;
+    let mut guide = Guide::new("navigation", "Moving around")?;
+    let viewport = guide.control(s, Control::Viewport)?;
+    let pan = guide.shortcut("navigation.pan")?;
+    let orbit = guide.shortcut("navigation.orbit")?;
+    let shift = guide.modifier("shift")?;
+    let command = guide.modifier("command")?;
+    let mut mouse_orbit = None;
+    guide.doc.markdown_parts(prose![
+        r#"# Moving around
+
+Move the pointer over "#,
+        &viewport,
+        r#":
+
+- Drag the **left mouse button** to draw a selection box. Selection updates when
+  you release; object bounds only need to intersect the box. With a
+  [transform axis lock](numeric-transforms.md), it previews the chosen Move,
+  Rotate, or Scale operation instead.
+- Drag the **middle mouse button** to pan.
+- Drag the **right mouse button** to orbit.
+- Hold "#,
+        &pan,
+        r#" with a left-button drag to [pan](hand-tool.md), or hold
+  "#,
+        &orbit,
+        r#" with a left-button drag to [orbit](orbit-tool.md).
+
+These bindings work in object and vertex edit modes with every tool. Drag a
+transform handle when you want to transform a selection. See
+[selecting objects](object-feedback.md) and [editing](editing.md).
+Apply or cancel a pending [transform session](numeric-transforms.md) before camera navigation
+or background selection.
+
+"#,
+    ])?;
+
     let framed = matrix(s);
     let start = s.state.viewport_ui_rect.left_bottom() + egui::vec2(55.0, -75.0);
     drag_mouse(
@@ -239,7 +276,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             "A real held right-button drag orbits in object and vertex modes",
         )?;
         if !edit_mode {
-            s.capture_tutorial("navigation-mouse-orbit")?;
+            mouse_orbit = Some(guide.capture_tutorial(s, "navigation-mouse-orbit")?);
         }
         s.frame(
             vec![button(end, egui::PointerButton::Secondary, false)],
@@ -290,7 +327,53 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     s.witness(Control::ViewportPreferences)?;
     s.hover(Control::ViewportFrame)?;
     s.frame(Vec::new(), crate::doc_input::CUE_LIFETIME)?;
-    s.capture_tutorial("navigation-context-menu")?;
+    let context_menu = guide.capture_tutorial(s, "navigation-context-menu")?;
+    let mouse_orbit = mouse_orbit.ok_or("Object-mode orbit illustration was not captured")?;
+    let viewport_frame = guide.control(s, Control::ViewportFrame)?;
+    let viewport_preferences = guide.control(s, Control::ViewportPreferences)?;
+    let threshold = guide.doc.expect_eq(
+        "mouse-drag-threshold",
+        DRAG_THRESHOLD.to_string(),
+        "4".to_owned(),
+    )?;
+    guide.doc.markdown_parts(prose![
+        mouse_orbit.image("navigation mouse orbit"),
+        r#"
+
+Press and release the right button within **"#,
+        &threshold,
+        r#"
+logical pixels** to open the viewport menu without moving the camera. It offers
+"#,
+        &viewport_frame,
+        r#" and "#,
+        &viewport_preferences,
+        r#". Once a right
+drag crosses that distance, releasing opens no menu, even if the pointer has
+returned to its starting point.
+Context menus use the same flat rows and hover feedback as dropdown menus.
+Their shortcut hints appear beside the commands, including selection, framing,
+and Preferences. Commands become available as the selection and editing mode change.
+
+"#,
+        context_menu.image("navigation context menu"),
+        r#"
+
+In **2D mode**, **two-finger scrolling pans** and keeps the 2D ruler visible in a
+settled axis view. Hold "#,
+        &orbit,
+        r#" and left-drag to orbit into 3D.
+On a trackpad, this is a click-drag while "#,
+        &orbit,
+        r#" is held.
+"#,
+        &shift,
+        r#" + two-finger scrolling pans in either mode.
+
+"#,
+    ])?;
+    guide.doc.note_on(&context_menu, "The threshold value is checked against the production pointer policy. The scenario exercises motion at the threshold and a drag that crosses it, then returns before release.")?;
+
     s.click(Control::ViewportFrame)?;
     s.require(
         s.trace.get(Control::ViewportFrame).is_err() && matrix(s).abs_diff_eq(framed, 1e-5),
@@ -431,7 +514,50 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
                     panned(before, screen_geometry(s)),
                     "The shared native scroll event pans the viewport and supplies its tutorial cue in the same replay step",
                 )?;
-                s.capture_tutorial("navigation-aligned-trackpad")?;
+                let aligned_trackpad = guide.capture_tutorial(s, "navigation-aligned-trackpad")?;
+                let frame_key = guide.shortcut("view.frame")?;
+                let frame = guide.control(s, Control::Frame)?;
+                let view = guide.control(s, Control::ViewMenu)?;
+                guide.doc.markdown_parts(prose![
+                    aligned_trackpad.image("navigation aligned trackpad"),
+                    r#"
+
+In **3D mode**, two-finger scrolling orbits and "#,
+                    &shift,
+                    r#" with scrolling
+pans. This applies even if the camera is still perfectly aligned or
+orthographic. Choose the mode with the [gizmo's 2D/3D tabs](gizmo.md); clicking
+an axis or choosing an axis preset enters 2D.
+The 3D tab restores your previous 3D orientation and perspective by default,
+keeping the current pan and zoom. Manual orbit continues from the visible
+angle; it does not perform that recall. The gizmo preferences configure the
+3D tab's return behavior.
+
+Pinching and a mouse wheel zoom the viewport. In **2D mode**, zoom keeps the point beneath
+the pointer in place. "#,
+                    &command,
+                    r#" + two-finger scrolling also zooms
+around the pointer; ordinary two-finger scrolling pans. In **3D mode**, zoom
+stays centered on the camera target.
+
+A two-finger twist is ignored in **2D**, so a
+twist during panning or pinching cannot switch the view to 3D. In **3D**, twisting
+rotates the view. Panning
+and zooming preserve the viewing direction. These trackpad bindings work in
+object and vertex edit modes. Twisting is available only when the host exposes
+rotation gestures.
+
+1. Press "#,
+                    &frame_key,
+                    r#" or choose "#,
+                    &frame,
+                    r#" in "#,
+                    &view,
+                    r#" to fit and recenter
+   the model and restore its default viewing angle.
+
+"#,
+                ])?;
             }
             // Replay rotation deltas between native scroll phases. This checks
             // the adapter policy, not macOS recognition of physical gestures.
@@ -653,7 +779,33 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         !open && s.shortcut_is_down("view.frame")? && matrix(s).abs_diff_eq(framed, 1e-5),
         "Pressing the Frame all shortcut invokes Frame and remains observable while held",
     )?;
-    s.capture_tutorial("navigation-frame-key")?;
+    let frame_image = guide.capture_tutorial(s, "navigation-frame-key")?;
+    let view = guide.control(s, Control::ViewMenu)?;
+    let view_top = guide.control(s, Control::ViewTop)?;
+    let view_front = guide.control(s, Control::ViewFront)?;
+    let view_right = guide.control(s, Control::ViewRight)?;
+    let view_perspective = guide.control(s, Control::ViewPerspective)?;
+    guide.doc.markdown_parts(prose![
+        frame_image.image("navigation frame key"),
+        r#"
+
+2. Open "#,
+        &view,
+        r#" and point at "#,
+        &view_top,
+        r#" to find a preset.
+   Choose it, "#,
+        &view_front,
+        r#", "#,
+        &view_right,
+        r#", or
+   "#,
+        &view_perspective,
+        r#" to change the view with the current animation settings.
+
+"#,
+    ])?;
+
     s.require(
         s.shortcut_is_down("view.frame")? && matrix(s).abs_diff_eq(framed, 1e-5),
         "The keyboard tutorial capture preserves the held Frame all shortcut and the framed view",
@@ -696,7 +848,52 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
             && matrix(s).abs_diff_eq(before_menu, 1e-5),
         "Hovering Top keeps the real View popup open without changing the camera",
     )?;
-    s.capture_tutorial("navigation-view-menu")?;
+    let view_menu = guide.capture_tutorial(s, "navigation-view-menu")?;
+    let projection = guide.control(s, Control::Projection)?;
+    let projection_key = guide.shortcut("view.projection")?;
+    let edges = guide.control(s, Control::Edges)?;
+    let grid = guide.control(s, Control::Grid)?;
+    let preferences = guide.control(s, Control::Preferences)?;
+    let precise_scroll = guide.control(s, Control::PreciseScroll)?;
+    guide.doc.markdown_parts(prose![
+        view_menu.image("navigation view menu"),
+        r#"
+
+For the separate top-row and numpad bindings, orbit steps, and fitting a
+selection, see [number keys and fitting the view](view-keys.md).
+
+Click the "#,
+        &projection,
+        r#" cube button beside the gizmo's 2D/3D tabs, or
+press "#,
+        &projection_key,
+        r#" to switch between perspective and orthographic
+projection. The icon shows the current projection; see the [gizmo guide](gizmo.md#projection)
+for both states. "#,
+        &edges,
+        r#" and "#,
+        &grid,
+        r#" checkboxes control the
+polygon boundaries and ground grid.
+
+Open "#,
+        &preferences,
+        r#" to find "#,
+        &precise_scroll,
+        r#".
+Enable it to make unmodified precise scrolling zoom in 3D mode. In 2D,
+scrolling still pans, with or without "#,
+        &shift,
+        r#"; hold
+"#,
+        &command,
+        r#" to zoom.
+
+3. Use the front view to inspect the model straight on.
+
+"#,
+    ])?;
+
     s.click(Control::ViewPerspective)?;
     s.frame(
         Vec::new(),
@@ -712,9 +909,16 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
     complete_view(s, Control::ViewFront, Some(Vec3::Z))?;
     s.settle()?;
     s.witness(Control::Projection)?;
-    s.capture_image("navigation")?;
+    let front_image = guide.capture_image(s, "navigation")?;
+    guide.doc.markdown_parts(prose![
+        front_image.image("navigation"),
+        r#"
+"#,
+    ])?;
+
     verify_planar_zoom(s)?;
-    verify_browser_navigation(s)
+    verify_browser_navigation(s)?;
+    guide.finish(s)
 }
 
 /// Exercise pointer anchoring through the native/replay funnel without adding

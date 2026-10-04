@@ -1,11 +1,13 @@
 # Developing N3
 
 The application is a single Rust package named `n3`, with private implementation
-modules. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
+modules. The workspace also maintains the portable `executable-docs` SDK and its
+consumer examples under `crates/`; the root package remains the default Cargo
+target. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
 guidance. [Testing](../TESTING.md) indexes verification workflows, reference suites,
 and benchmark resources. Start at [the architecture map](architecture/architecture.md) and
 [the milestone review](architecture/milestone-review.md). The old viewer-only
-spike has been removed; the root package is the maintained source tree.
+spike has been removed; the root package holds the maintained application.
 
 ## Local commands
 
@@ -408,10 +410,19 @@ runs them directly. The CI workflow becomes live when the repository is pushed.
 ## Documentation is executable
 
 Every user-guide feature has one registered Rust scenario under
-`src/documentation/scenarios/` and one Markdown template in `docs/templates/`.
-Registration lives in `src/documentation/features.rs`. User-facing state and
-behavior come from the real workspace, semantic commands, native-navigation
-adapter, and scene renderer. Assertions verify the intended outcome.
+`src/documentation/scenarios/` and exactly one narrative source. Registration
+lives in `src/documentation/features.rs`: `template: None` means the scenario
+authors the guide through the N3 `Guide` adapter; `Some(...)` selects its retained
+Markdown template under `docs/templates/`. The `hand-tool` and `navigation`
+features now author their prose in Rust alongside the replay. The remaining
+26 features still use templates. Do not maintain both forms for one feature.
+
+User-facing state and behavior come from the real workspace, semantic commands,
+navigation adapters, and scene renderer. Assertions verify the intended outcome.
+The portable SDK owns document composition, frozen evidence, and shared artifact
+publication; it does not own N3's input or renderer. See
+[executable documents](architecture/executable-documents.md) for the maintained
+boundary and [the SDK README](../crates/doc-harness/README.md) for its API.
 
 ```sh
 just docs
@@ -430,12 +441,26 @@ just docs serve --no-open --port 3030
 
 The preview reads the checked-in Markdown and WebP media without rebuilding the
 application, running GPU captures, or changing baselines. Run `just docs update`
-in another terminal after changing a scenario or template, then refresh the
-browser. `just docs update` regenerates through the native renderer;
+in another terminal after intentionally changing the scenario's narrative or
+its retained template, then refresh the browser. `just docs update` regenerates through the native renderer;
 `just docs check` verifies there without writing. Neither requires Docker.
 The small preview uses a vendored Docsify runtime, so it needs no network access,
 Node installation, or package-manager setup. It is a local reading surface, not
 a choice of framework for the eventual documentation website.
+
+To inspect both audiences before updating the canonical baseline, build a fresh
+candidate in ignored local storage:
+
+```sh
+just docs build --out .cache/docs-candidate
+```
+
+This performs one complete replay, then writes `reader/` and `contributor/`
+subtrees from the same completed sessions and captured bytes. The two
+Rust-authored guides add contributor notes; retained template pages are identical
+across audiences. The destination must be new and separate from `docs/guide` and
+`docs/baselines`. This command does not accept a baseline or change the roles of
+`just docs check/update`.
 
 Review changed text, stills, and animated clips before accepting regenerated
 outputs. `check` does not rewrite or approve anything. The normal test suite
@@ -443,7 +468,13 @@ replays all scenarios and checks the complete generated tree, including animatio
 bytes and the manifest. Missing, orphaned, duplicate, and unreferenced artifacts
 fail. A generation failure writes no new baseline.
 
-Templates render application shortcuts with `{{shortcut:semantic-id}}` as
+Rust-authored guides take witnessed controls and canonical shortcut labels from
+the `Guide` adapter, and insert typed handles into their authored Markdown.
+Captures remain `Session` operations; the adapter registers their existing bytes
+without replaying the action or advancing the clock. The current migrations keep
+the published guide text, media paths, media bytes, and `manifest.txt` format.
+
+Retained templates render application shortcuts with `{{shortcut:semantic-id}}` as
 `<kbd>` keys from the canonical input bindings, and witnessed menu paths with
 `{{control:id}}` as inline `<code>`. Literal text-entry keys and gesture modifiers
 use `{{key:Name}}` and `{{modifier:name}}`. Do not copy remappable keys into prose
@@ -469,6 +500,15 @@ Finder delivery, macOS dialogs, or artistic approval.
 `just docs-preview-test` checks the preview server's routes and browser asset
 contract using Python's standard library. It also runs as part of `just verify`;
 it does not replace the Rust replay and exact artifact checks.
+
+For focused framework work, run `just doc-framework-test`. It checks the maintained
+SDK and the config CLI and serde_json consumers without starting N3's renderer.
+This focused gate also runs inside `just verify`.
+The [consumer README](../crates/doc-example-config/README.md) documents direct Cargo
+commands, package-local baselines, and candidate review. These examples exercise
+two integration shapes; the serde_json example is our use of an existing library,
+not adoption by its maintainers. N3 adapter or scenario changes still require
+the native replay and `just verify`.
 
 ## User settings
 

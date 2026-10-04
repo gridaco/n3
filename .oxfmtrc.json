@@ -6,6 +6,8 @@
     "/TODO.md",
     "/Cargo.lock",
     "/docs/guide/**",
+    "/crates/doc-example-config/baseline/**",
+    "/crates/doc-harness/docs/guide/**",
     "/docs/preview/vendor/**",
     "/vendor/**",
     "/examples/**",
