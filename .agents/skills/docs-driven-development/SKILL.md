@@ -17,17 +17,19 @@ user, maintaining an existing documented feature, or improving the harness.
 An internal refactor need not invent a new tutorial. Existing behavioral and
 unit tests still matter, particularly for cases a user guide should not enumerate.
 
-Follow [AGENTS.md](../../../AGENTS.md). Read the relevant feature's template and
-scenario before changing its behavior. Consult the
+Follow [AGENTS.md](../../../AGENTS.md). Read the relevant feature's scenario and
+its registered narrative source before changing its behavior. Consult the
 [pipeline contract](../../../docs/architecture/documentation-pipeline.md) for
-current APIs, capture defaults, encoding limits, and examples. Do not duplicate
-that technical manual in this skill.
+capture defaults, encoding limits, and examples, and the
+[executable document boundary](../../../docs/architecture/executable-documents.md)
+for the maintained SDK and N3 adapter. This skill governs N3's workflow; the
+portable SDK does not require it. Do not duplicate the API manuals here.
 
 ## The development and feedback loop
 
 1. **Describe the experience.** Start from what the user wants to do, what they
    act on, what feedback they see, and how they finish or recover. Draft or adjust
-   the owning user-guide template before or alongside implementation. Write in
+   the owning user-guide narrative before or alongside implementation. Write in
    the user's vocabulary; implementation notes belong in architecture docs.
 2. **Make the important promises executable.** Extend the matching scenario with
    meaningful outcomes. For a regression, reproduce the failure before fixing it
@@ -62,33 +64,47 @@ its user explanation and executable evidence land with its implementation.
 
 ## Sources of truth
 
-Each current guide feature has one template, one scenario, and one registry entry:
+Each guide feature has one scenario, one registry entry, and exactly one narrative
+source. `hand-tool` and `navigation` author their narrative in Rust through the
+N3 `Guide` adapter and register `template: None`. Other features retain their
+registered templates. Do not keep both prose forms for one feature.
 
-| Source                                                               | Owns                                               |
-| -------------------------------------------------------------------- | -------------------------------------------------- |
-| [docs/templates](../../../docs/templates/)                           | User narrative and semantic bindings               |
-| [src/documentation/scenarios](../../../src/documentation/scenarios/) | Real replay and behavioral assertions              |
-| [features.rs](../../../src/documentation/features.rs)                | Feature registration                               |
-| [input/bindings.rs](../../../src/input/bindings.rs)                  | Production key bindings, labels, and replay inputs |
-| [ui/controls.rs](../../../src/ui/controls.rs)                        | Control identities and witnessed UI names/paths    |
-| [docs/guide](../../../docs/guide/)                                   | Generated user pages, media, and evidence manifest |
+| Source                                                               | Owns                                                  |
+| -------------------------------------------------------------------- | ----------------------------------------------------- |
+| [docs/templates](../../../docs/templates/)                           | Retained legacy narratives and semantic bindings      |
+| [src/documentation/scenarios](../../../src/documentation/scenarios/) | Real replay, assertions, and Rust-authored narratives |
+| [features.rs](../../../src/documentation/features.rs)                | Feature registration and narrative-source selection   |
+| [input/bindings.rs](../../../src/input/bindings.rs)                  | Production key bindings, labels, and replay inputs    |
+| [ui/controls.rs](../../../src/ui/controls.rs)                        | Control identities and witnessed UI names/paths       |
+| [docs/guide](../../../docs/guide/)                                   | Generated user pages, media, and evidence manifest    |
 
 Edit the sources, never the generated guide or its media by hand. The browser
 preview displays these same files; it does not own another content tree or
 approve a baseline.
+For paired Reader and Contributor review, `just docs build --out .cache/docs-candidate`
+captures one replay into a fresh candidate tree without accepting the baseline.
 
 `just fmt-docs` formats authored Markdown and `.md.in` templates through the
 version-pinned `tools/format_docs.py` wrapper on the native host. It needs
 Node.js/npm with `npx` there. The wrapper checks that all template bindings keep
 their order before writing any template.
-Generated guides are excluded; after a template formatting change, regenerate
-with `just docs update` and review the resulting text through the same pipeline.
+Rust-authored narratives follow Rust formatting. Generated guides are excluded;
+when formatting changes narrative output, regenerate with `just docs update` and
+review the resulting text through the same pipeline.
 
 Keep the audience boundary explicit. Repository-owned, GitHub-hosted documents
 such as `TODO.md`, contributor instructions, and engineering/research notes may
 link to user docs. The user guide and its navigation must never link back to
 those documents. A shared directory does not imply a shared audience; keep
-planning and contributor references out of templates and generated guide indexes.
+planning and contributor references out of reader narratives and generated guide indexes.
+
+Rust-authored guides use typed control, shortcut, and media handles from `Guide`.
+Labels come from witnessed controls and canonical bindings; captures still run
+through `Session`. A label or resource handle does not replace a meaningful
+behavioral assertion. Keep the prose beside the replay and use the adapter's
+finish step so registered and captured evidence stay accountable.
+
+For retained templates:
 
 - Use `{{shortcut:selection.duplicate}}` for an application shortcut. The binding
   registry supplies the `<kbd>` keys. Replay it with `Session::shortcut`, or
@@ -109,7 +125,7 @@ A documented contract must not silently drift. Preserve failures for violated
 assertions, missing or unwitnessed controls, unknown bindings, incorrect media
 kinds, missing or unreferenced captures, changed output, and orphaned artifacts.
 Retiring a feature means explicitly reconciling its implementation, registry,
-scenario, template, references, and generated artifacts.
+scenario, narrative source, references, and generated artifacts.
 
 Treat a regression that escapes an intended assertion as a coverage problem to
 repair. A page's existence does not prove every sentence or every possible
@@ -137,6 +153,8 @@ it does not establish cross-renderer pixel equivalence. Use `just test`
 for the full native suite and `just test-metal` for focused capture checks.
 For skill or hand-authored contributor-doc changes alone, validate instructions
 and links; unchanged app/media output does not require regeneration.
+For portable framework changes, `just doc-framework-test` provides focused SDK
+and consumer checks; N3 adapter changes still require native replay and `just verify`.
 
 ## Evolve the harness when the user story needs it
 

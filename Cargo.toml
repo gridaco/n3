@@ -5,6 +5,11 @@ edition = "2024"
 rust-version = "1.95"
 publish = false
 
+[workspace]
+members = ["crates/doc-harness", "crates/doc-example-config"]
+default-members = ["."]
+resolver = "3"
+
 [features]
 # Contributor-only instrumentation; normal builds contain no clocks or recorder.
 viewport-measure = []
@@ -48,6 +53,7 @@ wgpu = "30.0.1"
 winit = "=0.30.13"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+executable-docs = { path = "crates/doc-harness" }
 alacritty_terminal = "=0.26.0"
 egui-winit = { version = "=0.36.2", default-features = false, features = [
   "clipboard",

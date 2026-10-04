@@ -650,6 +650,9 @@ fn failed_scenario_cannot_update_any_existing_artifact() {
             .as_nanos()
     ));
     std::fs::create_dir(&dir).unwrap();
+    // macOS's system temp path traverses /var -> /private/var. Resolve this
+    // test-owned directory before exercising the strict no-symlink lifecycle.
+    let dir = dir.canonicalize().unwrap();
     std::fs::write(dir.join("gizmo.md"), "previous verified guide").unwrap();
     let before = read_tree(&dir).unwrap();
     let result = execute("update", &dir, || {

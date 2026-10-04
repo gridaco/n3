@@ -19,7 +19,7 @@ repository's pre-push hook. The optional CI container supplies Node. Run
 Keep changes focused and describe the behavior they add or fix. For implementation
 changes, run `just verify` and report any device interactions that still
 need manual validation. User-visible changes should update their owning guide
-scenario and template, with generated media reviewed alongside the code.
+scenario and registered narrative, with generated media reviewed alongside the code.
 
 The pre-push hook requires a clean checkout and pushed commits matching `HEAD`,
 then runs `just verify`. It never stages, formats, commits, or pushes for you.

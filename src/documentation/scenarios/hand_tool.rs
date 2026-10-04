@@ -1,5 +1,7 @@
-use super::{Result, Session, pointer};
+use super::{Result, Session, guide::Guide, pointer};
 use crate::{controls::Control, doc_harness::ClipSpec, editor::Tool};
+use executable_docs::Resource;
+use executable_docs::prose;
 use glam::{Vec2, Vec3};
 use std::time::Duration;
 
@@ -88,7 +90,7 @@ fn existing_gesture_keeps_priority(
     )
 }
 
-fn animated_hand_pan(s: &mut Session<'_>) -> Result<()> {
+fn animated_hand_pan(s: &mut Session<'_>, guide: &mut Guide) -> Result<Resource> {
     s.click(Control::ToolMove)?;
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
     prepare_selection(s, false)?;
@@ -97,7 +99,7 @@ fn animated_hand_pan(s: &mut Session<'_>) -> Result<()> {
     let before = geometry(s);
     let start = s.state.viewport.center() + egui::vec2(-45.0, 25.0);
     s.frame(vec![egui::Event::PointerMoved(start)], Duration::ZERO)?;
-    s.capture_clip("hand-tool-pan-and-release", ClipSpec::default(), |s| {
+    let clip = guide.capture_clip(s, "hand-tool-pan-and-release", ClipSpec::default(), |s| {
         s.callout(Control::ToolMove, &format!("Hold {} to pan without changing tools.", s.shortcut_label("navigation.pan")?))?;
         s.wait(Duration::from_millis(500))?;
         s.shortcut_down("navigation.pan")?;
@@ -136,13 +138,17 @@ fn animated_hand_pan(s: &mut Session<'_>) -> Result<()> {
         "The completed hand clip preserves geometry and selection and releases every gesture",
     )?;
     s.click_path(&[Control::N3Menu, Control::ViewMenu, Control::Frame])?;
-    Ok(())
+    Ok(clip)
 }
 
-pub fn run(s: &mut Session<'_>) -> Result<()> {
-    s.load_fixture("cube-quads.obj")?;
-    s.witness(Control::Viewport)?;
-    animated_hand_pan(s)?;
+// Cover every tool/mode and interruption without making that test matrix dictate
+// the order of the reader's explanation. Captures still use the original frames.
+fn verify_modes_and_interruptions(
+    s: &mut Session<'_>,
+    guide: &mut Guide,
+) -> Result<(Resource, Resource)> {
+    let mut ready = None;
+    let mut drag = None;
     let document = s.state.editor.document.clone();
     let dirty = s.state.is_dirty();
     for edit_mode in [false, true] {
@@ -177,7 +183,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
                 "Holding the hand-tool key shows an open hand over the viewport without changing the persistent tool or camera",
             )?;
             if !edit_mode && tool == Tool::View {
-                s.capture_tutorial("hand-tool-ready")?;
+                ready = Some(guide.capture_tutorial(s, "hand-tool-ready")?);
             }
             s.frame(vec![pointer(start, true)], Duration::ZERO)?;
             let end = start + egui::vec2(38.0, -24.0);
@@ -199,7 +205,7 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
                 "The hand-tool key with a primary drag shows a closed hand and pans with every modeling tool and both modes without rotating, zooming, editing, or changing selection",
             )?;
             if !edit_mode && tool == Tool::View {
-                s.capture_tutorial("hand-tool-drag")?;
+                drag = Some(guide.capture_tutorial(s, "hand-tool-drag")?);
             }
             let held_pose = s.state.camera.view_projection(s.state.aspect());
             s.shortcut_up("navigation.pan")?;
@@ -275,5 +281,70 @@ pub fn run(s: &mut Session<'_>) -> Result<()> {
         "Returning focus does not resume the hand pan or turn the old pointer release into selection",
     )?;
 
-    Ok(())
+    Ok((
+        ready.ok_or("Object-mode hand-ready illustration was not captured")?,
+        drag.ok_or("Object-mode hand-drag illustration was not captured")?,
+    ))
+}
+
+pub fn run(s: &mut Session<'_>) -> Result<()> {
+    s.load_fixture("cube-quads.obj")?;
+    s.witness(Control::Viewport)?;
+    let mut guide = Guide::new("hand-tool", "Panning with the hand tool")?;
+    let viewport = guide.control(s, Control::Viewport)?;
+    let pan = guide.shortcut("navigation.pan")?;
+    let orbit = guide.shortcut("navigation.orbit")?;
+    guide.doc.markdown_parts(prose!(
+        "# Panning with the hand tool
+
+Move the pointer over {viewport} and hold {pan}.
+The open-hand cursor shows that you can pan without changing your selected
+tool. This works in object and vertex edit modes with View, Move, Rotate,
+or Scale selected.
+
+",
+        viewport = &viewport,
+        pan = &pan,
+    )?)?;
+    let clip = animated_hand_pan(s, &mut guide)?;
+    let (ready, drag) = verify_modes_and_interruptions(s, &mut guide)?;
+    guide.doc.markdown_parts(prose!(
+        "{ready}
+
+Keep {pan} held and click-drag with the left mouse button or
+trackpad. The hand closes while you drag, and the view moves without rotating
+or zooming. Your geometry and selection stay unchanged.
+
+{drag}
+
+This walkthrough shows {pan} held during the pan, then released while the pointer keeps moving.
+
+{clip}
+
+Release {pan} to return to your previous tool. Panning stops
+immediately, even if the mouse button is still down; its later release does
+not select anything.
+
+Press {pan} before starting the drag. A selection box or transform already in
+progress keeps control if {pan} is pressed afterwards. Apply or cancel a
+pending [Move session](axis-locks.md) before using the hand tool, even between
+drag releases. Text fields and popups
+keep their keyboard input, and leaving the application clears the held hand
+tool. Two-finger scrolling, pinching, and twisting retain their usual behavior.
+
+Hold {orbit} instead to [orbit with the left button](orbit-tool.md).
+{pan} takes precedence if both modifiers are held before a drag. Once a drag
+starts, another modifier cannot change its action.
+
+See [navigation](navigation.md) or [editing geometry](editing.md).
+[Back to guide](README.md).
+",
+        ready = ready.image("hand tool ready"),
+        drag = drag.image("hand tool drag"),
+        clip = clip.image("hand tool pan and release"),
+        pan = &pan,
+        orbit = &orbit,
+    )?)?;
+    guide.doc.note_on(&clip, "The sampled replay verifies held input, an intermediate pan, release, and continued pointer motion. It exercises production routing; physical trackpad recognition is a separate native-device check.")?;
+    guide.finish(s)
 }

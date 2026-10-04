@@ -478,6 +478,10 @@ mod tests {
         ));
         let canonical = guide("macos-metal");
         let generated = guide(PROFILE);
+        // Resolve the test-owned temp root; production publication still rejects
+        // symlink components, including macOS's /var alias.
+        std::fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
         artifacts::publish(&root.join("docs/guide"), &canonical).unwrap();
         assert!(
             run("check", &root, &canonical, &generated)

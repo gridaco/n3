@@ -157,13 +157,13 @@ fmt: fmt-rust fmt-docs
 
 # Format Rust source.
 fmt-rust:
-    cargo fmt
+    cargo fmt --all
 
 # Check all supported formatting without changing files.
 fmt-check: fmt-rust-check fmt-docs-check
 
 fmt-rust-check:
-    cargo fmt --check
+    cargo fmt --all --check
 
 # Format authored sources; generated guides remain owned by their pipeline.
 fmt-docs:
@@ -172,13 +172,20 @@ fmt-docs:
 fmt-docs-check:
     python3 tools/format_docs.py --check
 
-# Check all targets with warnings denied.
+# Check every workspace package and target with warnings denied.
 lint:
-    cargo clippy --locked --all-targets -- -D warnings
+    cargo clippy --locked --workspace --all-targets -- -D warnings
 
 # Run the complete suite, including exact docs replay, on the native host.
 test *args:
     cargo test --locked "$@"
+
+# Verify the maintained documentation SDK, consumers, examples, and exact baselines.
+# Default application build/run/test routing remains on N3.
+doc-framework-test:
+    cargo test --locked -p executable-docs -p doc-example-config --all-targets
+    cargo test --locked -p executable-docs --doc
+    RUSTDOCFLAGS='-D warnings' cargo doc --locked -p executable-docs --no-deps
 
 # Open the local guide preview, check it, or intentionally regenerate it.
 docs mode="serve" *args:
@@ -192,9 +199,10 @@ docs mode="serve" *args:
                 exit 2
             fi
             ;;
-        *) echo 'Usage: just docs [serve [--no-open] [--port PORT] | check | update]' >&2; exit 2 ;;
+        build) ;;
+        *) echo 'Usage: just docs [serve [--no-open] [--port PORT] | check | update | build --out PATH]' >&2; exit 2 ;;
     esac
-    exec cargo run --locked -- --docs "$1"
+    exec cargo run --locked -- --docs "$@"
 
 # Test the local preview server without a browser or GPU.
 docs-preview-test:
@@ -238,4 +246,4 @@ test-metal:
     cargo test --locked documentation::capture::tests::
 
 # Native development and pre-push checks. CI infrastructure is opt-in.
-verify: fmt-check lint tools-test test benchmark-rust-test
+verify: fmt-check lint tools-test doc-framework-test test benchmark-rust-test

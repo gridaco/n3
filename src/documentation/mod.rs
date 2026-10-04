@@ -12,10 +12,11 @@ pub(crate) mod animation;
 mod artifacts;
 pub(crate) mod capture;
 mod features;
+mod guide;
 pub(crate) mod input;
 mod renderer_baseline;
 mod shortcut_replay;
-pub use artifacts::run;
+pub use artifacts::{build, run};
 use artifacts::{insert, validate_path};
 use features::FEATURES;
 
@@ -139,7 +140,7 @@ pub type Result<T> = std::result::Result<T, String>;
 #[cfg(test)]
 #[path = "tests/doc_navigation_tests.rs"]
 mod doc_navigation_tests;
-type Artifacts = BTreeMap<String, Vec<u8>>;
+type Artifacts = executable_docs::lifecycle::Files;
 // Keep the actual editor canvas spacious at Full HD resolution. The shared
 // documentation frame adds its window chrome around this unscaled capture.
 const WIDTH: u32 = 1920;
@@ -219,6 +220,7 @@ pub struct Session<'a> {
     annotations: Vec<annotations::Annotation>,
     recorder: Option<tutorial::Recorder>,
     animations: BTreeSet<String>,
+    authored: Option<executable_docs::Document>,
     #[cfg(test)]
     extra_layout_pass: bool,
 }
@@ -259,6 +261,7 @@ impl<'a> Session<'a> {
             annotations: Vec::new(),
             recorder: None,
             animations: BTreeSet::new(),
+            authored: None,
             #[cfg(test)]
             extra_layout_pass: false,
         };

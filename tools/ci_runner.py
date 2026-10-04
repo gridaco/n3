@@ -43,8 +43,8 @@ python3 tools/ci_runner.py --environment-receipt
 """
 CI_CHECKS_PREFIX = """\
 python3 tools/format_docs.py --check
-cargo fmt --check
-cargo clippy --locked --all-targets -- -D warnings
+cargo fmt --all --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
 python3 -m unittest discover -s tools/tests -p 'test_*.py'
 node --test tools/tests/web_wrapper.test.mjs
 python3 -m unittest discover -s tools/benchmark/tests -t . -p 'test_*.py'
@@ -54,9 +54,14 @@ BENCHMARK_RUST_CHECKS = """\
 cargo test --locked --features viewport-measure --lib measurement::
 cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize
 """
-CI_SCRIPT = CI_CHECKS_PREFIX + BENCHMARK_RUST_CHECKS + "exec cargo test --locked\n"
+DOC_FRAMEWORK_CHECKS = """\
+cargo test --locked -p executable-docs -p doc-example-config --all-targets
+cargo test --locked -p executable-docs --doc
+RUSTDOCFLAGS='-D warnings' cargo doc --locked -p executable-docs --no-deps
+"""
+CI_SCRIPT = CI_CHECKS_PREFIX + DOC_FRAMEWORK_CHECKS + BENCHMARK_RUST_CHECKS + "exec cargo test --locked\n"
 CI_PARTITION_SCRIPTS = {
-    "checks": CI_CHECKS_PREFIX + "python3 tools/ci_test_inventory.py\n" + BENCHMARK_RUST_CHECKS
+    "checks": CI_CHECKS_PREFIX + "python3 tools/ci_test_inventory.py\n" + DOC_FRAMEWORK_CHECKS + BENCHMARK_RUST_CHECKS
     + "exec cargo test --locked -- --skip documentation::tests::generated_documentation_is_current --exact\n",
     "guide": """\
 python3 tools/ci_test_inventory.py

@@ -1,5 +1,9 @@
 //! Strict generated-tree ownership, bindings, validation and publication.
 use super::*;
+use executable_docs::{
+    Audience,
+    lifecycle::{self, Ownership},
+};
 
 pub(super) fn render_template(
     template: &str,
@@ -102,10 +106,22 @@ fn escape_html(text: &str) -> String {
 }
 
 pub(super) fn generate() -> Result<Artifacts> {
+    Ok(generate_views(false)?.reader)
+}
+
+struct Views {
+    reader: Artifacts,
+    contributor: Option<Artifacts>,
+}
+
+/// Both views are rendered from the same completed sessions and captured bytes.
+/// Ordinary checks only render the published reader view.
+fn generate_views(include_contributor: bool) -> Result<Views> {
     validate_feature_inventory()?;
     let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT))?;
     let (media_width, media_height) = capture.framed_dimensions();
     let mut result = Artifacts::new();
+    let mut contributor = include_contributor.then(Artifacts::new);
     let mut manifest = format!(
         "n3 executable documentation v6\nrenderer: {}\nui-platform: macOS\napp-canvas: {WIDTH}x{HEIGHT}, 1 pixel/point, RGBA8Unorm\nmedia-canvas: {media_width}x{media_height}, lossless WebP\nframe-template: {}\nbaseline: Light theme; 240-point side panels\nclock: explicit scenario time; no wall clock\n",
         capture.renderer_profile,
@@ -130,18 +146,35 @@ pub(super) fn generate() -> Result<Artifacts> {
         if session.facts.is_empty() {
             return Err(format!("{} has no behavioral assertions", feature.slug));
         }
-        let page = render_template(
-            feature.template,
-            &session.bindings,
-            &session.values,
-            &session.images,
-            &session.animations,
-        )?;
+        let page = |audience| match (feature.template, session.authored.as_ref()) {
+            (Some(template), None) => render_template(
+                template,
+                &session.bindings,
+                &session.values,
+                &session.images,
+                &session.animations,
+            ),
+            (None, Some(document)) if document.id() == feature.slug => Ok(format!(
+                "{GENERATED}{}",
+                document.render_fragment(audience)?
+            )),
+            _ => Err(format!(
+                "{} must own exactly one narrative source",
+                feature.slug
+            )),
+        };
         insert(
             &mut result,
             format!("{}.md", feature.slug),
-            page.into_bytes(),
+            page(Audience::Reader)?.into_bytes(),
         )?;
+        if let Some(contributor) = contributor.as_mut() {
+            insert(
+                contributor,
+                format!("{}.md", feature.slug),
+                page(Audience::Contributor)?.into_bytes(),
+            )?;
+        }
         index.push_str(&format!("- [{}]({}.md)\n", feature.title, feature.slug));
         manifest.push_str(&format!("\nfeature: {}\n", feature.slug));
         for (id, path) in session.bindings {
@@ -164,18 +197,34 @@ pub(super) fn generate() -> Result<Artifacts> {
             };
             manifest.push_str(&format!("{kind}: {path} ({} bytes)\n", bytes.len()));
             manifest.push_str(&format!("input: {}\n", session.image_inputs[&path]));
+            if let Some(contributor) = contributor.as_mut() {
+                insert(contributor, path.clone(), bytes.clone())?;
+            }
             insert(&mut result, path, bytes)?;
         }
+    }
+    if let Some(contributor) = contributor.as_mut() {
+        insert(contributor, "README.md".into(), index.as_bytes().to_vec())?;
+        insert(
+            contributor,
+            "manifest.txt".into(),
+            manifest.as_bytes().to_vec(),
+        )?;
+        validate_links(contributor)?;
     }
     insert(&mut result, "README.md".into(), index.into_bytes())?;
     insert(&mut result, "manifest.txt".into(), manifest.into_bytes())?;
     validate_links(&result)?;
-    Ok(result)
+    Ok(Views {
+        reader: result,
+        contributor,
+    })
 }
 
 pub(super) fn validate_feature_inventory() -> Result<()> {
     let templates: BTreeSet<_> = FEATURES
         .iter()
+        .filter(|feature| feature.template.is_some())
         .map(|f| format!("{}.md.in", f.slug))
         .collect();
     let scenarios: BTreeSet<_> = FEATURES
@@ -206,42 +255,14 @@ pub(super) fn check_inventory(
     expected: &BTreeSet<String>,
     current: &BTreeSet<String>,
 ) -> Result<()> {
-    if expected == current {
-        Ok(())
-    } else {
-        Err(format!(
-            "Every feature must own exactly one registered scenario and template. Missing: {:?}; unregistered: {:?}",
-            expected.difference(current).collect::<Vec<_>>(),
-            current.difference(expected).collect::<Vec<_>>()
-        ))
-    }
+    lifecycle::check_inventory(expected, current)
 }
 
 pub(super) fn validate_path(path: &str) -> Result<()> {
-    if path.is_empty()
-        || path.contains('\\')
-        || path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-        || Path::new(path)
-            .components()
-            .any(|part| !matches!(part, std::path::Component::Normal(_)))
-    {
-        return Err(format!("Invalid documentation artifact path: {path}"));
-    }
-    Ok(())
+    lifecycle::validate_path(path)
 }
 pub(super) fn insert(artifacts: &mut Artifacts, path: String, bytes: Vec<u8>) -> Result<()> {
-    validate_path(&path)?;
-    match artifacts.entry(path) {
-        std::collections::btree_map::Entry::Vacant(entry) => {
-            entry.insert(bytes);
-        }
-        std::collections::btree_map::Entry::Occupied(entry) => {
-            return Err(format!("Duplicate artifact owner: {}", entry.key()));
-        }
-    }
-    Ok(())
+    lifecycle::insert(artifacts, path, bytes)
 }
 pub(super) fn validate_links(artifacts: &Artifacts) -> Result<()> {
     for (path, bytes) in artifacts.iter().filter(|(path, _)| path.ends_with(".md")) {
@@ -267,48 +288,7 @@ pub(super) fn validate_links(artifacts: &Artifacts) -> Result<()> {
     Ok(())
 }
 pub(super) fn read_tree(dir: &Path) -> Result<Artifacts> {
-    fn visit(base: &Path, dir: &Path, files: &mut Artifacts) -> Result<()> {
-        if dir
-            .symlink_metadata()
-            .map_err(|e| e.to_string())?
-            .file_type()
-            .is_symlink()
-        {
-            return Err("Documentation tree must not contain symlinks".into());
-        }
-        for item in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
-            let item = item.map_err(|e| e.to_string())?;
-            let kind = item.file_type().map_err(|e| e.to_string())?;
-            if kind.is_symlink() {
-                return Err(format!(
-                    "Documentation symlink is not supported: {}",
-                    item.path().display()
-                ));
-            }
-            if kind.is_dir() {
-                visit(base, &item.path(), files)?;
-            } else if kind.is_file() {
-                let key = item
-                    .path()
-                    .strip_prefix(base)
-                    .unwrap()
-                    .to_str()
-                    .ok_or("Non UTF-8 documentation path")?
-                    .to_owned();
-                insert(
-                    files,
-                    key,
-                    std::fs::read(item.path()).map_err(|e| e.to_string())?,
-                )?;
-            }
-        }
-        Ok(())
-    }
-    let mut files = Artifacts::new();
-    if dir.exists() {
-        visit(dir, dir, &mut files)?;
-    }
-    Ok(files)
+    lifecycle::read_tree(dir)
 }
 pub(super) fn compare(expected: &Artifacts, current: &Artifacts) -> Result<()> {
     if let (Some(generated), Some(baseline)) =
@@ -319,20 +299,11 @@ pub(super) fn compare(expected: &Artifacts, current: &Artifacts) -> Result<()> {
             "Documentation renderer mismatch: this run uses {generated}, but the saved guide uses {baseline}. Exact media checks require the same renderer. Run checks on the baseline renderer, or deliberately run just docs update on this host and review the new baseline. No images were ignored or updated."
         ));
     }
-    let paths: BTreeSet<_> = expected.keys().chain(current.keys()).collect();
-    let drift: Vec<_> = paths
-        .into_iter()
-        .filter(|path| expected.get(*path) != current.get(*path))
-        .cloned()
-        .collect();
-    if drift.is_empty() {
-        Ok(())
-    } else {
-        Err(format!(
-            "Documentation drift: {}. Run just docs update and review the generated changes (including images).",
-            drift.join(", ")
-        ))
-    }
+    lifecycle::compare(expected, current).map_err(|error| {
+        format!(
+            "{error}. Run just docs update and review the generated changes (including images)."
+        )
+    })
 }
 
 pub(super) fn renderer_profile(artifacts: &Artifacts) -> Option<&str> {
@@ -342,26 +313,51 @@ pub(super) fn renderer_profile(artifacts: &Artifacts) -> Option<&str> {
         .find_map(|line| line.strip_prefix("renderer: "))
 }
 pub(super) fn publish(dir: &Path, artifacts: &Artifacts) -> Result<()> {
-    let current = read_tree(dir)?;
-    let orphans: Vec<_> = current
-        .keys()
-        .filter(|key| !artifacts.contains_key(*key))
-        .collect();
-    if !orphans.is_empty() {
-        return Err(format!(
-            "Unowned documentation files: {orphans:?}; explicitly remove obsolete files before updating"
-        ));
-    }
-    for (path, bytes) in artifacts {
-        let destination = dir.join(path);
-        std::fs::create_dir_all(destination.parent().unwrap()).map_err(|e| e.to_string())?;
-        std::fs::write(destination, bytes).map_err(|e| e.to_string())?;
-    }
+    // Updating is an explicit renderer-baseline decision. Keep that N3 policy
+    // while sharing the same staged owned-tree transaction as other consumers.
+    lifecycle::update(dir, artifacts, Ownership::Dedicated, |_, _| Ok(()))?;
     compare(artifacts, &read_tree(dir)?)
 }
 
 pub fn run(mode: &str) -> Result<()> {
     execute(mode, &root().join("docs/guide"), generate)
+}
+
+/// Build disposable reader and contributor views without accepting a baseline.
+/// The destination is a fresh, dedicated generated tree; it cannot overwrite an
+/// existing guide. Generation of both audiences completes before publication.
+pub fn build(dir: &Path) -> Result<()> {
+    let dir = candidate_destination(dir, &root())?;
+    let views = lifecycle::prepare(|| generate_views(true))?;
+    let mut files = Artifacts::new();
+    for (audience, artifacts) in [
+        ("reader", views.reader),
+        (
+            "contributor",
+            views.contributor.ok_or("Missing contributor view")?,
+        ),
+    ] {
+        for (path, bytes) in artifacts {
+            insert(&mut files, format!("{audience}/{path}"), bytes)?;
+        }
+    }
+    lifecycle::build(&dir, &files, Ownership::Dedicated)?;
+    println!(
+        "docs build: reader and contributor views at {}",
+        dir.display()
+    );
+    Ok(())
+}
+
+fn candidate_destination(path: &Path, repository: &Path) -> Result<PathBuf> {
+    let path = lifecycle::absolute(path)?;
+    for retained in ["docs/guide", "docs/baselines"] {
+        lifecycle::ensure_separate_paths(&path, &repository.join(retained))?;
+    }
+    if path.try_exists().map_err(|error| error.to_string())? {
+        return Err(format!("Build output already exists: {}", path.display()));
+    }
+    Ok(path)
 }
 
 pub(super) fn execute(
@@ -374,7 +370,7 @@ pub(super) fn execute(
     }
     // All UI actions, assertions, rendering, encoding, and template validation
     // complete before any documentation is written. A failing run cannot bless it.
-    let artifacts = generate()?;
+    let artifacts = lifecycle::prepare(generate)?;
     let canonical = read_tree(dir)?;
     if std::env::var("N3_DOCS_RENDERER").as_deref() == Ok("lavapipe")
         && renderer_profile(&artifacts) == Some(renderer_baseline::PROFILE)
@@ -398,6 +394,64 @@ pub(super) fn execute(
 #[cfg(test)]
 mod renderer_tests {
     use super::*;
+
+    #[test]
+    fn candidate_output_cannot_write_into_or_around_a_retained_baseline() {
+        let repository = root();
+        for relative in [
+            "docs",
+            "docs/guide",
+            "docs/guide/candidate",
+            "docs/baselines/candidate",
+            "docs/guide/./candidate",
+            "docs/guide/../candidate",
+            ".",
+        ] {
+            assert!(
+                candidate_destination(&repository.join(relative), &repository).is_err(),
+                "{relative}"
+            );
+        }
+        assert!(candidate_destination(&repository.join("Cargo.toml"), &repository).is_err());
+        // This is a read-only preflight: the fresh destination remains absent.
+        let fresh = repository.join(".cache/executable-docs-never-created-by-preflight");
+        assert_eq!(candidate_destination(&fresh, &repository).unwrap(), fresh);
+        assert!(!fresh.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn candidate_preflight_rejects_case_aliases_of_retained_directories() {
+        use std::os::unix::fs::MetadataExt;
+
+        let repository = root();
+        for (retained, alias) in [
+            ("docs/guide", "DOCS/GUIDE"),
+            ("docs/baselines", "DOCS/BASELINES"),
+        ] {
+            let baseline = repository.join(retained);
+            let alias = repository.join(alias);
+            let Ok(alias_metadata) = std::fs::metadata(&alias) else {
+                continue;
+            };
+            let baseline_metadata = std::fs::metadata(&baseline).unwrap();
+            if (alias_metadata.dev(), alias_metadata.ino())
+                != (baseline_metadata.dev(), baseline_metadata.ino())
+            {
+                continue;
+            }
+            let candidate = alias.join("case-alias-preflight-must-not-create");
+            assert!(!candidate.exists());
+            let before = read_tree(&baseline).unwrap();
+            assert!(
+                candidate_destination(&candidate, &repository)
+                    .unwrap_err()
+                    .contains("overlap")
+            );
+            assert!(!candidate.exists());
+            assert_eq!(read_tree(&baseline).unwrap(), before);
+        }
+    }
 
     fn baseline(profile: &str) -> Artifacts {
         Artifacts::from([

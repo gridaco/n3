@@ -39,7 +39,7 @@ jobs:
             .cache/ci/linux-amd64/target/debug/.fingerprint
             .cache/ci/linux-amd64/target/.rustc_info.json
             .cache/ci/linux-amd64/home/.npm
-          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'vendor/**') }}
+          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Check formatting, lint, tooling, and focused regressions
         env:
           N3_CI_FAILURE_ARTIFACTS: "1"
@@ -95,7 +95,7 @@ jobs:
             .cache/ci/linux-amd64/target/debug/.fingerprint
             .cache/ci/linux-amd64/target/.rustc_info.json
             .cache/ci/linux-amd64/home/.npm
-          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'vendor/**') }}
+          key: n3-v1-ubuntu24-linux-amd64-${{ steps.environment.outputs.image }}-${{ hashFiles('Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Replay every guide feature and check exact artifacts
         env:
           N3_CI_FAILURE_ARTIFACTS: "1"
@@ -143,7 +143,7 @@ jobs:
             target/debug/build
             target/debug/.fingerprint
             target/.rustc_info.json
-          key: n3-v1-macos15-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'vendor/**') }}
+          key: n3-v1-macos15-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Restore the pinned just installation
         id: just
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -221,7 +221,7 @@ jobs:
             target/wasm32-unknown-unknown/release/build
             target/wasm32-unknown-unknown/release/.fingerprint
             target/.rustc_info.json
-          key: n3-v2-wasm-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'Cargo.lock', 'vendor/**') }}
+          key: n3-v2-wasm-release-${{ runner.os }}-${{ runner.arch }}-${{ steps.environment.outputs.platform }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml', 'crates/**/Cargo.toml', 'Cargo.lock', 'vendor/**') }}
       - name: Restore pinned browser build tools
         id: tools
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
