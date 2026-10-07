@@ -183,9 +183,11 @@ test *args:
 # Verify the maintained documentation SDK, consumers, examples, and exact baselines.
 # Default application build/run/test routing remains on N3.
 doc-framework-test:
-    cargo test --locked -p executable-docs -p doc-example-config --all-targets
-    cargo test --locked -p executable-docs --doc
-    RUSTDOCFLAGS='-D warnings' cargo doc --locked -p executable-docs --no-deps
+    python3 crates/doc-harness/dev/verify.py
+
+# Verify a disposable portable workspace, including the declared Rust minimum.
+doc-framework-smoke *args:
+    python3 crates/doc-harness/dev/verify.py --standalone --toolchain 1.95.0 "$@"
 
 # Open the local guide preview, check it, or intentionally regenerate it.
 docs mode="serve" *args:

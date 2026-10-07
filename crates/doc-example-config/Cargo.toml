@@ -4,7 +4,9 @@ version = "0.0.0"
 edition = "2024"
 rust-version = "1.95"
 publish = false
+license = "MIT"
 description = "Executable documentation consumers for a configuration CLI and serde_json"
+readme = "README.md"
 
 [lib]
 name = "config_demo"

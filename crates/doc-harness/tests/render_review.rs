@@ -1,4 +1,4 @@
-use executable_docs::{Artifact, Audience, BindingValue, Doc, Document};
+use executable_docs::{Artifact, Audience, BindingValue, Doc, Document, ExportLayout};
 use pulldown_cmark::{Event, Parser, Tag, html};
 
 fn doc() -> Doc {
@@ -131,4 +131,32 @@ fn closed_code_containing_html_and_backticks_keeps_following_anchors_active() {
     assert!(html.contains("<a id=\"block-0002\"></a>"));
     assert!(html.contains("&lt;img src=x onerror=alert(1)&gt;"));
     assert!(!html.contains("<img src=x"));
+}
+
+#[test]
+fn multi_page_failures_identify_the_document_export_path_and_authored_block() {
+    let mut valid = Doc::new("first", "Valid first document").unwrap();
+    valid.require("executed", true).unwrap();
+    valid.paragraph("This page compiles normally.").unwrap();
+    let mut broken = Doc::new("second", "Broken second document").unwrap();
+    broken.require("executed", true).unwrap();
+    let code = broken
+        .binding("label", BindingValue::Code("literal".into()))
+        .unwrap();
+    let block = broken.markdown_parts(("`", &code, "`\n")).unwrap();
+    let layout = ExportLayout::default()
+        .page("second", "chapters/second.guide")
+        .unwrap();
+    let error = Document::render_many_with(
+        &[valid.finish().unwrap(), broken.finish().unwrap()],
+        Audience::Reader,
+        &layout,
+    )
+    .unwrap_err();
+    assert!(
+        error.contains("Document second (chapters/second.guide)"),
+        "{error}"
+    );
+    assert!(error.contains(&format!("block {}", block.id())), "{error}");
+    assert!(error.contains("swallowed"), "{error}");
 }

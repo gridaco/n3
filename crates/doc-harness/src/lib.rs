@@ -1,17 +1,25 @@
 #![doc = include_str!("../README.md")]
 
+mod artifact;
+mod authoring;
 mod layout;
 pub mod lifecycle;
+mod manifest;
+mod markdown;
 mod model;
+mod paths;
 mod prose;
 mod render;
 pub mod runner;
 pub mod store;
+mod validation;
 
+pub use artifact::Artifact;
+pub use authoring::Doc;
 pub use layout::ExportLayout;
 pub use model::{
-    Artifact, Audience, Binding, BindingValue, Block, Checked, Claim, Doc, Document, IntoProse,
-    Prose, Resource, Target,
+    Audience, Binding, BindingValue, Block, Checked, Claim, Document, IntoProse, Prose, Resource,
+    Target,
 };
 pub use render::{render, render_with};
 

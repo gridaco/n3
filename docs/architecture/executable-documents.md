@@ -40,6 +40,23 @@ it must preserve audience filtering, typed references, observations, and resourc
 ownership together. The private document model is the extension boundary, without
 a plugin registry or a promise of arbitrary presentation support today.
 
+## Internal Rust ownership
+
+The SDK remains one crate. Its private `model` owns frozen document data and typed
+handles; `authoring` executes builder operations and assertions; `artifact` owns
+frozen resource bytes and explicit acquisition. CommonMark parsing and generated
+HTML provenance live in `markdown`, bundle paths in `paths`, and intrinsic
+audience visibility in `validation`. Builder validation does not depend on the
+Markdown exporter.
+
+`render` composes the selected audience and verifies its complete export.
+`manifest` owns typed receipt emission and validation of the existing JSON
+inventory. It preserves unknown-field compatibility and distinguishes explicit
+JSON null observations from omitted private payloads. `store` applies that receipt
+policy to `lifecycle` filesystem operations; `runner` coordinates project-owned
+generation and publication. These boundaries add no public serialized document
+model or host executor.
+
 ## Project-owned configuration
 
 The SDK's layout is a default, not a required repository topology. `ExportLayout`
@@ -174,11 +191,23 @@ review. It does not approve product behavior, publication, or a release.
 
 ## Verification and remaining validation
 
-`just doc-framework-test` exercises the portable SDK and both consumer examples
-without N3's GPU harness. Each consumer checks retained Reader and Contributor
-outputs. N3's `just docs check` and `just verify` retain real replay and exact
-guide checks on the native renderer; the focused framework gate does not replace
-them.
+`just doc-framework-test` delegates to the SDK-owned
+[verification entry point](../../crates/doc-harness/dev/verify.py): scoped
+formatting, Clippy, tooling regressions, SDK and consumer tests, doctests, and API
+docs without N3's GPU harness. Each consumer checks retained Reader and
+Contributor outputs. `just doc-framework-smoke --offline` copies those packages
+into a disposable minimal workspace, resolves its own temporary lockfile, and
+verifies the declared Rust 1.95 minimum independently of N3's dependencies and
+patches. No permanent second workspace is introduced.
+
+The SDK's static preview validates the complete export receipt before displaying
+it. Page identity comes from that inventory rather than file extensions;
+downloadable Markdown remains a resource. HTML conversion preflights collisions
+and preserves audience separation. The preview is disposable review output, not
+an accepted baseline or a public viewer-bundle contract.
+
+N3's `just docs check` and `just verify` retain real replay and exact guide checks
+on the native renderer; portable checks do not replace them.
 
 The examples establish local integration with a CLI and an independently existing
 Rust library. The serde_json guide is our authored integration, not external

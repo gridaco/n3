@@ -40,6 +40,76 @@ fn without_content() -> store::Files {
     Document::render_many(&[doc.finish().unwrap()], Audience::Reader).unwrap()
 }
 
+#[test]
+fn retained_receipts_accept_unknown_fields_and_null_or_omitted_check_payloads() {
+    let (_temporary, parent) = directory();
+    let root = parent.join("reader");
+    let mut doc = Doc::new("compatibility", "Receipt compatibility").unwrap();
+    let observation = doc.expect_eq("nothing", Option::<u8>::None, None).unwrap();
+    doc.require("private-check", true).unwrap();
+    let label = doc
+        .binding(
+            "label",
+            executable_docs::BindingValue::Code("result".into()),
+        )
+        .unwrap();
+    doc.paragraph(("The ", label, " is ", observation)).unwrap();
+    let resource = doc
+        .resource(
+            "download",
+            Artifact::new(b"result", "text/plain", "txt", "text", "v1").unwrap(),
+        )
+        .unwrap();
+    doc.embed(&resource, "Download the result").unwrap();
+    let candidate = Document::render_many(&[doc.finish().unwrap()], Audience::Reader).unwrap();
+    let mut retained = candidate.clone();
+    let mut receipt: serde_json::Value =
+        serde_json::from_slice(&retained["manifest.json"]).unwrap();
+    let checks = receipt["documents"][0]["checks"].as_array().unwrap();
+    let nothing = checks
+        .iter()
+        .find(|check| check["id"] == "nothing")
+        .unwrap();
+    assert_eq!(nothing.get("actual"), Some(&serde_json::Value::Null));
+    assert_eq!(nothing.get("expected"), Some(&serde_json::Value::Null));
+    let private = checks
+        .iter()
+        .find(|check| check["id"] == "private-check")
+        .unwrap();
+    assert!(private.get("actual").is_none() && private.get("expected").is_none());
+    // Additional record fields have always been tolerated. A typed internal
+    // reader must not make an otherwise valid retained baseline incompatible.
+    receipt["extension"] = serde_json::json!({"owner": "another consumer"});
+    for document in receipt["documents"].as_array_mut().unwrap() {
+        document["extension"] = serde_json::json!(1);
+        for check in document["checks"].as_array_mut().unwrap() {
+            check["extension"] = serde_json::json!(null);
+        }
+        for block in document["blocks"].as_array_mut().unwrap() {
+            block["extension"] = serde_json::json!(false);
+            for reference in block["references"].as_array_mut().unwrap() {
+                reference["extension"] = serde_json::json!([]);
+            }
+        }
+        for binding in document["bindings"].as_object_mut().unwrap().values_mut() {
+            binding["extension"] = serde_json::json!({});
+        }
+    }
+    for key in ["profiles", "artifacts"] {
+        for record in receipt[key].as_array_mut().unwrap() {
+            record["extension"] = serde_json::json!("retained");
+        }
+    }
+    retained.insert(
+        "manifest.json".into(),
+        serde_json::to_vec(&receipt).unwrap(),
+    );
+    store::build(&root, &retained).unwrap();
+    store::check(&root, &retained).unwrap();
+    store::update(&root, &candidate).unwrap();
+    store::check(&root, &candidate).unwrap();
+}
+
 fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
     fn walk(base: &Path, dir: &Path, files: &mut BTreeMap<String, Vec<u8>>) {
         for entry in fs::read_dir(dir).unwrap() {

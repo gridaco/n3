@@ -501,9 +501,15 @@ Finder delivery, macOS dialogs, or artistic approval.
 contract using Python's standard library. It also runs as part of `just verify`;
 it does not replace the Rust replay and exact artifact checks.
 
-For focused framework work, run `just doc-framework-test`. It checks the maintained
-SDK and the config CLI and serde_json consumers without starting N3's renderer.
-This focused gate also runs inside `just verify`.
+For focused framework work, run `just doc-framework-test`. The SDK-owned workflow
+checks scoped Rust formatting, Clippy, tooling, SDK and consumer tests, doctests,
+and API documentation without starting N3's renderer. This gate also runs inside
+`just verify`. Run `just doc-framework-smoke --offline` to verify a disposable
+standalone copy on the declared Rust 1.95 minimum, once that toolchain and the
+portable dependencies are cached. Its fresh temporary lockfile excludes N3's
+dependencies, patches, and workspace configuration. See the
+[SDK development workflow](../crates/doc-harness/README.md#develop-and-verify-the-portable-packages)
+for direct commands and cache handling.
 The [consumer README](../crates/doc-example-config/README.md) documents direct Cargo
 commands, package-local baselines, and candidate review. These examples exercise
 two integration shapes; the serde_json example is our use of an existing library,

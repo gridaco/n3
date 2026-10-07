@@ -1,5 +1,5 @@
 use crate::model::{Document, valid_id};
-use crate::{Result, render::validate_resource_path};
+use crate::{Result, paths::validate_resource_path};
 use std::collections::BTreeMap;
 
 /// Bundle-relative Markdown paths, independent of a repository or build system.

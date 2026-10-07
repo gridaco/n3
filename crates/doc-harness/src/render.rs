@@ -1,227 +1,29 @@
 use crate::model::{BindingValue, Content, Document, Inline, Kind, Node, Prose, Reference};
-use crate::{Audience, ExportLayout, Result};
-use pulldown_cmark::{BrokenLink, Event, Options, Parser, Tag};
-use serde_json::json;
-use sha2::{Digest, Sha256};
+use crate::{
+    Audience, ExportLayout, Result,
+    manifest::Manifest,
+    markdown::{Rendered, escape, markdown_links, parsed_links},
+    paths::{artifact_path, local_target, relative_path, validate_resource_path},
+    validation::{validate_document, visible_nodes},
+};
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Range;
-
-/// Keep provenance for the small amount of HTML emitted by typed bindings and
-/// anchors. Authored Markdown never acquires that permission by sharing a page.
-#[derive(Default)]
-struct Rendered {
-    text: String,
-    html: Vec<Range<usize>>,
-}
-
-impl Rendered {
-    fn text(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            html: Vec::new(),
-        }
-    }
-
-    fn html(text: String) -> Self {
-        let len = text.len();
-        Self {
-            text,
-            html: std::iter::once(0..len).collect(),
-        }
-    }
-
-    fn push(&mut self, other: Self) {
-        let offset = self.text.len();
-        self.text.push_str(&other.text);
-        self.html.extend(
-            other
-                .html
-                .into_iter()
-                .map(|range| range.start + offset..range.end + offset),
-        );
-    }
-
-    fn quote(self) -> Self {
-        let mut result = Self::default();
-        let mut offset = 0;
-        for line in self.text.split_inclusive('\n') {
-            let start = result.text.len() + 2;
-            result.text.push_str("> ");
-            result.text.push_str(line);
-            for range in &self.html {
-                let left = range.start.max(offset);
-                let right = range.end.min(offset + line.len());
-                if left < right {
-                    result
-                        .html
-                        .push(start + left - offset..start + right - offset);
-                }
-            }
-            offset += line.len();
-        }
-        // Match str::lines(), used by the original note renderer.
-        if result.text.ends_with('\n') {
-            result.text.pop();
-        }
-        result
-    }
-}
-
-pub(crate) fn markdown_links(text: &str) -> Result<Vec<String>> {
-    parsed_links(&Rendered::text(text), &[])
-}
-
-/// Parse the bytes that will actually be exported. Every HTML token must come
-/// from a generated span, every generated tag must survive Markdown parsing,
-/// and code/container blocks cannot consume the next authored node. Plain
-/// paragraphs may continue across MarkdownParts nodes, whose whitespace is literal.
-fn parsed_links(rendered: &Rendered, boundaries: &[usize]) -> Result<Vec<String>> {
-    let text = &rendered.text;
-    let mut unresolved = Vec::new();
-    let mut callback = |link: BrokenLink<'_>| {
-        unresolved.push(link.reference.to_string());
-        None
-    };
-    let mut links = Vec::new();
-    let mut html_ranges = Vec::new();
-    for (event, range) in Parser::new_with_broken_link_callback(
-        text,
-        Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH,
-        Some(&mut callback),
-    )
-    .into_offset_iter()
-    {
-        if matches!(
-            &event,
-            Event::Code(_)
-                | Event::Start(
-                    Tag::CodeBlock(_)
-                        | Tag::HtmlBlock
-                        | Tag::BlockQuote(_)
-                        | Tag::List(_)
-                        | Tag::Item
-                        | Tag::Table(_)
-                        | Tag::TableHead
-                        | Tag::TableRow
-                )
-        ) && boundaries
-            .iter()
-            .any(|boundary| range.start < *boundary && *boundary < range.end)
-        {
-            return Err(format!(
-                "Markdown block crosses a document block boundary at {range:?} ({event:?}); close fences and separate blocks explicitly"
-            ));
-        }
-        match event {
-            Event::Start(Tag::Link { dest_url, .. } | Tag::Image { dest_url, .. }) => {
-                links.push(dest_url.to_string())
-            }
-            Event::Html(_) | Event::InlineHtml(_) => {
-                if (range.clone()).any(|position| {
-                    !text.as_bytes()[position].is_ascii_whitespace()
-                        && !rendered
-                            .html
-                            .iter()
-                            .any(|allowed| allowed.contains(&position))
-                }) {
-                    return Err(
-                        "Raw HTML is unsupported in authored Markdown; use typed document blocks"
-                            .into(),
-                    );
-                }
-                html_ranges.push(range);
-            }
-            _ => {}
-        }
-    }
-    if !unresolved.is_empty() {
-        return Err(format!(
-            "Unresolved Markdown references: {}",
-            unresolved.join(", ")
-        ));
-    }
-    if rendered.html.iter().any(|expected| {
-        expected.clone().any(|position| {
-            !text.as_bytes()[position].is_ascii_whitespace()
-                && !html_ranges.iter().any(|actual| actual.contains(&position))
-        })
-    }) {
-        return Err("Markdown swallowed a generated binding or block anchor; typed HTML cannot be placed inside code or HTML syntax".into());
-    }
-    Ok(links)
-}
-
-pub(crate) fn validate_markdown_parts(parts: &Prose) -> Result<()> {
-    let template: String = parts
-        .0
-        .iter()
-        .map(|part| match part {
-            Inline::Text(text) => text.as_str(),
-            _ => "EXECUTABLEDOCREFERENCE",
-        })
-        .collect();
-    markdown_links(&template).map(|_| ())
-}
-
-pub(crate) fn validate_resource_path(path: &str) -> Result<()> {
-    if path.is_empty()
-        || matches!(
-            path.split('/').next(),
-            Some("manifest.json" | ".ownership.json")
-        )
-        || path
-            .chars()
-            .any(|c| c.is_control() || c.is_whitespace() || "\\:%?#()[]<>\"".contains(c))
-        || path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-    {
-        return Err(format!("Unsafe or reserved artifact path: {path:?}"));
-    }
-    Ok(())
-}
-
-pub(crate) fn escape(text: &str) -> String {
-    let mut result = String::new();
-    for c in text.chars() {
-        match c {
-            '&' => result.push_str("&amp;"),
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            '\\' | '`' | '~' | '*' | '_' | '[' | ']' | '(' | ')' | '#' | '+' | '-' | '!' | '|'
-            | '{' | '}' | '.' => {
-                result.push('\\');
-                result.push(c);
-            }
-            _ => result.push(c),
-        }
-    }
-    result
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
-}
-
-pub(crate) fn artifact_path(document: &Document, id: &str) -> String {
-    ExportLayout::default().resource_path(document, id)
-}
 
 fn node_links(document: &Document, node: &Node, layout: &ExportLayout) -> Result<Vec<String>> {
-    match &node.content {
+    let links = match &node.content {
         Content::Markdown(text) => markdown_links(text),
         Content::MarkdownParts(parts) => {
             parsed_links(&render_prose(document, parts, true, layout), &[])
         }
         _ => Ok(Vec::new()),
-    }
-}
-
-fn visible_nodes(document: &Document, audience: Audience) -> impl Iterator<Item = &Node> {
-    document
-        .nodes
-        .iter()
-        .filter(move |node| audience == Audience::Contributor || !node.is_note())
+    };
+    links.map_err(|error| {
+        format!(
+            "Document {} ({}), block {}: {error}",
+            document.id,
+            layout.page_path(&document.id),
+            node.id
+        )
+    })
 }
 
 fn visible_resources(
@@ -263,25 +65,6 @@ fn insert_owned_path(paths: &mut BTreeSet<String>, path: String) -> Result<()> {
         return Err(format!("Artifact file/directory collision: {path}"));
     }
     paths.insert(path);
-    Ok(())
-}
-
-pub(crate) fn validate_document(document: &Document) -> Result<()> {
-    for audience in [Audience::Reader, Audience::Contributor] {
-        let ids: BTreeSet<_> = visible_nodes(document, audience)
-            .map(|node| node.id.as_str())
-            .collect();
-        for node in visible_nodes(document, audience) {
-            for reference in node.references() {
-                if reference.kind == Kind::Block && !ids.contains(reference.id.as_str()) {
-                    return Err(format!(
-                        "Visible block {} references excluded block {}",
-                        node.id, reference.id
-                    ));
-                }
-            }
-        }
-    }
     Ok(())
 }
 
@@ -429,7 +212,7 @@ fn render_page(
     };
     let mut boundaries = Vec::new();
     for node in visible_nodes(document, audience) {
-        boundaries.push(page.text.len());
+        boundaries.push((page.text.len(), node.id.as_str()));
         if !fragment {
             page.push(Rendered::html(format!("<a id=\"{}\"></a>", node.id)));
             page.push(Rendered::text("\n\n"));
@@ -478,7 +261,13 @@ fn render_page(
             page.push(Rendered::text("\n\n"));
         }
     }
-    let links = parsed_links(&page, &boundaries)?;
+    let links = parsed_links(&page, &boundaries).map_err(|error| {
+        format!(
+            "Document {} ({}): {error}",
+            document.id,
+            layout.page_path(&document.id)
+        )
+    })?;
     Ok((page.text, links))
 }
 
@@ -514,105 +303,6 @@ pub(crate) fn resource_files(
             })
             .collect(),
     )
-}
-
-/// Decode URL escapes before checking local ownership, so encoded traversal and
-/// encoded audience-hidden resource links receive the same checks as plain ones.
-fn decode_path(text: &str) -> Result<String> {
-    let bytes = text.as_bytes();
-    let mut decoded = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' {
-            if i + 2 >= bytes.len() {
-                return Err(format!("Malformed percent escape in link: {text}"));
-            }
-            let hex =
-                std::str::from_utf8(&bytes[i + 1..i + 3]).map_err(|_| "Invalid URL escape")?;
-            decoded.push(
-                u8::from_str_radix(hex, 16)
-                    .map_err(|_| format!("Malformed percent escape in link: {text}"))?,
-            );
-            i += 3;
-        } else {
-            decoded.push(bytes[i]);
-            i += 1;
-        }
-    }
-    String::from_utf8(decoded).map_err(|_| "Local link is not UTF-8".into())
-}
-
-/// Produce a page-relative URL path while keeping ownership paths bundle-relative.
-fn relative_path(page: &str, target: &str) -> String {
-    let mut directory: Vec<_> = page.split('/').collect();
-    directory.pop();
-    let target: Vec<_> = target.split('/').collect();
-    let common = directory
-        .iter()
-        .zip(&target)
-        .take_while(|(a, b)| a == b)
-        .count();
-    std::iter::repeat_n("..", directory.len() - common)
-        .chain(target[common..].iter().copied())
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-fn local_target(link: &str, page: &str) -> Result<Option<(String, Option<String>)>> {
-    if link.chars().any(char::is_control) {
-        return Err("Link contains control characters".into());
-    }
-    for scheme in ["https://", "http://"] {
-        if let Some(rest) = link.strip_prefix(scheme) {
-            if rest.is_empty() || rest.starts_with('/') || rest.chars().any(char::is_whitespace) {
-                return Err(format!("Malformed external link: {link}"));
-            }
-            return Ok(None);
-        }
-    }
-    if let Some(rest) = link.strip_prefix("mailto:") {
-        if rest.is_empty() || rest.chars().any(char::is_whitespace) {
-            return Err(format!("Malformed mail link: {link}"));
-        }
-        return Ok(None);
-    }
-    let (path, fragment) = link
-        .split_once('#')
-        .map_or((link, None), |(path, fragment)| (path, Some(fragment)));
-    let path = decode_path(path)?;
-    if path.contains(['\\', ':', '?'])
-        || path.starts_with('/')
-        || (!path.is_empty() && path.split('/').any(str::is_empty))
-        || path.chars().any(char::is_control)
-    {
-        return Err(format!("Unsafe or unsupported local link: {link}"));
-    }
-    let fragment = fragment.map(decode_path).transpose()?;
-    if path.is_empty() && fragment.as_deref().is_none_or(str::is_empty) {
-        return Err("An empty link does not identify evidence".into());
-    }
-    let resolved = if path.is_empty() {
-        page.to_owned()
-    } else {
-        let mut components: Vec<_> = page.split('/').collect();
-        components.pop();
-        for component in path.split('/') {
-            match component {
-                "." => {}
-                ".." => {
-                    if components.pop().is_none() {
-                        return Err(format!("Local link escapes the export bundle: {link}"));
-                    }
-                }
-                _ => components.push(component),
-            }
-        }
-        if components.is_empty() {
-            return Err(format!("Local link does not identify a file: {link}"));
-        }
-        components.join("/")
-    };
-    Ok(Some((resolved, fragment)))
 }
 
 /// Render ordinary Markdown, immutable resources and a deterministic JSON manifest.
@@ -652,9 +342,7 @@ pub fn render_with(
     }
     let mut files = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    let mut profiles = BTreeSet::new();
-    let mut manifest_documents = Vec::new();
-    let mut manifest_artifacts = Vec::new();
+    let mut manifest = Manifest::new(audience);
     let mut anchors = BTreeMap::new();
     let mut page_links = BTreeMap::new();
     for document in &sorted {
@@ -666,7 +354,7 @@ pub fn render_with(
         let (page, links) = render_page(document, audience, false, layout)?;
         let page = page.into_bytes();
         page_links.insert(&document.id, links);
-        manifest_artifacts.push(json!({"path":path,"kind":"page","mime":"text/markdown","bytes":page.len(),"sha256":sha256(&page),"document":document.id}));
+        manifest.add_page(&document.id, &path, &page);
         if files.insert(path.clone(), page).is_some() {
             return Err(format!("Duplicate artifact path: {path}"));
         }
@@ -680,61 +368,12 @@ pub fn render_with(
         for id in resources {
             let artifact = &document.artifacts[&id];
             let path = layout.resource_path(document, &id);
-            manifest_artifacts.push(json!({"path":path,"id":id,"document":document.id,"kind":"resource","mime":artifact.mime,"producer":artifact.producer,"profile":artifact.profile,"bytes":artifact.bytes.len(),"sha256":sha256(&artifact.bytes)}));
-            profiles.insert((artifact.producer.clone(), artifact.profile.clone()));
+            manifest.add_resource(&document.id, &id, &path, artifact);
             if files.insert(path.clone(), artifact.bytes.clone()).is_some() {
                 return Err(format!("Duplicate artifact path: {path}"));
             }
         }
-        let reader_refs: BTreeSet<_> = document
-            .nodes
-            .iter()
-            .filter(|node| !node.is_note())
-            .flat_map(Node::references)
-            .map(|r| &r.id)
-            .collect();
-        let checks: Vec<_> = document.checks.values().map(|check| {
-            if audience == Audience::Contributor || reader_refs.contains(&check.id) {
-                json!({"id":check.id,"kind":check.kind,"passed":true,"actual":check.actual,"expected":check.expected})
-            } else {
-                json!({"id":check.id,"kind":check.kind,"passed":true})
-            }
-        }).collect();
-        let blocks: Vec<_> = visible_nodes(document, audience)
-            .map(|node| {
-                let kind = match &node.content {
-                    Content::Heading(..) => "heading",
-                    Content::Paragraph(..) => "paragraph",
-                    Content::Markdown(..) => "markdown",
-                    Content::MarkdownParts(..) => "markdown-parts",
-                    Content::Embed(..) => "embed",
-                    Content::Code(..) => "code",
-                    Content::Note { .. } => "note",
-                };
-                let references: Vec<_> = node
-                    .references()
-                    .into_iter()
-                    .map(|r| json!({"id":r.id,"kind":r.kind}))
-                    .collect();
-                json!({"id":node.id,"kind":kind,"references":references})
-            })
-            .collect();
-        let visible_refs: BTreeSet<_> = visible_nodes(document, audience)
-            .flat_map(Node::references)
-            .map(|r| &r.id)
-            .collect();
-        let bindings: BTreeMap<_, _> = document
-            .bindings
-            .iter()
-            .filter(|(id, _)| visible_refs.contains(id))
-            .collect();
-        let mut record =
-            json!({"id":document.id,"title":document.title,"checks":checks,"blocks":blocks});
-        // Preserve existing document exports exactly when no bindings are used.
-        if !bindings.is_empty() {
-            record["bindings"] = serde_json::to_value(bindings).map_err(|e| e.to_string())?;
-        }
-        manifest_documents.push(record);
+        manifest.add_document(document, audience)?;
     }
     // Validate against the actual filtered bundle, never against all collected resources.
     for document in &sorted {
@@ -759,15 +398,6 @@ pub fn render_with(
             }
         }
     }
-    manifest_artifacts.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
-    let profiles: Vec<_> = profiles
-        .into_iter()
-        .map(|(producer, profile)| json!({"producer":producer,"profile":profile}))
-        .collect();
-    let mut manifest = json!({"schema_version":1,"audience":audience,"profiles":profiles,"documents":manifest_documents,"artifacts":manifest_artifacts});
-    manifest.sort_all_objects();
-    let mut bytes = serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?;
-    bytes.push(b'\n');
-    files.insert("manifest.json".into(), bytes);
+    files.insert("manifest.json".into(), manifest.encode()?);
     Ok(files)
 }

@@ -21,8 +21,8 @@ view adds notes and private evidence to the same authored narrative.
 
 ## Run the examples
 
-Use Rust 1.95 or later. Keep this package next to the SDK so the relative
-development dependency resolves:
+Use Rust 1.95 or later; the portable standalone gate verifies Rust 1.95.0. Keep
+this package next to the SDK so the relative development dependency resolves:
 
 ```text
 crates/
@@ -52,6 +52,13 @@ error even on emulated hosts that otherwise report only a child exit status.
 When a Cargo workspace supplies the lockfile, add `--locked` to these Cargo
 commands. After dependencies are cached, `--offline` can verify both consumers
 without network access.
+
+For the combined SDK and consumer development gate, run
+`python3 ../doc-harness/dev/verify.py`. Its standalone mode copies both packages
+and these retained baselines into a temporary workspace, independently resolving
+only their dependencies. See the SDK's
+[development instructions](../doc-harness/README.md#develop-and-verify-the-portable-packages)
+for the minimum-toolchain check, caches, and formatting scope.
 
 ## Review intentional documentation changes
 
@@ -128,3 +135,8 @@ its public API. Its behavior is grounded in the library's official documentation
 All narrative and integration code in these examples is authored here. The guide
 captures the library's actual error message and formatted result; no upstream
 guide or example source was copied.
+
+This package's code and documentation use the repository's MIT license, copied
+verbatim into [LICENSE](LICENSE) with the original `Copyright (c) 2026 Grida`
+notice. Dependency code is not vendored, and upstream dependency terms remain
+unchanged.

@@ -301,6 +301,71 @@ long-term compatibility standard. See the source and tests for its current
 failure semantics. No crate release, registry publication, or repository split is
 implied by this maintained local package.
 
+### Review exported documents
+
+The `preview` example renders a valid SDK export into a new disposable HTML tree.
+It validates the source's complete receipt and ownership, then uses artifact
+identities to convert pages, resolve page links, and preserve download bytes.
+Custom page extensions work; a Markdown resource remains a download. Tables and
+strikethrough use the same options as compilation. Page/resource output collisions
+fail before writing. Reader previews contain only Reader-exported resources.
+
+After generating the [consumer example's candidate](../doc-example-config/README.md#review-intentional-documentation-changes),
+run from this package directory:
+
+```sh
+cargo run --example preview -- ../doc-example-config/.cache/config-review/reader .cache/config-reader-preview
+cargo run --example preview -- ../doc-example-config/.cache/config-review/contributor .cache/config-contributor-preview
+```
+
+Open the resulting HTML pages in a browser and inspect both audiences and their
+resources before explicitly accepting a baseline. The preview requires a new
+destination and omits receipt metadata because its HTML differs from the exported
+Markdown. It does not update the export or accept a baseline.
+
+## Develop and verify the portable packages
+
+From this package directory, run the package-owned GPU-free gate:
+
+```sh
+python3 dev/verify.py
+python3 dev/verify.py --standalone --toolchain 1.95.0 --offline
+```
+
+The first command uses the containing workspace's existing lockfile and host
+toolchain. It checks Rust formatting for only the SDK and consumer packages,
+warnings-denied Clippy, all targets including examples and exact Reader/Contributor
+baselines, both packages' doctests, and warnings-denied API documentation. It also
+runs the development harness's Python regressions. Python 3 and Rust with rustfmt
+and Clippy are required; no N3 setup command or graphics adapter is involved.
+N3's `just doc-framework-test` and its CI invoke this same gate.
+
+The standalone command copies both sibling packages, tests, examples, baselines,
+and license notices into a disposable minimal workspace. It resolves a temporary
+lockfile independently of N3's lockfile, patches, assets, and dependencies, then
+runs the same gate on the explicitly selected installed toolchain. Rust 1.95.0
+is the declared and verified minimum. `just doc-framework-smoke --offline` runs
+this check from N3. Omit `--offline` to allow dependency resolution when caches
+are cold. Temporary resolution can select different compatible transitive
+versions from N3's lockfile; its lockfile is deleted with the temporary workspace.
+No second permanent workspace or lockfile is maintained here.
+
+Explicit `CARGO_HOME`, `CARGO_TARGET_DIR`, and offline environment settings are
+preserved. Relative cache paths retain their meaning from the invocation directory
+when checks change their working directory; absolute paths and empty overrides
+are passed through. Without a target override, standalone builds reuse the ignored
+package-local `.cache/standalone-target` directory. Omitting `--toolchain` uses
+the installed Cargo toolchain selected in the temporary workspace; it does not
+inherit N3's toolchain pin.
+
+Authored documentation consists of the two package READMEs and Rust documentation
+comments. Rust formatting belongs to this gate. In N3, the authored READMEs use
+`just fmt-docs`; the portable gate adds no Node.js requirement. Generated example
+baselines, guide pages, manifests, and resources are excluded from prose
+formatting and change only through explicit candidate review and baseline update.
+Independent repository extraction will carry this development harness and both
+packages together.
+
 ## License and provenance
 
 The package originates in N3's executable documentation harness and its local
