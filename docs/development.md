@@ -2,7 +2,7 @@
 
 The application is a single Rust package named `n3`, with private implementation
 modules. Its documentation adapter consumes the separately maintained
-[lgtmd SDK](https://github.com/softmarshmallow/lgtmd) at an exact Git revision.
+[lgtmd SDK](https://github.com/lgtmd/lgtmd) at an exact Git revision.
 SDK sources and portable examples live in that repository. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
 guidance. [Testing](../TESTING.md) indexes verification workflows, reference suites,
 and benchmark resources. Start at [the architecture map](architecture/architecture.md) and
@@ -422,7 +422,7 @@ navigation adapters, and scene renderer. Assertions verify the intended outcome.
 The portable SDK owns document composition, frozen evidence, and shared artifact
 publication; it does not own N3's input or renderer. See
 [executable documents](architecture/executable-documents.md) for the maintained
-boundary and [the SDK README](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) for its API.
+boundary and [the SDK README](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd/README.md) for its API.
 
 ```sh
 just docs
@@ -503,7 +503,7 @@ it does not replace the Rust replay and exact artifact checks.
 
 SDK authoring, compiler/store work, and its portable Rust/React examples are
 maintained and verified in the
-[lgtmd repository](https://github.com/softmarshmallow/lgtmd). Follow its contributor
+[lgtmd repository](https://github.com/lgtmd/lgtmd). Follow its contributor
 instructions for SDK setup, independent package checks, and Node/Chromium gates.
 N3 does not install or run the SDK's web example during application verification.
 The N3 app's `web/` host remains a separate consumer boundary.

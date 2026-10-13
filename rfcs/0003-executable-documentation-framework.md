@@ -5,7 +5,7 @@ Status: **Implemented and extracted — experimental SDK and N3 bridge; independ
 Date: 2026-10-04
 
 The framework was incubated inside N3 and is now maintained in the dedicated
-[lgtmd repository](https://github.com/softmarshmallow/lgtmd). N3 consumes an exact
+[lgtmd repository](https://github.com/lgtmd/lgtmd). N3 consumes an exact
 Git revision and retains its application adapter, replay, renderer, and guide
 artifacts. [The architecture contract](../docs/architecture/executable-documents.md)
 records the current boundary. The findings and development commands below are a
@@ -681,7 +681,7 @@ infrastructure, publication, and the repository move remain deferred.
 
 The local implementation now includes:
 
-- [An unpublished SDK](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) with Rust-authored prose,
+- [An unpublished SDK](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd/README.md) with Rust-authored prose,
   checked values, observed bindings, frozen resources, contributor notes, strict
   audience filtering, a structured manifest, and a project-owned runner.
 - One filesystem lifecycle used by the SDK and N3. Dedicated trees preserve N3's
@@ -697,7 +697,7 @@ The local implementation now includes:
   format supports private prose notes and public captured media; private captured
   resources fail before publication. Full SDK exports support contributor-only
   resources and exclude their files and metadata from the reader bundle.
-- [Two non-GUI integrations](https://github.com/softmarshmallow/lgtmd/blob/main/crates/doc-example-config/README.md): a real
+- [Two non-GUI integrations](https://github.com/lgtmd/lgtmd/blob/main/crates/doc-example-config/README.md): a real
   configuration CLI and the existing serde_json library's public parsing/error/
   serialization APIs. The latter is our integration, not independent maintainer
   adoption or upstream documentation.

@@ -7,7 +7,7 @@ Date: 2026-10-13
 The portable Rust SDK and TypeScript integration were incubated directly in N3,
 without a submodule, while N3 remained a real consumer. The independently verified
 SDK, Node bridge, Rust/React examples, and development harness now live in the
-[lgtmd repository](https://github.com/softmarshmallow/lgtmd). N3 consumes an exact
+[lgtmd repository](https://github.com/lgtmd/lgtmd). N3 consumes an exact
 Git revision and retains its own adapter, replay, renderer, and guide artifacts.
 
 The preferred eventual N3 integration remains a crates.io dependency once the
@@ -36,7 +36,7 @@ SDK-owned development commands now run in the lgtmd repository.
   receipt, and successful runner-process exit before publishing. Imported custom
   reporter instances are supported; built-in reporter-name delegation, retries,
   repeatEach greater than one, shards, and multiple/dependency projects are not.
-- [Three complete React/Vite examples](https://github.com/softmarshmallow/lgtmd/blob/main/examples/lgtmd-web/README.md) include all project
+- [Three complete React/Vite examples](https://github.com/lgtmd/lgtmd/blob/main/examples/lgtmd-web/README.md) include all project
   setup, cleanup, application code, prose, observations, checks, downloads,
   screenshots and contributor notes. React components and ordinary Vite scripts
   model a real developer application; lgtmd is a development dependency. Browser
@@ -60,7 +60,7 @@ reviewed local Reader/Contributor trees and screenshots are disposable evidence;
 projects choose and explicitly accept their own baselines using `update`.
 
 See the [implemented architecture](../docs/architecture/executable-documents.md#node-and-web-integration)
-and [Node SDK contract](https://github.com/softmarshmallow/lgtmd/blob/main/packages/lgtmd/README.md). The original sequence below
+and [Node SDK contract](https://github.com/lgtmd/lgtmd/blob/main/packages/lgtmd/README.md). The original sequence below
 records the reasoning and later extraction/release gates.
 
 ## Outcome and rationale
@@ -78,7 +78,7 @@ exit gates; moving files alone does not establish production readiness.
 
 [RFC 0003](0003-executable-documentation-framework.md) records the existing Rust
 framework. The [implemented architecture](../docs/architecture/executable-documents.md)
-and [SDK README](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) remain authoritative for current behavior.
+and [SDK README](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd/README.md) remain authoritative for current behavior.
 
 ## Initial support scope
 

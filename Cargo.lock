@@ -1356,7 +1356,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 [[package]]
 name = "lgtmd"
 version = "0.0.0"
-source = "git+https://github.com/softmarshmallow/lgtmd?rev=8828c41eaf7fbb002044aea9f8bfd4a06ba76168#8828c41eaf7fbb002044aea9f8bfd4a06ba76168"
+source = "git+https://github.com/lgtmd/lgtmd?rev=8828c41eaf7fbb002044aea9f8bfd4a06ba76168#8828c41eaf7fbb002044aea9f8bfd4a06ba76168"
 dependencies = [
  "pulldown-cmark",
  "same-file",

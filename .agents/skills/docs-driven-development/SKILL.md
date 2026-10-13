@@ -154,7 +154,7 @@ for the full native suite and `just test-metal` for focused capture checks.
 For skill or hand-authored contributor-doc changes alone, validate instructions
 and links; unchanged app/media output does not require regeneration.
 Portable framework changes belong in the
-[lgtmd repository](https://github.com/softmarshmallow/lgtmd) and use its SDK and
+[lgtmd repository](https://github.com/lgtmd/lgtmd) and use its SDK and
 consumer gates. N3 adapter or dependency revision changes require native replay
 and `just verify` here.
 

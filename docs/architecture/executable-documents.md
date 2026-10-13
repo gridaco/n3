@@ -1,6 +1,6 @@
 # Executable documents and the N3 adapter
 
-The [lgtmd SDK](https://github.com/softmarshmallow/lgtmd) separates document
+The [lgtmd SDK](https://github.com/lgtmd/lgtmd) separates document
 composition and artifact publication from the application being documented.
 N3 remains one application crate and consumes lgtmd from an exact Git revision.
 The SDK, its Node bridge, and portable Rust/React examples are maintained in the
@@ -31,7 +31,7 @@ correct application behavior from an artifact's existence or a declared MIME
 type. Meaningful assertions, producer metadata, fixtures, runtime drivers,
 review, and documentation organization remain the consumer's responsibility.
 
-The [SDK README](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) is the API and manifest
+The [SDK README](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd/README.md) is the API and manifest
 reference. N3's [documentation pipeline](documentation-pipeline.md) owns product
 replay, timing, captures, and renderer-specific evidence. This document records
 the boundary between them.
@@ -89,7 +89,7 @@ paths need distinct ASCII components beyond any shared ancestors. Case-only or
 Unicode-only distinctions require preexisting separate directories rather than
 guessing a filesystem's alias rules. Unicode parent directories and later path
 components remain supported.
-The [configured SDK example](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/examples/configured.rs)
+The [configured SDK example](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd/examples/configured.rs)
 exercises a source-only host, external baselines, nested pages, renamed audience
 directories, private resources, and preservation of unrelated files. This boundary
 does not add a configuration file format, plugin loader, or repository abstraction.
@@ -200,7 +200,7 @@ revision update goes through this same gate; changes to its API must remain
 explicit in the N3 adapter and scenarios.
 
 The SDK owns its independent
-[verification workflow](https://github.com/softmarshmallow/lgtmd/blob/main/AGENTS.md),
+[verification workflow](https://github.com/lgtmd/lgtmd/blob/main/AGENTS.md),
 including portable sources, Rust/Node tests, its own examples, and installed
 Cargo/npm consumers. Those gates run in the lgtmd repository rather than through
 N3's application commands or CI. They supplement consumer verification and do
@@ -225,8 +225,8 @@ still need human review.
 
 ## Node and web integration
 
-[packages/lgtmd](https://github.com/softmarshmallow/lgtmd/blob/main/packages/lgtmd/README.md) authors documents in Node 24 ESM;
-[crates/lgtmd-node](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd-node/Cargo.toml) is its coarse native bridge.
+[packages/lgtmd](https://github.com/lgtmd/lgtmd/blob/main/packages/lgtmd/README.md) authors documents in Node 24 ESM;
+[crates/lgtmd-node](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd-node/Cargo.toml) is its coarse native bridge.
 One serialized request per compile/publication carries schema-v1 frozen input to
 the same Rust validation, Markdown exporters, runner and owned store. The wire
 contains complete ordered content and resource snapshots, never process-local
@@ -234,7 +234,7 @@ handle owners or application callbacks. Rust transport round trips preserve
 existing native exports, including literal Markdown versus typed parts. Built-in
 JSON resources use one Rust encoder, including those registered from Node.
 
-The [three React/Vite examples](https://github.com/softmarshmallow/lgtmd/blob/main/examples/lgtmd-web/README.md) exercise prose-only
+The [three React/Vite examples](https://github.com/lgtmd/lgtmd/blob/main/examples/lgtmd-web/README.md) exercise prose-only
 authoring, application-owned async preparation/cleanup, supplied context,
 observations, native checks, private notes/resources, JSON and CSV downloads, and
 Playwright screenshot evidence. The React app uses ordinary Vite development and

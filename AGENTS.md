@@ -70,7 +70,7 @@ boundaries. The current Editor still depends on egui and is not a public kernel 
 ## Code organization
 
 Keep N3 as one application crate. Its documentation adapter consumes the portable
-[lgtmd SDK](https://github.com/softmarshmallow/lgtmd), maintained in its own repository.
+[lgtmd SDK](https://github.com/lgtmd/lgtmd), maintained in its own repository.
 N3 pins an exact Git revision until a registry release is ready. The tested
 boundary separates application replay from document composition and publication;
 it does not make the editor a public kernel. Keep N3's replay, renderer, scenarios,
@@ -207,7 +207,7 @@ README, check links and factual claims; unchanged application/media output does
 not require rebuilding the renderer or regenerating the guide.
 
 Verify SDK or web adapter changes in the
-[lgtmd repository](https://github.com/softmarshmallow/lgtmd). An N3 dependency
+[lgtmd repository](https://github.com/lgtmd/lgtmd). An N3 dependency
 revision update still requires native `just verify`, including real replay and
 exact guide checks. Keep dependency updates explicit; do not add local path
 fallbacks or discover a sibling SDK checkout automatically.
