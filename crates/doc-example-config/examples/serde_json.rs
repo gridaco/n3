@@ -1,8 +1,8 @@
 //! An executable user explanation built against the existing serde_json crate.
 //! This is our integration example, not documentation adopted by its maintainers.
 
-use executable_docs::runner::run_cli;
-use executable_docs::{Artifact, Doc, Document, Result};
+use lgtmd::runner::run_cli;
+use lgtmd::{Artifact, Doc, Document, Result};
 use serde_json::error::Category;
 use std::path::Path;
 
@@ -148,7 +148,7 @@ fn input_json(text: &str) -> Result<Artifact> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use executable_docs::{Audience, store};
+    use lgtmd::{Audience, store};
 
     #[test]
     fn both_serde_json_views_match_the_retained_contract() {

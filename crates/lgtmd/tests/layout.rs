@@ -1,4 +1,4 @@
-use executable_docs::{Artifact, Audience, Doc, Document, ExportLayout};
+use lgtmd::{Artifact, Audience, Doc, Document, ExportLayout};
 use pulldown_cmark::{Event, Parser, Tag};
 use serde_json::Value;
 
@@ -29,7 +29,7 @@ fn default_layout_preserves_all_export_bytes_and_freezes_no_repository_paths() {
         );
         assert_eq!(
             ordinary,
-            executable_docs::render_with(
+            lgtmd::render_with(
                 std::slice::from_ref(&document),
                 audience,
                 &ExportLayout::default()

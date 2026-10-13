@@ -1,7 +1,7 @@
 # Developing N3
 
 The application is a single Rust package named `n3`, with private implementation
-modules. The workspace also maintains the portable `executable-docs` SDK and its
+modules. The workspace also maintains the portable `lgtmd` SDK and its
 consumer examples under `crates/`; the root package remains the default Cargo
 target. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
 guidance. [Testing](../TESTING.md) indexes verification workflows, reference suites,
@@ -422,7 +422,7 @@ navigation adapters, and scene renderer. Assertions verify the intended outcome.
 The portable SDK owns document composition, frozen evidence, and shared artifact
 publication; it does not own N3's input or renderer. See
 [executable documents](architecture/executable-documents.md) for the maintained
-boundary and [the SDK README](../crates/doc-harness/README.md) for its API.
+boundary and [the SDK README](../crates/lgtmd/README.md) for its API.
 
 ```sh
 just docs
@@ -508,7 +508,7 @@ and API documentation without starting N3's renderer. This gate also runs inside
 standalone copy on the declared Rust 1.95 minimum, once that toolchain and the
 portable dependencies are cached. Its fresh temporary lockfile excludes N3's
 dependencies, patches, and workspace configuration. See the
-[SDK development workflow](../crates/doc-harness/README.md#develop-and-verify-the-portable-packages)
+[SDK development workflow](../crates/lgtmd/README.md#develop-and-verify-the-portable-packages)
 for direct commands and cache handling.
 The [consumer README](../crates/doc-example-config/README.md) documents direct Cargo
 commands, package-local baselines, and candidate review. These examples exercise

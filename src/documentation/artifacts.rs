@@ -1,6 +1,6 @@
 //! Strict generated-tree ownership, bindings, validation and publication.
 use super::*;
-use executable_docs::{
+use lgtmd::{
     Audience,
     lifecycle::{self, Ownership},
 };
@@ -414,7 +414,7 @@ mod renderer_tests {
         }
         assert!(candidate_destination(&repository.join("Cargo.toml"), &repository).is_err());
         // This is a read-only preflight: the fresh destination remains absent.
-        let fresh = repository.join(".cache/executable-docs-never-created-by-preflight");
+        let fresh = repository.join(".cache/lgtmd-never-created-by-preflight");
         assert_eq!(candidate_destination(&fresh, &repository).unwrap(), fresh);
         assert!(!fresh.exists());
     }

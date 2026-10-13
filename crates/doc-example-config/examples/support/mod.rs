@@ -1,5 +1,5 @@
 use config_demo::Config;
-use executable_docs::{Artifact, Doc, Document, Result};
+use lgtmd::{Artifact, Doc, Document, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};

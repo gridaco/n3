@@ -3,7 +3,7 @@
 
 mod support;
 
-use executable_docs::runner::run_cli;
+use lgtmd::runner::run_cli;
 use std::path::Path;
 
 fn main() {

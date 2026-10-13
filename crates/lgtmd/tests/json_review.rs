@@ -1,4 +1,4 @@
-use executable_docs::{Audience, Doc, Document};
+use lgtmd::{Audience, Doc, Document};
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashMap};
 

@@ -557,7 +557,7 @@ dependencies = [
 name = "doc-example-config"
 version = "0.0.0"
 dependencies = [
- "executable-docs",
+ "lgtmd",
  "serde",
  "serde_json",
  "tempfile",
@@ -736,18 +736,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
 dependencies = [
  "num-traits",
-]
-
-[[package]]
-name = "executable-docs"
-version = "0.0.0"
-dependencies = [
- "pulldown-cmark",
- "same-file",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
 ]
 
 [[package]]
@@ -1376,6 +1364,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lgtmd"
+version = "0.0.0"
+dependencies = [
+ "pulldown-cmark",
+ "same-file",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1520,11 +1520,11 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
- "executable-docs",
  "glam",
  "gltf",
  "image",
  "js-sys",
+ "lgtmd",
  "libc",
  "percent-encoding",
  "pollster 1.0.1",

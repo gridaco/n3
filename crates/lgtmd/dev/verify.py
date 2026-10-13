@@ -10,9 +10,9 @@ import tempfile
 
 
 SDK = Path(__file__).resolve().parents[1]
-PACKAGES = ("executable-docs", "doc-example-config")
+PACKAGES = ("lgtmd", "doc-example-config")
 WORKSPACE = """[workspace]
-members = ["crates/doc-harness", "crates/doc-example-config"]
+members = ["crates/lgtmd", "crates/doc-example-config"]
 resolver = "3"
 """
 
@@ -48,7 +48,7 @@ def payload(sdk, destination):
             ignore=disposable,
         )
     (destination / "Cargo.toml").write_text(WORKSPACE, encoding="utf-8")
-    return destination / "crates/doc-harness"
+    return destination / "crates/lgtmd"
 
 
 def environment_for(sdk, standalone):
@@ -101,7 +101,7 @@ def main(arguments=None, *, sdk=SDK):
         environment = environment_for(sdk, options.standalone)
         if not options.standalone:
             return checks(sdk, cargo, environment, options.offline)
-        with tempfile.TemporaryDirectory(prefix="executable-docs-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="lgtmd-") as temporary:
             isolated = payload(sdk, Path(temporary))
             # Resolve only portable dependencies into a temporary lockfile. Never
             # copy or modify the application's lockfile, patches, or toolchain pin.

@@ -1,4 +1,4 @@
-use executable_docs::{Artifact, Audience, Doc, Document, runner::run_cli, store};
+use lgtmd::{Artifact, Audience, Doc, Document, runner::run_cli, store};
 use std::{
     collections::BTreeMap,
     fs,
@@ -48,10 +48,7 @@ fn retained_receipts_accept_unknown_fields_and_null_or_omitted_check_payloads() 
     let observation = doc.expect_eq("nothing", Option::<u8>::None, None).unwrap();
     doc.require("private-check", true).unwrap();
     let label = doc
-        .binding(
-            "label",
-            executable_docs::BindingValue::Code("result".into()),
-        )
+        .binding("label", lgtmd::BindingValue::Code("result".into()))
         .unwrap();
     doc.paragraph(("The ", label, " is ", observation)).unwrap();
     let resource = doc
@@ -676,8 +673,8 @@ fn a_case_alias_of_existing_baseline_fails_before_generation() {
     assert_eq!(snapshot(&baseline), saved);
 }
 
-fn document() -> executable_docs::Document {
-    let mut doc = executable_docs::Doc::new("example", "Example").unwrap();
+fn document() -> lgtmd::Document {
+    let mut doc = lgtmd::Doc::new("example", "Example").unwrap();
     let value = doc.expect_eq("value", 8080, 8080).unwrap();
     doc.paragraph(("Port ", &value, ".")).unwrap();
     doc.note("Contributor-only explanation").unwrap();

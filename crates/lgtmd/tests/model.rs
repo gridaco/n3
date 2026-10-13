@@ -1,4 +1,4 @@
-use executable_docs::{Artifact, Audience, BindingValue, Doc, Document, IntoProse};
+use lgtmd::{Artifact, Audience, BindingValue, Doc, Document, IntoProse};
 use serde_json::{Value, json};
 
 fn doc() -> Doc {
@@ -20,7 +20,7 @@ fn prose_macro_combines_many_mixed_parts_and_evaluates_each_once_in_order() {
         .unwrap();
     let text = doc.text("result", "saved").unwrap();
     let mut evaluated = Vec::new();
-    doc.markdown_parts(executable_docs::prose![
+    doc.markdown_parts(lgtmd::prose![
         {
             evaluated.push(1);
             "First: "
@@ -56,7 +56,7 @@ fn prose_macro_combines_many_mixed_parts_and_evaluates_each_once_in_order() {
         .map(|reference| reference["id"].as_str().unwrap())
         .collect();
     assert_eq!(references, ["count", "save", "result", "count", "save"]);
-    let empty = executable_docs::prose![];
+    let empty = lgtmd::prose![];
     assert!(empty.is_empty());
 }
 

@@ -70,7 +70,7 @@ boundaries. The current Editor still depends on egui and is not a public kernel 
 ## Code organization
 
 Keep N3 as one application crate. The workspace also maintains the portable
-`executable-docs` SDK in `crates/doc-harness` and its consumer examples in
+`lgtmd` SDK in `crates/lgtmd` and its consumer examples in
 `crates/doc-example-config`; N3's documentation adapter is a real SDK consumer.
 This extraction is justified by a tested boundary between application replay and
 document composition/publication. It does not make the editor a public kernel.
@@ -96,7 +96,7 @@ capabilities, performance policy, or verification baseline.
 | `src/native.rs`              | Window lifecycle, native events, dialogs, filesystem effects                  |
 | `src/settings/`              | Typed global preferences, validation, merge policy, storage interface         |
 | `src/documentation/`         | Headless replay, virtual input, annotations, capture, scenarios               |
-| `crates/doc-harness/`        | Portable document composition, evidence, audience exports, artifact lifecycle |
+| `crates/lgtmd/`              | Portable document composition, evidence, audience exports, artifact lifecycle |
 | `crates/doc-example-config/` | Standalone CLI and library consumers of the documentation SDK                 |
 
 Keep code, identifiers, comments, tests, logs, and authored UI strings in English.

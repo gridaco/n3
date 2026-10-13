@@ -1,4 +1,4 @@
-# Executable documents
+# lgtmd
 
 Author a document while executing the behavior it explains. Ordinary Rust code
 supplies the actions and checks; the document collects prose, frozen observations,
@@ -15,7 +15,7 @@ documentation website.
 The example below is also a Rust documentation test. It needs only this crate:
 
 ```rust
-use executable_docs::{Audience, Doc, Document};
+use lgtmd::{Audience, Doc, Document};
 
 let mut doc = Doc::new("trim-text", "Trim surrounding whitespace")?;
 doc.heading(2, "Normalize a string")?;
@@ -84,6 +84,10 @@ tainted and `finish()` rejects it. A completed document needs at least one
 successful check. Public block IDs are currently positional; inserting public
 content can change later block anchors. Check and resource IDs are author-owned.
 
+The built-in encoder IDs remain `executable-docs/text` and `executable-docs/json`
+for compatibility with retained evidence receipts. These serialized producer IDs
+are independent of the `lgtmd` package and Rust import name.
+
 `finish()` freezes and validates the authored document independently of its future
 file layout. Export then validates resource use, page and artifact paths, local
 links, and the complete selected audience. A finished document alone is not a
@@ -98,7 +102,7 @@ supported. Each binding expression runs once, even when its name appears more
 than once. This composition lives in the scenario, without a separate template.
 
 ```rust
-use executable_docs::{prose, Doc};
+use lgtmd::{prose, Doc};
 
 let mut doc = Doc::new("retry", "Retry an operation")?;
 let section = doc.heading_with_id("retry-limit", 2, "Choose a retry limit")?;
@@ -116,7 +120,7 @@ convenient for shorter sequences. Prefer ordinary blocks for new documents;
 `markdown_parts` preserves exact Markdown bytes for an existing host format.
 
 ```rust
-use executable_docs::{prose, Doc};
+use lgtmd::{prose, Doc};
 
 let mut doc = Doc::new("retry-limit", "Retry limit")?;
 let count = doc.expect_eq("attempts", 3, 3)?;
@@ -161,7 +165,7 @@ document functions, fixtures, skills, or application binaries live. Your callbac
 supplies completed documents. Configure export paths separately from authoring:
 
 ```rust,no_run
-use executable_docs::{Audience, Doc, ExportLayout, runner::RunnerConfig};
+use lgtmd::{Audience, Doc, ExportLayout, runner::RunnerConfig};
 # let project_root = std::env::current_dir().unwrap();
 
 let layout = ExportLayout::default()
@@ -174,7 +178,7 @@ let config = RunnerConfig::new(&project_root)?
     .output(Audience::Contributor, "review/evidence", "internal")?
     .layout(layout);
 
-executable_docs::runner::run_cli_with(std::env::args().skip(1), &config, || {
+lgtmd::runner::run_cli_with(std::env::args().skip(1), &config, || {
     let mut doc = Doc::new("setup", "Set up the application")?;
     let value = doc.expect_eq("trimmed", "  ready ".trim(), "ready")?;
     doc.paragraph(("The normalized value is ", &value, "."))?;

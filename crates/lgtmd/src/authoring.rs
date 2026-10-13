@@ -319,6 +319,7 @@ impl Doc {
 
     /// Freeze UTF-8 text with the built-in text producer.
     pub fn text(&mut self, id: &str, text: impl Into<String>) -> Result<Resource> {
+        // Persisted encoder IDs remain stable across package renames, as for JSON below.
         let artifact = Artifact::new(
             text.into().into_bytes(),
             "text/plain",

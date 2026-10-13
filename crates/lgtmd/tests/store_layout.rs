@@ -1,4 +1,4 @@
-use executable_docs::{Audience, Doc, Document, ExportLayout, lifecycle, store};
+use lgtmd::{Audience, Doc, Document, ExportLayout, lifecycle, store};
 use serde_json::Value;
 use std::{fs, path::PathBuf};
 

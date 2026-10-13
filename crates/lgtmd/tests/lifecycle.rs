@@ -1,4 +1,4 @@
-use executable_docs::{
+use lgtmd::{
     Result,
     lifecycle::{self, Files, Ownership},
 };

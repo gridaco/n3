@@ -2,7 +2,7 @@
 #[allow(dead_code)]
 mod support;
 
-use executable_docs::{Audience, Document, store};
+use lgtmd::{Audience, Document, store};
 use std::path::Path;
 
 #[test]

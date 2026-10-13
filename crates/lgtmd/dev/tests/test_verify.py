@@ -18,7 +18,7 @@ class PortableVerificationTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name) / "host with spaces $(not-a-command)"
-        self.sdk = self.root / "crates/doc-harness"
+        self.sdk = self.root / "crates/lgtmd"
         self.example = self.root / "crates/doc-example-config"
         for package in (self.sdk, self.example):
             (package / "src").mkdir(parents=True)
@@ -47,13 +47,13 @@ class PortableVerificationTests(unittest.TestCase):
         (self.sdk / "Cargo.lock").write_text("package lockfile is not portable input\n")
         destination = self.root.parent / "isolated"
         copied = verify.payload(self.sdk, destination)
-        self.assertEqual(copied, destination / "crates/doc-harness")
+        self.assertEqual(copied, destination / "crates/lgtmd")
         self.assertNotIn("host", (destination / "Cargo.toml").read_text())
         self.assertFalse((destination / "Cargo.lock").exists())
         self.assertFalse((destination / "rust-toolchain.toml").exists())
         for excluded in (".cache", "target", "__pycache__", "Cargo.lock"):
             self.assertFalse((copied / excluded).exists())
-        for package in ("doc-harness", "doc-example-config"):
+        for package in ("lgtmd", "doc-example-config"):
             self.assertEqual((destination / "crates" / package / "LICENSE").read_bytes(), b"MIT License\nCopyright notice\n")
         copied_baseline = destination / "crates/doc-example-config/baseline/reader"
         for name in ("manifest.json", ".ownership.json"):

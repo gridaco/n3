@@ -1,4 +1,4 @@
-use executable_docs::{Artifact, Audience, BindingValue, Doc, Document, ExportLayout};
+use lgtmd::{Artifact, Audience, BindingValue, Doc, Document, ExportLayout};
 use pulldown_cmark::{Event, Parser, Tag, html};
 
 fn doc() -> Doc {

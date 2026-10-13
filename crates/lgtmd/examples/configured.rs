@@ -1,7 +1,7 @@
 //! The host owns its project root, fixtures, audience destinations and export layout.
 //! Run: configured PROJECT_ROOT BASELINE_ROOT check|update|build [SDK options]
 //! PROJECT_ROOT contains fixtures/ports.txt with two nonzero ports, one per line.
-use executable_docs::{
+use lgtmd::{
     Audience, Doc, Document, ExportLayout, Result, prose,
     runner::{RunnerConfig, run_cli_with},
 };
@@ -76,7 +76,7 @@ fn guide(project: &Path) -> Result<Vec<Document>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use executable_docs::{lifecycle, runner::RunMode, runner::run};
+    use lgtmd::{lifecycle, runner::RunMode, runner::run};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]

@@ -107,7 +107,7 @@ class CIRunnerTests(unittest.TestCase):
             "node --test tools/tests/web_wrapper.test.mjs",
             "python3 -m unittest discover -s tools/benchmark/tests -t . -p 'test_*.py'",
             "node --test tools/benchmark/tests/*.test.mjs",
-            "python3 crates/doc-harness/dev/verify.py",
+            "python3 crates/lgtmd/dev/verify.py",
             "cargo test --locked --features viewport-measure --lib measurement::",
             "cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize",
             "exec cargo test --locked",
@@ -169,7 +169,7 @@ class CIRunnerTests(unittest.TestCase):
         python = commands / "python3"
         python.write_text(
             "#!/bin/sh\n"
-            "if [ \"$1\" = crates/doc-harness/dev/verify.py ]; then\n"
+            "if [ \"$1\" = crates/lgtmd/dev/verify.py ]; then\n"
             "    printf '%s\\n' 'portable framework gate' >> \"$N3_TEST_RECORD\"\n"
             "    exit 19\n"
             "fi\n"

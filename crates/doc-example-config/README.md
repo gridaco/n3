@@ -26,7 +26,7 @@ this package next to the SDK so the relative development dependency resolves:
 
 ```text
 crates/
-  doc-harness/
+  lgtmd/
   doc-example-config/
 ```
 
@@ -54,10 +54,10 @@ commands. After dependencies are cached, `--offline` can verify both consumers
 without network access.
 
 For the combined SDK and consumer development gate, run
-`python3 ../doc-harness/dev/verify.py`. Its standalone mode copies both packages
+`python3 ../lgtmd/dev/verify.py`. Its standalone mode copies both packages
 and these retained baselines into a temporary workspace, independently resolving
 only their dependencies. See the SDK's
-[development instructions](../doc-harness/README.md#develop-and-verify-the-portable-packages)
+[development instructions](../lgtmd/README.md#develop-and-verify-the-portable-packages)
 for the minimum-toolchain check, caches, and formatting scope.
 
 ## Review intentional documentation changes

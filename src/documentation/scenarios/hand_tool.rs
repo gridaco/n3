@@ -1,8 +1,8 @@
 use super::{Result, Session, guide::Guide, pointer};
 use crate::{controls::Control, doc_harness::ClipSpec, editor::Tool};
-use executable_docs::Resource;
-use executable_docs::prose;
 use glam::{Vec2, Vec3};
+use lgtmd::Resource;
+use lgtmd::prose;
 use std::time::Duration;
 
 fn geometry(s: &Session<'_>) -> (Vec2, f32, Vec3) {

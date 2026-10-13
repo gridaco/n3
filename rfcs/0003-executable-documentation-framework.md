@@ -9,7 +9,8 @@ The user authorized local implementation after reviewing the initial plan. The
 maintained SDK and representative integrations now live in this repository;
 [the architecture contract](../docs/architecture/executable-documents.md) records
 the implemented boundary. Broader design sketches below remain proposals where
-they exceed that boundary. The provisional package is unpublished.
+they exceed that boundary. The maintained SDK is now named `lgtmd` and remains
+unpublished; historical sections retain the prototype's names.
 
 Authoring requirements: concise, honest authoring and scenarios that write the
 document's text, resources, and explicit contributor notes themselves. The primary
@@ -679,7 +680,7 @@ infrastructure, publication, and the repository move remain deferred.
 
 The local implementation now includes:
 
-- [An unpublished SDK](../crates/doc-harness/README.md) with Rust-authored prose,
+- [An unpublished SDK](../crates/lgtmd/README.md) with Rust-authored prose,
   checked values, observed bindings, frozen resources, contributor notes, strict
   audience filtering, a structured manifest, and a project-owned runner.
 - One filesystem lifecycle used by the SDK and N3. Dedicated trees preserve N3's

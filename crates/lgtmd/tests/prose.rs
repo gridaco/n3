@@ -1,4 +1,4 @@
-use executable_docs::{Audience, BindingValue, Doc, Document, IntoProse, Prose, prose};
+use lgtmd::{Audience, BindingValue, Doc, Document, IntoProse, Prose, prose};
 use std::cell::Cell;
 
 #[test]

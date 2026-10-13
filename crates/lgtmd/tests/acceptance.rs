@@ -1,4 +1,4 @@
-use executable_docs::{Artifact, Audience, Doc, Document};
+use lgtmd::{Artifact, Audience, Doc, Document};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

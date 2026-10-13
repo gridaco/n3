@@ -1,8 +1,8 @@
 # Executable documents and the N3 adapter
 
-The maintained `executable-docs` SDK separates document composition and artifact
+The maintained `lgtmd` SDK separates document composition and artifact
 publication from the application being documented. N3 remains one application
-crate. The SDK lives in [crates/doc-harness](../../crates/doc-harness/README.md),
+crate. The SDK lives in [crates/lgtmd](../../crates/lgtmd/README.md),
 and [crates/doc-example-config](../../crates/doc-example-config/README.md) provides
 a real CLI consumer and an integration with the existing serde_json library.
 Neither SDK use nor those examples requires N3's renderer, UI stack, website,
@@ -28,7 +28,7 @@ correct application behavior from an artifact's existence or a declared MIME
 type. Meaningful assertions, producer metadata, fixtures, runtime drivers,
 review, and documentation organization remain the consumer's responsibility.
 
-The [SDK README](../../crates/doc-harness/README.md) is the API and manifest
+The [SDK README](../../crates/lgtmd/README.md) is the API and manifest
 reference. N3's [documentation pipeline](documentation-pipeline.md) owns product
 replay, timing, captures, and renderer-specific evidence. This document records
 the boundary between them.
@@ -86,7 +86,7 @@ paths need distinct ASCII components beyond any shared ancestors. Case-only or
 Unicode-only distinctions require preexisting separate directories rather than
 guessing a filesystem's alias rules. Unicode parent directories and later path
 components remain supported.
-The [configured SDK example](../../crates/doc-harness/examples/configured.rs)
+The [configured SDK example](../../crates/lgtmd/examples/configured.rs)
 exercises a source-only host, external baselines, nested pages, renamed audience
 directories, private resources, and preservation of unrelated files. This boundary
 does not add a configuration file format, plugin loader, or repository abstraction.
@@ -192,7 +192,7 @@ review. It does not approve product behavior, publication, or a release.
 ## Verification and remaining validation
 
 `just doc-framework-test` delegates to the SDK-owned
-[verification entry point](../../crates/doc-harness/dev/verify.py): scoped
+[verification entry point](../../crates/lgtmd/dev/verify.py): scoped
 formatting, Clippy, tooling regressions, SDK and consumer tests, doctests, and API
 docs without N3's GPU harness. Each consumer checks retained Reader and
 Contributor outputs. `just doc-framework-smoke --offline` copies those packages

@@ -1,4 +1,4 @@
-use executable_docs::{
+use lgtmd::{
     Audience, Doc, Document,
     runner::{RunMode, RunnerConfig, run},
 };

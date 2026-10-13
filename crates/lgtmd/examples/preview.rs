@@ -1,5 +1,5 @@
 //! Disposable static rendering for human review, separate from guide generation.
-use executable_docs::{
+use lgtmd::{
     Result,
     lifecycle::{self, Files, Ownership},
 };
@@ -35,7 +35,7 @@ fn preview(source: &Path, destination: &Path) -> Result<()> {
     files.remove(".ownership.json");
     // Validate the complete tree before rendering. In particular, a private or
     // unrecorded file added to a Reader export must never become a preview asset.
-    executable_docs::store::check(&source, &files)?;
+    lgtmd::store::check(&source, &files)?;
     let output = preview_files(&files)?;
     lifecycle::build(&destination, &output, Ownership::Dedicated)
 }
@@ -207,7 +207,7 @@ img { max-width: 100%; } table { border-collapse: collapse; width: 100%; } th, t
 #[cfg(test)]
 mod tests {
     use super::*;
-    use executable_docs::{Artifact, Audience, Doc, Document, ExportLayout};
+    use lgtmd::{Artifact, Audience, Doc, Document, ExportLayout};
     use std::fs;
 
     fn doc(id: &str) -> Doc {
@@ -224,7 +224,7 @@ mod tests {
         let files = document
             .render_with(Audience::Reader, &ExportLayout::default())
             .unwrap();
-        executable_docs::store::build(source, &files).unwrap();
+        lgtmd::store::build(source, &files).unwrap();
     }
 
     #[test]
@@ -303,8 +303,8 @@ mod tests {
         ] {
             let source = root.join(format!("{name}-export"));
             let destination = root.join(format!("{name}-preview"));
-            let files = executable_docs::render_with(&documents, audience, &layout).unwrap();
-            executable_docs::store::build(&source, &files).unwrap();
+            let files = lgtmd::render_with(&documents, audience, &layout).unwrap();
+            lgtmd::store::build(&source, &files).unwrap();
             let retained = lifecycle::read_tree(&source).unwrap();
             preview(&source, &destination).unwrap();
             let html = fs::read_to_string(destination.join("manual/start.html")).unwrap();
@@ -411,8 +411,8 @@ mod tests {
             .unwrap()
             .page("second", "guide.source")
             .unwrap();
-        let files = executable_docs::render_with(&documents, Audience::Reader, &layout).unwrap();
-        executable_docs::store::build(&source, &files).unwrap();
+        let files = lgtmd::render_with(&documents, Audience::Reader, &layout).unwrap();
+        lgtmd::store::build(&source, &files).unwrap();
         assert!(
             preview(&source, &destination)
                 .unwrap_err()

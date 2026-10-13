@@ -55,7 +55,7 @@ cargo test --locked --features viewport-measure --lib measurement::
 cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize
 """
 DOC_FRAMEWORK_CHECKS = """\
-python3 crates/doc-harness/dev/verify.py
+python3 crates/lgtmd/dev/verify.py
 """
 CI_SCRIPT = CI_CHECKS_PREFIX + DOC_FRAMEWORK_CHECKS + BENCHMARK_RUST_CHECKS + "exec cargo test --locked\n"
 CI_PARTITION_SCRIPTS = {

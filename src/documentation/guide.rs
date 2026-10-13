@@ -2,7 +2,7 @@
 //! stay in Session; the portable document owns composition and immutable evidence.
 use super::{Result, Session};
 use crate::controls::Control;
-use executable_docs::{Artifact, Binding, BindingValue, Doc, Resource};
+use lgtmd::{Artifact, Binding, BindingValue, Doc, Resource};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -138,7 +138,7 @@ impl Guide {
     pub(super) fn finish(mut self, session: &mut Session<'_>) -> Result<()> {
         let registered: BTreeSet<_> = self.media.keys().cloned().collect();
         let captured: BTreeSet<_> = session.images.keys().cloned().collect();
-        executable_docs::lifecycle::check_inventory(&captured, &registered)?;
+        lgtmd::lifecycle::check_inventory(&captured, &registered)?;
         if session.authored.is_some() {
             return Err("A scenario must finish exactly one authored guide".into());
         }
@@ -154,11 +154,8 @@ impl Guide {
         // supports public captured media plus private prose notes; a private
         // capture must fail instead of leaking through that legacy inventory.
         // Full portable exports support private resources without this limit.
-        for audience in [
-            executable_docs::Audience::Reader,
-            executable_docs::Audience::Contributor,
-        ] {
-            executable_docs::lifecycle::compare(
+        for audience in [lgtmd::Audience::Reader, lgtmd::Audience::Contributor] {
+            lgtmd::lifecycle::compare(
                 &session.images,
                 &document.resource_files(audience)?,
             ).map_err(|error| format!("N3 authored guides require every capture in the reader narrative and no extra resource files: {error}"))?;
@@ -172,7 +169,7 @@ impl Guide {
 mod tests {
     use super::*;
     use crate::documentation::{Capture, GENERATED, HEIGHT, WIDTH, hand_tool, root};
-    use executable_docs::Audience;
+    use lgtmd::Audience;
 
     #[test]
     fn authored_hand_tool_reuses_frozen_evidence_and_keeps_notes_private() {
