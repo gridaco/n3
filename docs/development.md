@@ -516,6 +516,16 @@ two integration shapes; the serde_json example is our use of an existing library
 not adoption by its maintainers. N3 adapter or scenario changes still require
 the native replay and `just verify`.
 
+For the incubating Node SDK and independent web example, run
+`just doc-web-setup` with Node 24/npm. This explicitly installs npm dependencies
+and pinned Chromium, builds the Rust host binding, and compiles TypeScript.
+`just doc-web-test --offline` verifies authoring, the optional Playwright adapter,
+real browser replay, and clean Cargo/npm consumers. `just doc-web-smoke --offline`
+copies only portable sources to an independent workspace and repeats the gate on
+Rust 1.95. These checks require the installed browser, run natively, and never
+silently accept a baseline. They supplement `just verify`; the N3 app's existing
+`web/` host is separate from [lgtmd's web example](../examples/lgtmd-web/README.md).
+
 ## User settings
 
 Global preferences live at `~/Library/Application Support/N3/settings.json` on

@@ -4,7 +4,7 @@ use crate::{
     Artifact, Result,
     model::{
         Binding, BindingValue, Block, Check, Checked, Claim, Content, Document, Inline, IntoProse,
-        Kind, Node, Reference, Resource, Target, valid_id,
+        Kind, Node, Observed, Reference, Resource, Target, valid_id,
     },
 };
 use serde::Serialize;
@@ -40,6 +40,7 @@ impl Doc {
                 title: title.into(),
                 nodes: Vec::new(),
                 checks: BTreeMap::new(),
+                observations: BTreeMap::new(),
                 artifacts: BTreeMap::new(),
                 resource_paths: BTreeMap::new(),
                 bindings: BTreeMap::new(),
@@ -85,7 +86,7 @@ impl Doc {
         self.append_with_id(None, content)
     }
 
-    fn append_with_id(&mut self, id: Option<&str>, content: Content) -> Result<Block> {
+    pub(crate) fn append_with_id(&mut self, id: Option<&str>, content: Content) -> Result<Block> {
         let result = (|| {
             let note = matches!(content, Content::Note { .. });
             let count = self
@@ -104,22 +105,42 @@ impl Doc {
             for reference in node.references() {
                 self.validate_reference(reference)?;
             }
+            match &node.content {
+                Content::Code(reference, language) => {
+                    self.validate_code_resource(reference, language)?;
+                }
+                Content::Embed(reference, _) if reference.kind != Kind::Resource => {
+                    return Err("Embedded content requires a resource reference".into());
+                }
+                _ => {}
+            }
             if let Content::Paragraph(prose)
             | Content::MarkdownParts(prose)
             | Content::Note { prose, .. } = &node.content
             {
                 for part in &prose.0 {
                     if let Inline::Image(reference, _) = part
-                        && !self.document.artifacts[&reference.id]
-                            .mime
-                            .starts_with("image/")
+                        && (reference.kind != Kind::Resource
+                            || !self.document.artifacts[&reference.id]
+                                .mime
+                                .starts_with("image/"))
                     {
                         return Err(format!(
                             "Resource {} is not declared as an image",
                             reference.id
                         ));
                     }
+                    if let Inline::Code(reference, language) = part {
+                        if !matches!(node.content, Content::MarkdownParts(_)) {
+                            return Err(
+                                "Code resource views require Markdown parts; use Doc::code for a standalone block"
+                                    .into(),
+                            );
+                        }
+                        self.validate_code_resource(reference, language)?;
+                    }
                 }
+                validate_code_placement(prose)?;
             }
             let reference = self.reserve(&node.id, Kind::Block)?;
             self.document.nodes.push(node);
@@ -253,6 +274,28 @@ impl Doc {
         self.guarded(result)
     }
 
+    /// Freeze an observed value for prose and contributor notes. This records no
+    /// check and makes no verification claim. Later mutation of the source value
+    /// cannot change its serialized snapshot.
+    pub fn observe<T: Serialize>(&mut self, id: &str, value: T) -> Result<Observed<T>> {
+        let result = (|| {
+            let reference = self.reserve(id, Kind::Observation)?;
+            let mut observed = serde_json::to_value(value)
+                .map_err(|e| format!("Cannot freeze observed value {id}: {e}"))?;
+            // A host may enable preserve_order; canonicalize nested objects too.
+            observed.sort_all_objects();
+            self.document
+                .observations
+                .insert(id.into(), observed.clone());
+            Ok(Observed {
+                reference,
+                observed,
+                marker: PhantomData,
+            })
+        })();
+        self.guarded(result)
+    }
+
     pub fn require(&mut self, id: &str, condition: bool) -> Result<Claim> {
         let result = (|| {
             let reference = self.reserve(id, Kind::Claim)?;
@@ -333,22 +376,7 @@ impl Doc {
 
     /// Freeze a JSON value with the built-in deterministic JSON producer.
     pub fn json(&mut self, id: &str, value: &impl Serialize) -> Result<Resource> {
-        let result = (|| {
-            // Value alone is not sorted when a host enables preserve_order.
-            // Sort recursively, including objects inside arrays, before freezing.
-            let mut value = serde_json::to_value(value).map_err(|e| e.to_string())?;
-            value.sort_all_objects();
-            let mut bytes = serde_json::to_vec_pretty(&value).map_err(|e| e.to_string())?;
-            bytes.push(b'\n');
-            Artifact::new(
-                bytes,
-                "application/json",
-                "json",
-                "executable-docs/json",
-                "json-pretty-v1",
-            )
-        })();
-        let artifact = self.guarded(result)?;
+        let artifact = self.guarded(Artifact::json(value))?;
         self.resource(id, artifact)
     }
 
@@ -374,31 +402,36 @@ impl Doc {
     }
 
     pub fn code(&mut self, resource: &Resource, language: &str) -> Result<Block> {
-        let result = (|| {
-            self.validate_reference(&resource.0)?;
-            if !language
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"_+-".contains(&b))
-            {
-                return Err("Code language must be an ASCII identifier".into());
-            }
-            let artifact = &self.document.artifacts[resource.id()];
-            if !(artifact.mime.starts_with("text/") || artifact.mime == "application/json") {
-                return Err(format!(
-                    "Resource {} is not declared as text/JSON",
-                    resource.id()
-                ));
-            }
-            std::str::from_utf8(&artifact.bytes)
-                .map_err(|_| format!("Resource {} is not UTF-8", resource.id()))?;
-            Ok(())
-        })();
-        self.guarded(result)?;
         self.append(Content::Code(resource.reference(), language.into()))
     }
 
-    /// Freeze successful execution and intrinsic references. Export validates
-    /// layout-dependent resource ownership and local links against its complete
+    fn validate_code_resource(&self, reference: &Reference, language: &str) -> Result<()> {
+        self.validate_reference(reference)?;
+        if reference.kind != Kind::Resource {
+            return Err("Code content requires a resource reference".into());
+        }
+        if !language
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_+-".contains(&b))
+        {
+            return Err("Code language must be an ASCII identifier".into());
+        }
+        let artifact = &self.document.artifacts[&reference.id];
+        if !(artifact.mime.starts_with("text/") || artifact.mime == "application/json") {
+            return Err(format!(
+                "Resource {} is not declared as text/JSON",
+                reference.id
+            ));
+        }
+        std::str::from_utf8(&artifact.bytes)
+            .map_err(|_| format!("Resource {} is not UTF-8", reference.id))?;
+        Ok(())
+    }
+
+    /// Freeze authored content and intrinsic references. Explanations and
+    /// observations do not require checks; successful completion never invents
+    /// verification evidence. Any failed operation still prevents finishing.
+    /// Export validates layout-dependent resource ownership and local links against its complete
     /// bundle; finishing alone does not mean the document is publishable.
     pub fn finish(self) -> Result<Document> {
         if !self.errors.is_empty() {
@@ -408,14 +441,51 @@ impl Doc {
                 self.errors.join("; ")
             ));
         }
-        if self.document.checks.is_empty() {
-            return Err(format!(
-                "Document {} has no executed checks",
-                self.document.id
-            ));
-        }
         // Publication paths and cross-document links depend on the selected export layout.
         crate::validation::validate_document(&self.document)?;
         Ok(self.document)
     }
+}
+
+fn validate_code_placement(prose: &crate::model::Prose) -> Result<()> {
+    use pulldown_cmark::{Event, Parser, Tag};
+    if !prose.0.iter().any(|part| matches!(part, Inline::Code(..))) {
+        return Ok(());
+    }
+    let mut template = String::new();
+    let mut code_offsets = Vec::new();
+    for part in &prose.0 {
+        if matches!(part, Inline::Code(..)) {
+            code_offsets.push(template.len());
+        }
+        template.push_str(match part {
+            Inline::Text(text) => text,
+            _ => "LGTMD_REFERENCE",
+        });
+    }
+    for &offset in &code_offsets {
+        let before = &template[..offset];
+        let after = &template[offset + "LGTMD_REFERENCE".len()..];
+        let separated = |text: &str| text.is_empty() || text.bytes().all(|byte| byte == b'\n');
+        if !(separated(before) || before.ends_with("\n\n"))
+            || !(separated(after) || after.starts_with("\n\n"))
+        {
+            return Err(
+                "Code resource views must occupy their own blank-line-separated Markdown block"
+                    .into(),
+            );
+        }
+    }
+    for (event, range) in Parser::new(&template).into_offset_iter() {
+        if matches!(
+            event,
+            Event::Code(_) | Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock)
+        ) && code_offsets.iter().any(|offset| range.contains(offset))
+        {
+            return Err(
+                "Code resource views cannot be placed inside existing code or HTML syntax".into(),
+            );
+        }
+    }
+    Ok(())
 }

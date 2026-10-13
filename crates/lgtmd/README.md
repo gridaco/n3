@@ -60,11 +60,17 @@ tests, and its license; no workspace-inherited package fields are required.
   serialized observation. Its returned value handle can appear in prose.
   `require(id, condition)` records a predicate check. Meaningful checks remain the
   author's responsibility; the framework cannot prove arbitrary prose.
+- `observe(id, value)` freezes a serialized value without recording a check.
+  Its `Observed<T>` handle supports the same prose and note targets as checked
+  values. Explanation-only and observation-only documents are valid; successful
+  completion does not imply their prose was verified.
 - `resource(id, artifact)` registers owned bytes. `code` or `embed` places an
   existing resource. `resource_code` registers and places text while retaining its
   custom MIME, producer and comparison profile. The same handle can be reused in
   prose, placed again, or annotated without rerunning its producer.
   `Resource::image(alt)` and `Resource::link(label)` provide inline views;
+  `Resource::code(language)` places text/JSON within `markdown_parts`, occupying
+  its own blank-line-separated block. Code views cannot nest in code syntax or notes.
   image views require a declared image MIME type. `resource_at` preserves an
   existing safe artifact path, while complete exports reject duplicate owners
   across documents and generated pages.
@@ -80,8 +86,8 @@ tests, and its license; no workspace-inherited package fields are required.
 Handles belong to one document run. Duplicate evidence IDs, foreign handles,
 wrong text types, unreferenced resources, and failed checks fail explicitly.
 Ignoring a failed builder operation does not make the document valid: it remains
-tainted and `finish()` rejects it. A completed document needs at least one
-successful check. Public block IDs are currently positional; inserting public
+tainted and `finish()` rejects it. Checks are optional, and recorded checks must
+succeed. Public block IDs are currently positional; inserting public
 content can change later block anchors. Check and resource IDs are author-owned.
 
 The built-in encoder IDs remain `executable-docs/text` and `executable-docs/json`
@@ -93,6 +99,33 @@ file layout. Export then validates resource use, page and artifact paths, local
 links, and the complete selected audience. A finished document alone is not a
 publishable bundle; every export performs those remaining checks before returning
 bytes, and the runner prepares every requested export before publication begins.
+
+## Shared compiler and Node authoring
+
+[`transport`](src/transport.rs) exposes schema-v1 frozen document input and a
+coarse `compile(input, layout)` operation returning both audience exports.
+`Input::from_documents` and `Input::thaw` preserve native document semantics,
+including literal Markdown, typed parts, observations, checks, bindings, and owned
+resource bytes. Process-local handle owners are never serialized. This input is
+an interoperability contract, separate from the inventory manifest and a future
+viewer format. Unknown fields, unsupported versions, invalid identities and
+references, failed checks, and invalid resource paths fail explicitly.
+
+Portable JSON accepts null, booleans, strings, finite numbers, arrays and objects;
+integers must fit JavaScript's safe range. JavaScript rejects unsupported values
+before freezing, including undefined, cycles, getters, nonplain objects, negative
+zero, and nonfinite numbers. Native Rust authoring retains serde_json's existing
+serialization behavior (including normalization of nonfinite floats to null);
+the transport cannot recover information already normalized by a serializer.
+The built-in JSON resource encoder is shared Rust code, including for frozen
+Node JSON values; integer-like object keys and fractional numbers have the same
+encoding from the same portable input. Custom producers own their byte encoding.
+
+The incubating [Node SDK](../../packages/lgtmd/README.md) offers TypeScript tagged
+Markdown, optional native assertions, async preparation/cleanup, and an optional
+Playwright adapter. Its thin native bridge uses this compiler and the existing
+Rust runner/store. The [web example](../../examples/lgtmd-web/README.md) supplies
+three complete documents without application-specific engine behavior.
 
 For readable inline sentences, the optional named form of `prose!` keeps the
 text together and inserts typed handles. It returns a result because missing,

@@ -1376,6 +1376,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lgtmd-node"
+version = "0.0.0"
+dependencies = [
+ "lgtmd",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"

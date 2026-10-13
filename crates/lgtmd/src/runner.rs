@@ -13,6 +13,9 @@ pub enum RunMode {
     Check,
     Update,
     Build(PathBuf),
+    /// Build fresh trees at the explicitly configured audience output paths.
+    /// Useful for hosts that choose each candidate path rather than a build root.
+    BuildConfigured,
 }
 
 struct Options {
@@ -324,6 +327,14 @@ pub fn run(
         for (_, other) in &destinations {
             ensure_distinct_destinations(&path, other)?;
         }
+        if matches!(mode, RunMode::BuildConfigured)
+            && path.try_exists().map_err(|e| e.to_string())?
+        {
+            return Err(format!(
+                "Build destination already exists: {}",
+                path.display()
+            ));
+        }
         destinations.push((audience, path));
     }
     let prepared = lifecycle::prepare(|| {
@@ -342,7 +353,7 @@ pub fn run(
     for (name, destination, files) in prepared {
         let result = match mode {
             RunMode::Check => store::check(&destination, &files),
-            RunMode::Build(_) => store::build(&destination, &files),
+            RunMode::Build(_) | RunMode::BuildConfigured => store::build(&destination, &files),
             RunMode::Update => store::update(&destination, &files),
         };
         if let Err(error) = result {

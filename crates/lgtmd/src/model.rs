@@ -1,7 +1,7 @@
 //! Frozen document data, typed handles, and prose values.
 
 use crate::{Artifact, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::BTreeMap, marker::PhantomData};
 
@@ -18,6 +18,7 @@ pub(crate) enum Kind {
     Block,
     Claim,
     Value,
+    Observation,
     Resource,
     Binding,
 }
@@ -82,8 +83,13 @@ impl Block {
 
 /// An observed application label, not a behavioral assertion. The host adapter
 /// must establish that the control or canonical shortcut was actually observed.
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "kind", content = "value", rename_all = "lowercase")]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "value",
+    rename_all = "lowercase",
+    deny_unknown_fields
+)]
 pub enum BindingValue {
     Text(String),
     Code(String),
@@ -99,6 +105,13 @@ impl Resource {
     /// Link to this resource using a reader-facing label.
     pub fn link(&self, label: &str) -> Prose {
         Prose(vec![Inline::Link(self.reference(), label.into())])
+    }
+
+    /// Present a UTF-8 text or JSON resource as a fenced code block in Markdown
+    /// parts. The view must occupy its own block, separated by blank lines.
+    /// The owning builder validates the language and resource kind.
+    pub fn code(&self, language: &str) -> Prose {
+        Prose(vec![Inline::Code(self.reference(), language.into())])
     }
 }
 
@@ -135,12 +148,47 @@ impl<T> IntoProse for Checked<T> {
     }
 }
 
+/// A serialized value frozen at registration, without a behavioral assertion.
+/// Rendering this handle reports the observation; it never implies a check ran.
+#[derive(Clone, Debug)]
+pub struct Observed<T> {
+    pub(crate) reference: Reference,
+    pub(crate) observed: Value,
+    pub(crate) marker: PhantomData<fn() -> T>,
+}
+
+impl<T> Observed<T> {
+    pub fn id(&self) -> &str {
+        &self.reference.id
+    }
+    pub fn observed(&self) -> &Value {
+        &self.observed
+    }
+}
+impl<T> private::Sealed for Observed<T> {}
+impl<T> Target for Observed<T> {
+    fn reference(&self) -> Reference {
+        self.reference.clone()
+    }
+}
+impl<T> IntoProse for &Observed<T> {
+    fn into_prose(self) -> Prose {
+        Prose(vec![Inline::Reference(self.reference())])
+    }
+}
+impl<T> IntoProse for Observed<T> {
+    fn into_prose(self) -> Prose {
+        (&self).into_prose()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum Inline {
     Text(String),
     Reference(Reference),
     Image(Reference, String),
     Link(Reference, String),
+    Code(Reference, String),
 }
 
 #[derive(Clone, Debug)]
@@ -238,7 +286,10 @@ impl Node {
             | Content::MarkdownParts(prose)
             | Content::Note { prose, .. } => {
                 refs.extend(prose.0.iter().filter_map(|part| match part {
-                    Inline::Reference(r) | Inline::Image(r, _) | Inline::Link(r, _) => Some(r),
+                    Inline::Reference(r)
+                    | Inline::Image(r, _)
+                    | Inline::Link(r, _)
+                    | Inline::Code(r, _) => Some(r),
                     _ => None,
                 }));
             }
@@ -263,6 +314,7 @@ pub struct Document {
     pub(crate) title: String,
     pub(crate) nodes: Vec<Node>,
     pub(crate) checks: BTreeMap<String, Check>,
+    pub(crate) observations: BTreeMap<String, Value>,
     pub(crate) artifacts: BTreeMap<String, Artifact>,
     pub(crate) resource_paths: BTreeMap<String, String>,
     pub(crate) bindings: BTreeMap<String, BindingValue>,

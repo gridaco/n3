@@ -11,6 +11,7 @@
     "/docs/preview/vendor/**",
     "/vendor/**",
     "/examples/**",
+    "!/examples/lgtmd-web/**",
     "/fixtures/gltf/*/**",
     "/fixtures/benchmarks/*/source/**"
   ]

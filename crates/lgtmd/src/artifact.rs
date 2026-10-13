@@ -14,6 +14,22 @@ pub struct Artifact {
 }
 
 impl Artifact {
+    /// The one canonical built-in JSON encoder, shared by native authoring and
+    /// portable input. Encoding happens only from an already owned snapshot.
+    pub(crate) fn json(value: &impl serde::Serialize) -> Result<Self> {
+        let mut value = serde_json::to_value(value).map_err(|e| e.to_string())?;
+        value.sort_all_objects();
+        let mut bytes = serde_json::to_vec_pretty(&value).map_err(|e| e.to_string())?;
+        bytes.push(b'\n');
+        Self::new(
+            bytes,
+            "application/json",
+            "json",
+            "executable-docs/json",
+            "json-pretty-v1",
+        )
+    }
+
     pub fn new(
         bytes: impl Into<Vec<u8>>,
         mime: &str,

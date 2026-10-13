@@ -12,14 +12,15 @@ mod prose;
 mod render;
 pub mod runner;
 pub mod store;
+pub mod transport;
 mod validation;
 
 pub use artifact::Artifact;
 pub use authoring::Doc;
 pub use layout::ExportLayout;
 pub use model::{
-    Audience, Binding, BindingValue, Block, Checked, Claim, Document, IntoProse, Prose, Resource,
-    Target,
+    Audience, Binding, BindingValue, Block, Checked, Claim, Document, IntoProse, Observed, Prose,
+    Resource, Target,
 };
 pub use render::{render, render_with};
 

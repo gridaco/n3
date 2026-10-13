@@ -33,9 +33,16 @@ struct DocumentRecord {
     id: String,
     title: String,
     checks: Vec<CheckRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    observations: Vec<ObservationRecord>,
     blocks: Vec<BlockRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     bindings: Option<BTreeMap<String, Value>>,
+}
+#[derive(Serialize, Deserialize)]
+struct ObservationRecord {
+    id: String,
+    value: Value,
 }
 #[derive(Serialize, Deserialize)]
 struct CheckRecord {
@@ -166,6 +173,15 @@ impl Manifest {
                 }
             })
             .collect();
+        let observations = document
+            .observations
+            .iter()
+            .filter(|(id, _)| audience == Audience::Contributor || reader_refs.contains(id))
+            .map(|(id, value)| ObservationRecord {
+                id: id.clone(),
+                value: value.clone(),
+            })
+            .collect();
         let blocks = visible_nodes(document, audience)
             .map(|node| {
                 let kind = match &node.content {
@@ -217,6 +233,7 @@ impl Manifest {
             id: document.id.clone(),
             title: document.title.clone(),
             checks,
+            observations,
             blocks,
             bindings: (!bindings.is_empty()).then_some(bindings),
         });
@@ -350,9 +367,6 @@ pub(crate) fn validate_tree(files: &Files, retired_from: Option<&Files>) -> Resu
         field(document, "title")?;
         let mut local = BTreeMap::new();
         let checks = array(document, "checks")?;
-        if checks.is_empty() {
-            return Err(format!("Manifest document {id} has no checks"));
-        }
         for check in checks {
             let kind = match field(check, "kind")? {
                 "equality" => "value",
@@ -370,6 +384,14 @@ pub(crate) fn validate_tree(files: &Files, retired_from: Option<&Files>) -> Resu
                     "Manifest check must include both actual and expected payloads, or neither"
                         .into(),
                 );
+            }
+        }
+        if document.get("observations").is_some() {
+            for observation in array(document, "observations")? {
+                identity(&mut local, field(observation, "id")?, "observation")?;
+                if observation.get("value").is_none() {
+                    return Err("Manifest observation requires a value; null is a value".into());
+                }
             }
         }
         for block in array(document, "blocks")? {

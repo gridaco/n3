@@ -14,9 +14,11 @@ future repository move. No registry publication or release is implied.
 
 ## The shared contract
 
-An author writes a user explanation while ordinary Rust code executes behavior
-and checks important promises. The completed document owns its prose, checked
-observations, resources, and optional contributor notes. Reader and Contributor
+An author writes a user explanation while ordinary Rust or Node code executes
+behavior and checks important promises. Explanation-only pages are valid.
+`observe` freezes a value without implying a check; successful named checks and
+host outcomes remain distinct. The completed document owns its prose,
+observations, checks, resources, and optional contributor notes. Reader and Contributor
 exports reuse those frozen results; rendering another audience does not rerun the
 application or recapture resources.
 
@@ -216,3 +218,43 @@ maintainer adoption. Validation with independent project owners, the remaining
 future work. The framework detects encoded behavioral and artifact drift;
 prose clarity, meaningful coverage, visual legibility, and physical interaction
 still need human review.
+
+## Node and web incubation
+
+[packages/lgtmd](../../packages/lgtmd/README.md) authors documents in Node 24 ESM;
+[crates/lgtmd-node](../../crates/lgtmd-node/Cargo.toml) is its coarse native bridge.
+One serialized request per compile/publication carries schema-v1 frozen input to
+the same Rust validation, Markdown exporters, runner and owned store. The wire
+contains complete ordered content and resource snapshots, never process-local
+handle owners or application callbacks. Rust transport round trips preserve
+existing native exports, including literal Markdown versus typed parts. Built-in
+JSON resources use one Rust encoder, including those registered from Node.
+
+The [three React/Vite examples](../../examples/lgtmd-web/README.md) exercise prose-only
+authoring, application-owned async preparation/cleanup, supplied context,
+observations, native checks, private notes/resources, JSON and CSV downloads, and
+Playwright screenshot evidence. The React app uses ordinary Vite development and
+production builds, with a project-owned HTTP API and isolated test workspaces.
+Documentation captures run the built app through Vite preview on separate test
+ports; the development servers can remain open.
+The browser bundle imports no SDK code, and the examples import no N3 application
+code. The optional
+adapter extends a project's existing Playwright fixtures and assertions. It
+collects candidate attachments and publishes only after the real runner process
+and guarded reporters complete successfully. It initially supports one project,
+no retries/repetition/sharding, and clean passed outcomes for all discovered tests.
+Application state, services, seeds and DOM query correctness remain project-owned.
+
+WASM was probed with the same compiler input and produced equal exports, but its
+filesystem store returned an unsupported-platform error. The selected native
+route retains the existing strict filesystem contract. It requires platform
+binaries in npm tarballs; installation performs no Rust build. Node 24 ESM on
+macOS arm64 is the executed local scope. Linux x64 has CI wiring, not a completed
+runtime claim. A full viewer and browser-hosted SDK are deferred.
+
+`just doc-web-test --offline` checks the native bridge, Node authoring, failure
+semantics, real Chromium replay, exact repeated exports, and clean Cargo/npm
+consumers. `just doc-web-smoke --offline` repeats that gate in an independent
+workspace on Rust 1.95. The npm consumer installs with Rust absent from PATH and
+imports the core before installing the optional Playwright peer. Browser setup
+is explicit through `just doc-web-setup`; web gates supplement N3's native verifier.

@@ -74,6 +74,9 @@ Keep N3 as one application crate. The workspace also maintains the portable
 `crates/doc-example-config`; N3's documentation adapter is a real SDK consumer.
 This extraction is justified by a tested boundary between application replay and
 document composition/publication. It does not make the editor a public kernel.
+Node authoring is incubated in `packages/lgtmd`, using the thin `crates/lgtmd-node`
+compiler/store bridge. `examples/lgtmd-web` owns its independent application and
+fixtures; the SDK must never discover an N3 checkout or own application state.
 Prefer focused modules over further speculative crates or APIs. See
 [executable documents](docs/architecture/executable-documents.md) for this boundary.
 
@@ -98,6 +101,9 @@ capabilities, performance policy, or verification baseline.
 | `src/documentation/`         | Headless replay, virtual input, annotations, capture, scenarios               |
 | `crates/lgtmd/`              | Portable document composition, evidence, audience exports, artifact lifecycle |
 | `crates/doc-example-config/` | Standalone CLI and library consumers of the documentation SDK                 |
+| `crates/lgtmd-node/`         | Coarse native compiler/store bridge for Node authoring                        |
+| `packages/lgtmd/`            | Node SDK, project-owned lifecycle, and optional Playwright integration        |
+| `examples/lgtmd-web/`        | Independent web app, fixtures, and three authored example documents           |
 
 Keep code, identifiers, comments, tests, logs, and authored UI strings in English.
 Explain non-obvious behavior and platform limitations near the owning code.
@@ -205,6 +211,12 @@ available. See the development guide for these boundaries.
 For changes limited to hand-authored documentation such as this file or the
 README, check links and factual claims; unchanged application/media output does
 not require rebuilding the renderer or regenerating the guide.
+
+For Node SDK or web adapter changes, also run `just doc-web-test --offline` after
+the explicit `just doc-web-setup`. `just doc-web-smoke --offline` verifies portable
+sources and installed Cargo/npm consumers independently on Rust 1.95. These gates
+do not replace N3's native replay. Preserve the distinction between a fresh
+candidate, repeated-run determinism, and an explicitly accepted project baseline.
 
 Use the root `justfile` for development commands (`just` 1.46 is the verified
 version). Useful commands from the repository root:

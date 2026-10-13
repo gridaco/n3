@@ -123,8 +123,11 @@ fn inline(document: &Document, reference: &Reference, layout: &ExportLayout) -> 
             resource_url(document, reference, layout)
         ),
         Kind::Claim => format!("`{}`", reference.id),
-        Kind::Value => {
-            let actual = &document.checks[&reference.id].actual;
+        Kind::Value | Kind::Observation => {
+            let actual = match reference.kind {
+                Kind::Value => &document.checks[&reference.id].actual,
+                _ => &document.observations[&reference.id],
+            };
             escape(
                 &actual
                     .as_str()
@@ -189,6 +192,11 @@ fn render_prose(
                 escape(label),
                 resource_url(document, reference, layout)
             )),
+            Inline::Code(reference, language) => {
+                let text = std::str::from_utf8(&document.artifacts[&reference.id].bytes)
+                    .expect("Authoring validates code resource UTF-8");
+                Rendered::text(format!("{}\n\n", render_code(text, language)))
+            }
         });
     }
     rendered
@@ -197,6 +205,14 @@ fn render_prose(
 fn code_fence(text: &str) -> String {
     let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
     "`".repeat(longest.max(2) + 1)
+}
+
+fn render_code(text: &str, language: &str) -> String {
+    let fence = code_fence(text);
+    format!(
+        "{fence}{language}\n{text}{}{fence}",
+        if text.ends_with('\n') { "" } else { "\n" }
+    )
 }
 
 fn render_page(
@@ -236,18 +252,16 @@ fn render_page(
             Content::Code(reference, language) => {
                 let text = std::str::from_utf8(&document.artifacts[&reference.id].bytes)
                     .map_err(|_| "Code resource must be UTF-8")?;
-                let fence = code_fence(text);
-                Rendered::text(format!(
-                    "{fence}{language}\n{text}{}{fence}",
-                    if text.ends_with('\n') { "" } else { "\n" }
-                ))
+                Rendered::text(render_code(text, language))
             }
             Content::Note { target, prose } => {
                 let mut note = Rendered::text("**Contributor note");
                 if let Some(reference) = target {
                     note.push(Rendered::text(" on "));
                     note.push(match reference.kind {
-                        Kind::Claim | Kind::Value => Rendered::text(format!("`{}`", reference.id)),
+                        Kind::Claim | Kind::Value | Kind::Observation => {
+                            Rendered::text(format!("`{}`", reference.id))
+                        }
                         _ => inline(document, reference, layout),
                     });
                 }
