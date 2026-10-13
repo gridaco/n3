@@ -180,28 +180,6 @@ lint:
 test *args:
     cargo test --locked "$@"
 
-# Verify the maintained documentation SDK, consumers, examples, and exact baselines.
-# Default application build/run/test routing remains on N3.
-doc-framework-test:
-    python3 crates/lgtmd/dev/verify.py
-
-# Verify a disposable portable workspace, including the declared Rust minimum.
-doc-framework-smoke *args:
-    python3 crates/lgtmd/dev/verify.py --standalone --toolchain 1.95.0 "$@"
-
-# Explicit setup: Node dependencies, native compiler, TS build, pinned Chromium.
-doc-web-setup:
-    python3 packages/lgtmd/dev/verify.py --prepare
-    npm exec -- playwright install chromium
-
-# Portable web contracts, real browser replay, and clean Cargo/npm consumers.
-doc-web-test *args:
-    python3 packages/lgtmd/dev/verify.py "$@"
-
-# Prove the web SDK without the N3 source tree, renderer, or workspace patches.
-doc-web-smoke *args:
-    python3 packages/lgtmd/dev/verify.py --standalone --toolchain 1.95.0 "$@"
-
 # Open the local guide preview, check it, or intentionally regenerate it.
 docs mode="serve" *args:
     #!/usr/bin/env bash
@@ -261,4 +239,4 @@ test-metal:
     cargo test --locked documentation::capture::tests::
 
 # Native development and pre-push checks. CI infrastructure is opt-in.
-verify: fmt-check lint tools-test doc-framework-test test benchmark-rust-test
+verify: fmt-check lint tools-test test benchmark-rust-test

@@ -54,12 +54,9 @@ BENCHMARK_RUST_CHECKS = """\
 cargo test --locked --features viewport-measure --lib measurement::
 cargo test --locked --features viewport-measure --lib scene_only_presentation_matches_egui_pixels_and_restores_texture_after_resize
 """
-DOC_FRAMEWORK_CHECKS = """\
-python3 crates/lgtmd/dev/verify.py
-"""
-CI_SCRIPT = CI_CHECKS_PREFIX + DOC_FRAMEWORK_CHECKS + BENCHMARK_RUST_CHECKS + "exec cargo test --locked\n"
+CI_SCRIPT = CI_CHECKS_PREFIX + BENCHMARK_RUST_CHECKS + "exec cargo test --locked\n"
 CI_PARTITION_SCRIPTS = {
-    "checks": CI_CHECKS_PREFIX + "python3 tools/ci_test_inventory.py\n" + DOC_FRAMEWORK_CHECKS + BENCHMARK_RUST_CHECKS
+    "checks": CI_CHECKS_PREFIX + "python3 tools/ci_test_inventory.py\n" + BENCHMARK_RUST_CHECKS
     + "exec cargo test --locked -- --skip documentation::tests::generated_documentation_is_current --exact\n",
     "guide": """\
 python3 tools/ci_test_inventory.py

@@ -1,9 +1,9 @@
 # Developing N3
 
 The application is a single Rust package named `n3`, with private implementation
-modules. The workspace also maintains the portable `lgtmd` SDK and its
-consumer examples under `crates/`; the root package remains the default Cargo
-target. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
+modules. Its documentation adapter consumes the separately maintained
+[lgtmd SDK](https://github.com/softmarshmallow/lgtmd) at an exact Git revision.
+SDK sources and portable examples live in that repository. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
 guidance. [Testing](../TESTING.md) indexes verification workflows, reference suites,
 and benchmark resources. Start at [the architecture map](architecture/architecture.md) and
 [the milestone review](architecture/milestone-review.md). The old viewer-only
@@ -422,7 +422,7 @@ navigation adapters, and scene renderer. Assertions verify the intended outcome.
 The portable SDK owns document composition, frozen evidence, and shared artifact
 publication; it does not own N3's input or renderer. See
 [executable documents](architecture/executable-documents.md) for the maintained
-boundary and [the SDK README](../crates/lgtmd/README.md) for its API.
+boundary and [the SDK README](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) for its API.
 
 ```sh
 just docs
@@ -501,30 +501,20 @@ Finder delivery, macOS dialogs, or artistic approval.
 contract using Python's standard library. It also runs as part of `just verify`;
 it does not replace the Rust replay and exact artifact checks.
 
-For focused framework work, run `just doc-framework-test`. The SDK-owned workflow
-checks scoped Rust formatting, Clippy, tooling, SDK and consumer tests, doctests,
-and API documentation without starting N3's renderer. This gate also runs inside
-`just verify`. Run `just doc-framework-smoke --offline` to verify a disposable
-standalone copy on the declared Rust 1.95 minimum, once that toolchain and the
-portable dependencies are cached. Its fresh temporary lockfile excludes N3's
-dependencies, patches, and workspace configuration. See the
-[SDK development workflow](../crates/lgtmd/README.md#develop-and-verify-the-portable-packages)
-for direct commands and cache handling.
-The [consumer README](../crates/doc-example-config/README.md) documents direct Cargo
-commands, package-local baselines, and candidate review. These examples exercise
-two integration shapes; the serde_json example is our use of an existing library,
-not adoption by its maintainers. N3 adapter or scenario changes still require
-the native replay and `just verify`.
+SDK authoring, compiler/store work, and its portable Rust/React examples are
+maintained and verified in the
+[lgtmd repository](https://github.com/softmarshmallow/lgtmd). Follow its contributor
+instructions for SDK setup, independent package checks, and Node/Chromium gates.
+N3 does not install or run the SDK's web example during application verification.
+The N3 app's `web/` host remains a separate consumer boundary.
 
-For the incubating Node SDK and independent web example, run
-`just doc-web-setup` with Node 24/npm. This explicitly installs npm dependencies
-and pinned Chromium, builds the Rust host binding, and compiles TypeScript.
-`just doc-web-test --offline` verifies authoring, the optional Playwright adapter,
-real browser replay, and clean Cargo/npm consumers. `just doc-web-smoke --offline`
-copies only portable sources to an independent workspace and repeats the gate on
-Rust 1.95. These checks require the installed browser, run natively, and never
-silently accept a baseline. They supplement `just verify`; the N3 app's existing
-`web/` host is separate from [lgtmd's web example](../examples/lgtmd-web/README.md).
+N3 pins the SDK's full Git revision in `Cargo.toml` and retains its resolved
+source in `Cargo.lock`. Updating that revision requires `just verify`, including
+native replay and exact guide checks; portable SDK checks alone cannot establish
+N3 compatibility. Cargo must fetch the pinned source and dependencies before an
+offline run. Keep the dependency reproducible without sibling checkout discovery
+or a developer-specific path. A registry dependency is deferred until an
+explicitly authorized SDK release is ready.
 
 ## User settings
 

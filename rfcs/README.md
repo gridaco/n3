@@ -34,9 +34,9 @@ that contain no useful reasoning do not need an RFC.
 
 ## Index
 
-| RFC                                                | Status              | Topic                                                                                             |
-| -------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
-| [0001](0001-paired-selection-in-2d.md)             | Deferred            | Pair corresponding front/back vertices during selection in an aligned 2D view.                    |
-| [0002](0002-authored-scenes.md)                    | Draft               | N3-owned scenes, editor/history boundaries, migration, and interchange feasibility.               |
-| [0003](0003-executable-documentation-framework.md) | Implemented locally | A reusable Rust-first documentation SDK, evidence contract, and staged extraction from N3.        |
-| [0004](0004-lgtmd-web-incubation.md)               | Implemented locally | Incubate Rust and web consumers together before extracting lgtmd and consuming its published SDK. |
+| RFC                                                | Status                    | Topic                                                                                          |
+| -------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------- |
+| [0001](0001-paired-selection-in-2d.md)             | Deferred                  | Pair corresponding front/back vertices during selection in an aligned 2D view.                 |
+| [0002](0002-authored-scenes.md)                    | Draft                     | N3-owned scenes, editor/history boundaries, migration, and interchange feasibility.            |
+| [0003](0003-executable-documentation-framework.md) | Implemented and extracted | A reusable Rust-first documentation SDK and N3 adapter, maintained in separate repositories.   |
+| [0004](0004-lgtmd-web-incubation.md)               | Implemented and extracted | Rust/web incubation completed; N3 consumes an exact lgtmd Git revision until registry release. |

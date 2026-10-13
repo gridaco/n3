@@ -1,20 +1,20 @@
 # RFC 0004: Incubate lgtmd's Rust and web contracts together
 
-Status: **Implemented locally; extraction and release deferred**
+Status: **Implemented and extracted; release deferred**
 
 Date: 2026-10-13
 
-Incubate the portable Rust SDK and a small JavaScript/TypeScript integration
-directly in N3, without a submodule. Keep N3 working as a real consumer while
-the language and lifecycle boundaries develop. Then move the independently
-verified SDK, examples, and development harness to the lgtmd repository.
+The portable Rust SDK and TypeScript integration were incubated directly in N3,
+without a submodule, while N3 remained a real consumer. The independently verified
+SDK, Node bridge, Rust/React examples, and development harness now live in the
+[lgtmd repository](https://github.com/softmarshmallow/lgtmd). N3 consumes an exact
+Git revision and retains its own adapter, replay, renderer, and guide artifacts.
 
-The preferred eventual N3 integration is a crates.io dependency once the package
-passes its release gates. A submodule is optional contingency, not a required
-stage. This proposal authorizes no repository move, publication, or release.
-
-The incubation below is implemented locally. The package/path/import rename is
-recorded separately from the shared Rust/Node implementation and web examples.
+The preferred eventual N3 integration remains a crates.io dependency once the
+package passes its release gates. Extraction and dependency pinning do not
+publish a package or authorize a release. The incubation findings and original
+sequence below preserve the reasoning and historical verification evidence;
+SDK-owned development commands now run in the lgtmd repository.
 
 ## Implementation record
 
@@ -36,7 +36,7 @@ recorded separately from the shared Rust/Node implementation and web examples.
   receipt, and successful runner-process exit before publishing. Imported custom
   reporter instances are supported; built-in reporter-name delegation, retries,
   repeatEach greater than one, shards, and multiple/dependency projects are not.
-- [Three complete React/Vite examples](../examples/lgtmd-web/README.md) include all project
+- [Three complete React/Vite examples](https://github.com/softmarshmallow/lgtmd/blob/main/examples/lgtmd-web/README.md) include all project
   setup, cleanup, application code, prose, observations, checks, downloads,
   screenshots and contributor notes. React components and ordinary Vite scripts
   model a real developer application; lgtmd is a development dependency. Browser
@@ -59,17 +59,17 @@ visual regression baseline or cross-platform pixel identity. The separately
 reviewed local Reader/Contributor trees and screenshots are disposable evidence;
 projects choose and explicitly accept their own baselines using `update`.
 
-See the [implemented architecture](../docs/architecture/executable-documents.md#node-and-web-incubation)
-and [Node SDK contract](../packages/lgtmd/README.md). The original sequence below
+See the [implemented architecture](../docs/architecture/executable-documents.md#node-and-web-integration)
+and [Node SDK contract](https://github.com/softmarshmallow/lgtmd/blob/main/packages/lgtmd/README.md). The original sequence below
 records the reasoning and later extraction/release gates.
 
 ## Outcome and rationale
 
-The goal is to discover major authoring, compiler, and host integration changes
-while both Rust and JavaScript consumers can exercise them together. Extraction
-should primarily change manifests, dependency location, and development wiring.
-N3 scenarios should keep their authoring API and retained guide output when the
-dependency becomes external.
+Incubation exercised major authoring, compiler, and host integration changes
+through both Rust and JavaScript consumers. Extraction changes manifests,
+dependency location, and development wiring while retaining N3's authoring API
+and guide output. Future SDK development proceeds in its own repository, with
+N3 compatibility checked explicitly when updating the pinned dependency.
 
 Readiness applies to a declared initial support scope. Incubation cannot promise
 that no future breaking change will ever be needed. Package contents, clean
@@ -78,7 +78,7 @@ exit gates; moving files alone does not establish production readiness.
 
 [RFC 0003](0003-executable-documentation-framework.md) records the existing Rust
 framework. The [implemented architecture](../docs/architecture/executable-documents.md)
-and [SDK README](../crates/lgtmd/README.md) remain authoritative for current behavior.
+and [SDK README](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) remain authoritative for current behavior.
 
 ## Initial support scope
 

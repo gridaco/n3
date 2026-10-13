@@ -1,16 +1,17 @@
 # Executable documents and the N3 adapter
 
-The maintained `lgtmd` SDK separates document composition and artifact
-publication from the application being documented. N3 remains one application
-crate. The SDK lives in [crates/lgtmd](../../crates/lgtmd/README.md),
-and [crates/doc-example-config](../../crates/doc-example-config/README.md) provides
-a real CLI consumer and an integration with the existing serde_json library.
-Neither SDK use nor those examples requires N3's renderer, UI stack, website,
-or agent skill.
+The [lgtmd SDK](https://github.com/softmarshmallow/lgtmd) separates document
+composition and artifact publication from the application being documented.
+N3 remains one application crate and consumes lgtmd from an exact Git revision.
+The SDK, its Node bridge, and portable Rust/React examples are maintained in the
+lgtmd repository. N3 owns its application adapter, replay, renderer, scenarios,
+and guide artifacts here. Neither SDK use nor its examples requires N3's renderer,
+UI stack, website, or agent skill.
 
-This is a local, experimental API with `publish = false`. The implementation is
-maintained here so the same source can support N3 and other consumers before a
-future repository move. No registry publication or release is implied.
+The SDK remains experimental and unpublished. Moving its source establishes
+independent repository ownership; it does not establish a public release or a
+stable API. A future registry dependency can replace the Git pin after the
+package passes its release gates.
 
 ## The shared contract
 
@@ -30,7 +31,7 @@ correct application behavior from an artifact's existence or a declared MIME
 type. Meaningful assertions, producer metadata, fixtures, runtime drivers,
 review, and documentation organization remain the consumer's responsibility.
 
-The [SDK README](../../crates/lgtmd/README.md) is the API and manifest
+The [SDK README](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/README.md) is the API and manifest
 reference. N3's [documentation pipeline](documentation-pipeline.md) owns product
 replay, timing, captures, and renderer-specific evidence. This document records
 the boundary between them.
@@ -88,7 +89,7 @@ paths need distinct ASCII components beyond any shared ancestors. Case-only or
 Unicode-only distinctions require preexisting separate directories rather than
 guessing a filesystem's alias rules. Unicode parent directories and later path
 components remain supported.
-The [configured SDK example](../../crates/lgtmd/examples/configured.rs)
+The [configured SDK example](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd/examples/configured.rs)
 exercises a source-only host, external baselines, nested pages, renamed audience
 directories, private resources, and preservation of unrelated files. This boundary
 does not add a configuration file format, plugin loader, or repository abstraction.
@@ -193,14 +194,17 @@ review. It does not approve product behavior, publication, or a release.
 
 ## Verification and remaining validation
 
-`just doc-framework-test` delegates to the SDK-owned
-[verification entry point](../../crates/lgtmd/dev/verify.py): scoped
-formatting, Clippy, tooling regressions, SDK and consumer tests, doctests, and API
-docs without N3's GPU harness. Each consumer checks retained Reader and
-Contributor outputs. `just doc-framework-smoke --offline` copies those packages
-into a disposable minimal workspace, resolves its own temporary lockfile, and
-verifies the declared Rust 1.95 minimum independently of N3's dependencies and
-patches. No permanent second workspace is introduced.
+N3's `just verify` checks its formatting, Clippy, tooling, full Rust suite,
+measurement contracts, and exact guide replay on the native renderer. An SDK
+revision update goes through this same gate; changes to its API must remain
+explicit in the N3 adapter and scenarios.
+
+The SDK owns its independent
+[verification workflow](https://github.com/softmarshmallow/lgtmd/blob/main/AGENTS.md),
+including portable sources, Rust/Node tests, its own examples, and installed
+Cargo/npm consumers. Those gates run in the lgtmd repository rather than through
+N3's application commands or CI. They supplement consumer verification and do
+not establish N3 behavior or renderer compatibility.
 
 The SDK's static preview validates the complete export receipt before displaying
 it. Page identity comes from that inventory rather than file extensions;
@@ -219,10 +223,10 @@ future work. The framework detects encoded behavioral and artifact drift;
 prose clarity, meaningful coverage, visual legibility, and physical interaction
 still need human review.
 
-## Node and web incubation
+## Node and web integration
 
-[packages/lgtmd](../../packages/lgtmd/README.md) authors documents in Node 24 ESM;
-[crates/lgtmd-node](../../crates/lgtmd-node/Cargo.toml) is its coarse native bridge.
+[packages/lgtmd](https://github.com/softmarshmallow/lgtmd/blob/main/packages/lgtmd/README.md) authors documents in Node 24 ESM;
+[crates/lgtmd-node](https://github.com/softmarshmallow/lgtmd/blob/main/crates/lgtmd-node/Cargo.toml) is its coarse native bridge.
 One serialized request per compile/publication carries schema-v1 frozen input to
 the same Rust validation, Markdown exporters, runner and owned store. The wire
 contains complete ordered content and resource snapshots, never process-local
@@ -230,7 +234,7 @@ handle owners or application callbacks. Rust transport round trips preserve
 existing native exports, including literal Markdown versus typed parts. Built-in
 JSON resources use one Rust encoder, including those registered from Node.
 
-The [three React/Vite examples](../../examples/lgtmd-web/README.md) exercise prose-only
+The [three React/Vite examples](https://github.com/softmarshmallow/lgtmd/blob/main/examples/lgtmd-web/README.md) exercise prose-only
 authoring, application-owned async preparation/cleanup, supplied context,
 observations, native checks, private notes/resources, JSON and CSV downloads, and
 Playwright screenshot evidence. The React app uses ordinary Vite development and
@@ -252,9 +256,9 @@ binaries in npm tarballs; installation performs no Rust build. Node 24 ESM on
 macOS arm64 is the executed local scope. Linux x64 has CI wiring, not a completed
 runtime claim. A full viewer and browser-hosted SDK are deferred.
 
-`just doc-web-test --offline` checks the native bridge, Node authoring, failure
-semantics, real Chromium replay, exact repeated exports, and clean Cargo/npm
-consumers. `just doc-web-smoke --offline` repeats that gate in an independent
-workspace on Rust 1.95. The npm consumer installs with Rust absent from PATH and
-imports the core before installing the optional Playwright peer. Browser setup
-is explicit through `just doc-web-setup`; web gates supplement N3's native verifier.
+The SDK repository owns explicit browser setup and its Node/Chromium verification
+workflow. It checks the native bridge, authoring and failure semantics, real
+browser replay, exact repeated exports, and clean Cargo/npm consumers independently
+of N3. The npm consumer installs with Rust absent from PATH and imports the core
+before installing the optional Playwright peer. N3's existing browser editor and
+its native documentation adapter retain their own host policies and checks.

@@ -1,3 +1,0 @@
-$ config-demo input.json --output settings.json
-Saved validated configuration (port 9090) to settings.json.
-[exit 0]

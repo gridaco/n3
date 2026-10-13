@@ -11,26 +11,6 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  lgtmd-web:
-    name: Portable lgtmd Node and Chromium contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: "24"
-          package-manager-cache: false
-      - name: Install the declared Rust minimum and explicit browser dependencies
-        run: |
-          rustup toolchain install 1.95.0 --profile minimal --component rustfmt --component clippy
-          npm ci --no-audit --no-fund --cache .cache/npm
-          npm exec -- playwright install --with-deps chromium
-      - name: Verify independent sources and clean Cargo/npm consumers
-        run: python3 packages/lgtmd/dev/verify.py --standalone --toolchain 1.95.0
-
   ubuntu-checks:
     name: Ubuntu checks and focused regressions
     runs-on: ubuntu-24.04
@@ -54,6 +34,8 @@ jobs:
           path: |
             .cache/ci/linux-amd64/cargo/registry/cache
             .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/cargo/git/db
+            .cache/ci/linux-amd64/cargo/git/checkouts
             .cache/ci/linux-amd64/target/debug/deps
             .cache/ci/linux-amd64/target/debug/build
             .cache/ci/linux-amd64/target/debug/.fingerprint
@@ -71,6 +53,8 @@ jobs:
           path: |
             .cache/ci/linux-amd64/cargo/registry/cache
             .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/cargo/git/db
+            .cache/ci/linux-amd64/cargo/git/checkouts
             .cache/ci/linux-amd64/target/debug/deps
             .cache/ci/linux-amd64/target/debug/build
             .cache/ci/linux-amd64/target/debug/.fingerprint
@@ -110,6 +94,8 @@ jobs:
           path: |
             .cache/ci/linux-amd64/cargo/registry/cache
             .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/cargo/git/db
+            .cache/ci/linux-amd64/cargo/git/checkouts
             .cache/ci/linux-amd64/target/debug/deps
             .cache/ci/linux-amd64/target/debug/build
             .cache/ci/linux-amd64/target/debug/.fingerprint
@@ -159,6 +145,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
@@ -184,6 +172,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
@@ -228,6 +218,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
@@ -279,6 +271,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint

@@ -6,12 +6,9 @@
     "/TODO.md",
     "/Cargo.lock",
     "/docs/guide/**",
-    "/crates/doc-example-config/baseline/**",
-    "/crates/lgtmd/docs/guide/**",
     "/docs/preview/vendor/**",
     "/vendor/**",
     "/examples/**",
-    "!/examples/lgtmd-web/**",
     "/fixtures/gltf/*/**",
     "/fixtures/benchmarks/*/source/**"
   ]
