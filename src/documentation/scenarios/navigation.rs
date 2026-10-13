@@ -1,7 +1,7 @@
 use super::{Result, Session, guide::Guide};
 use crate::{controls::Control, pointer_policy::DRAG_THRESHOLD, scroll_input::ScrollPhase};
-use executable_docs::prose;
 use glam::{Mat4, Vec2, Vec3};
+use lgtmd::prose;
 use std::time::Duration;
 
 fn matrix(s: &Session<'_>) -> Mat4 {

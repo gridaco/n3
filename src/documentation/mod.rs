@@ -140,7 +140,7 @@ pub type Result<T> = std::result::Result<T, String>;
 #[cfg(test)]
 #[path = "tests/doc_navigation_tests.rs"]
 mod doc_navigation_tests;
-type Artifacts = executable_docs::lifecycle::Files;
+type Artifacts = lgtmd::lifecycle::Files;
 // Keep the actual editor canvas spacious at Full HD resolution. The shared
 // documentation frame adds its window chrome around this unscaled capture.
 const WIDTH: u32 = 1920;
@@ -220,7 +220,7 @@ pub struct Session<'a> {
     annotations: Vec<annotations::Annotation>,
     recorder: Option<tutorial::Recorder>,
     animations: BTreeSet<String>,
-    authored: Option<executable_docs::Document>,
+    authored: Option<lgtmd::Document>,
     #[cfg(test)]
     extra_layout_pass: bool,
 }

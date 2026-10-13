@@ -180,15 +180,6 @@ lint:
 test *args:
     cargo test --locked "$@"
 
-# Verify the maintained documentation SDK, consumers, examples, and exact baselines.
-# Default application build/run/test routing remains on N3.
-doc-framework-test:
-    python3 crates/doc-harness/dev/verify.py
-
-# Verify a disposable portable workspace, including the declared Rust minimum.
-doc-framework-smoke *args:
-    python3 crates/doc-harness/dev/verify.py --standalone --toolchain 1.95.0 "$@"
-
 # Open the local guide preview, check it, or intentionally regenerate it.
 docs mode="serve" *args:
     #!/usr/bin/env bash
@@ -248,4 +239,4 @@ test-metal:
     cargo test --locked documentation::capture::tests::
 
 # Native development and pre-push checks. CI infrastructure is opt-in.
-verify: fmt-check lint tools-test doc-framework-test test benchmark-rust-test
+verify: fmt-check lint tools-test test benchmark-rust-test

@@ -153,8 +153,10 @@ it does not establish cross-renderer pixel equivalence. Use `just test`
 for the full native suite and `just test-metal` for focused capture checks.
 For skill or hand-authored contributor-doc changes alone, validate instructions
 and links; unchanged app/media output does not require regeneration.
-For portable framework changes, `just doc-framework-test` provides focused SDK
-and consumer checks; N3 adapter changes still require native replay and `just verify`.
+Portable framework changes belong in the
+[lgtmd repository](https://github.com/lgtmd/lgtmd) and use its SDK and
+consumer gates. N3 adapter or dependency revision changes require native replay
+and `just verify` here.
 
 ## Evolve the harness when the user story needs it
 

@@ -69,12 +69,14 @@ boundaries. The current Editor still depends on egui and is not a public kernel 
 
 ## Code organization
 
-Keep N3 as one application crate. The workspace also maintains the portable
-`executable-docs` SDK in `crates/doc-harness` and its consumer examples in
-`crates/doc-example-config`; N3's documentation adapter is a real SDK consumer.
-This extraction is justified by a tested boundary between application replay and
-document composition/publication. It does not make the editor a public kernel.
-Prefer focused modules over further speculative crates or APIs. See
+Keep N3 as one application crate. Its documentation adapter consumes the portable
+[lgtmd SDK](https://github.com/lgtmd/lgtmd), maintained in its own repository.
+N3 pins an exact Git revision until a registry release is ready. The tested
+boundary separates application replay from document composition and publication;
+it does not make the editor a public kernel. Keep N3's replay, renderer, scenarios,
+fixtures, and guide outputs here. SDK authoring, compiler/store changes, portable
+Rust/Node examples, and SDK verification belong in lgtmd. Prefer focused modules
+over further speculative crates or APIs. See
 [executable documents](docs/architecture/executable-documents.md) for this boundary.
 
 Read [platform boundaries and performance](docs/architecture/platform-boundaries.md)
@@ -83,21 +85,19 @@ semantics, keep target selection at module boundaries, and preserve each host's
 execution policy. Browser constraints must not lower the primary native target's
 capabilities, performance policy, or verification baseline.
 
-| Location                     | Responsibility                                                                |
-| ---------------------------- | ----------------------------------------------------------------------------- |
-| `src/model/`                 | Authored documents, units, native text codec, geometry evaluation             |
-| `src/asset_io/`              | Format adapters, resource resolution, native document persistence             |
-| `src/scene/`                 | Internal imported scene model, validation and pose evaluation                 |
-| `src/scene_view.rs`          | Transient asset inspection and playback; separate from edit history           |
-| `src/editor/`                | Selection, edits, sessions, history, transform policies                       |
-| `src/input/`                 | Key mapping, semantic actions, pointer and navigation routing                 |
-| `src/render/`                | Camera, wgpu rendering, derived visual feedback                               |
-| `src/ui/`                    | Panels, controls, gizmo, rulers                                               |
-| `src/native.rs`              | Window lifecycle, native events, dialogs, filesystem effects                  |
-| `src/settings/`              | Typed global preferences, validation, merge policy, storage interface         |
-| `src/documentation/`         | Headless replay, virtual input, annotations, capture, scenarios               |
-| `crates/doc-harness/`        | Portable document composition, evidence, audience exports, artifact lifecycle |
-| `crates/doc-example-config/` | Standalone CLI and library consumers of the documentation SDK                 |
+| Location             | Responsibility                                                        |
+| -------------------- | --------------------------------------------------------------------- |
+| `src/model/`         | Authored documents, units, native text codec, geometry evaluation     |
+| `src/asset_io/`      | Format adapters, resource resolution, native document persistence     |
+| `src/scene/`         | Internal imported scene model, validation and pose evaluation         |
+| `src/scene_view.rs`  | Transient asset inspection and playback; separate from edit history   |
+| `src/editor/`        | Selection, edits, sessions, history, transform policies               |
+| `src/input/`         | Key mapping, semantic actions, pointer and navigation routing         |
+| `src/render/`        | Camera, wgpu rendering, derived visual feedback                       |
+| `src/ui/`            | Panels, controls, gizmo, rulers                                       |
+| `src/native.rs`      | Window lifecycle, native events, dialogs, filesystem effects          |
+| `src/settings/`      | Typed global preferences, validation, merge policy, storage interface |
+| `src/documentation/` | Headless replay, virtual input, annotations, capture, scenarios       |
 
 Keep code, identifiers, comments, tests, logs, and authored UI strings in English.
 Explain non-obvious behavior and platform limitations near the owning code.
@@ -205,6 +205,12 @@ available. See the development guide for these boundaries.
 For changes limited to hand-authored documentation such as this file or the
 README, check links and factual claims; unchanged application/media output does
 not require rebuilding the renderer or regenerating the guide.
+
+Verify SDK or web adapter changes in the
+[lgtmd repository](https://github.com/lgtmd/lgtmd). An N3 dependency
+revision update still requires native `just verify`, including real replay and
+exact guide checks. Keep dependency updates explicit; do not add local path
+fallbacks or discover a sibling SDK checkout automatically.
 
 Use the root `justfile` for development commands (`just` 1.46 is the verified
 version). Useful commands from the repository root:

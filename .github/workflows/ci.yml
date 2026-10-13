@@ -34,6 +34,8 @@ jobs:
           path: |
             .cache/ci/linux-amd64/cargo/registry/cache
             .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/cargo/git/db
+            .cache/ci/linux-amd64/cargo/git/checkouts
             .cache/ci/linux-amd64/target/debug/deps
             .cache/ci/linux-amd64/target/debug/build
             .cache/ci/linux-amd64/target/debug/.fingerprint
@@ -51,6 +53,8 @@ jobs:
           path: |
             .cache/ci/linux-amd64/cargo/registry/cache
             .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/cargo/git/db
+            .cache/ci/linux-amd64/cargo/git/checkouts
             .cache/ci/linux-amd64/target/debug/deps
             .cache/ci/linux-amd64/target/debug/build
             .cache/ci/linux-amd64/target/debug/.fingerprint
@@ -90,6 +94,8 @@ jobs:
           path: |
             .cache/ci/linux-amd64/cargo/registry/cache
             .cache/ci/linux-amd64/cargo/registry/index
+            .cache/ci/linux-amd64/cargo/git/db
+            .cache/ci/linux-amd64/cargo/git/checkouts
             .cache/ci/linux-amd64/target/debug/deps
             .cache/ci/linux-amd64/target/debug/build
             .cache/ci/linux-amd64/target/debug/.fingerprint
@@ -139,6 +145,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
@@ -164,6 +172,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
@@ -208,6 +218,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
@@ -259,6 +271,8 @@ jobs:
           path: |
             .cache/cargo/registry/cache
             .cache/cargo/registry/index
+            .cache/cargo/git/db
+            .cache/cargo/git/checkouts
             target/debug/deps
             target/debug/build
             target/debug/.fingerprint
