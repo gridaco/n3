@@ -16,7 +16,8 @@ mod guide;
 pub(crate) mod input;
 mod renderer_baseline;
 mod shortcut_replay;
-pub use artifacts::{build, run};
+mod site;
+pub use artifacts::{build, flow, run};
 use artifacts::{insert, validate_path};
 use features::FEATURES;
 

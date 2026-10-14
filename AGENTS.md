@@ -71,9 +71,8 @@ boundaries. The current Editor still depends on egui and is not a public kernel 
 
 Keep N3 as one application crate. Its documentation adapter consumes the portable
 [lgtmd SDK](https://github.com/lgtmd/lgtmd), maintained in its own repository.
-N3 pins an exact Git revision until a registry release is ready. The tested
-boundary separates application replay from document composition and publication;
-it does not make the editor a public kernel. Keep N3's replay, renderer, scenarios,
+N3 pins the exact reviewed crates.io release `lgtmd = "=0.3.0"`. The tested boundary separates application replay from document composition
+and publication; it does not make the editor a public kernel. Keep N3's replay, renderer, scenarios,
 fixtures, and guide outputs here. SDK authoring, compiler/store changes, portable
 Rust/Node examples, and SDK verification belong in lgtmd. Prefer focused modules
 over further speculative crates or APIs. See

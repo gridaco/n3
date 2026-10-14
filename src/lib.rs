@@ -67,7 +67,7 @@ pub fn run_native() -> Result<(), Box<dyn std::error::Error>> {
         editor::EditorAccess::ReadWrite
     };
     if initial.as_deref() == Some(std::ffi::OsStr::new("--docs")) {
-        const USAGE: &str = "Usage: n3 --docs update|check | --docs build --out PATH";
+        const USAGE: &str = "Usage: n3 --docs update|check|flow | --docs build --out PATH";
         let mode = args
             .next()
             .and_then(|mode| mode.into_string().ok())
@@ -81,6 +81,10 @@ pub fn run_native() -> Result<(), Box<dyn std::error::Error>> {
                 return Err(USAGE.into());
             }
             doc_harness::build(&output).map_err(std::io::Error::other)?;
+            return Ok(());
+        }
+        if mode == "flow" && args.next().is_none() {
+            doc_harness::flow().map_err(std::io::Error::other)?;
             return Ok(());
         }
         if !matches!(mode.as_str(), "update" | "check") || args.next().is_some() {

@@ -1,20 +1,19 @@
 # RFC 0004: Incubate lgtmd's Rust and web contracts together
 
-Status: **Implemented and extracted; release deferred**
+Status: **Implemented and extracted; N3 pins a crates.io release**
 
 Date: 2026-10-13
 
 The portable Rust SDK and TypeScript integration were incubated directly in N3,
 without a submodule, while N3 remained a real consumer. The independently verified
 SDK, Node bridge, Rust/React examples, and development harness now live in the
-[lgtmd repository](https://github.com/lgtmd/lgtmd). N3 consumes an exact
-Git revision and retains its own adapter, replay, renderer, and guide artifacts.
+[lgtmd repository](https://github.com/lgtmd/lgtmd). N3 pins the crates.io
+release 0.3.0 and retains its own adapter, replay, renderer, and guide artifacts.
 
-The preferred eventual N3 integration remains a crates.io dependency once the
-package passes its release gates. Extraction and dependency pinning do not
-publish a package or authorize a release. The incubation findings and original
-sequence below preserve the reasoning and historical verification evidence;
-SDK-owned development commands now run in the lgtmd repository.
+N3 now uses the exact crates.io release 0.3.0. Dependency pinning does not
+authorize a release. The incubation findings and original sequence below
+preserve the reasoning and historical verification evidence; SDK-owned development
+commands now run in the lgtmd repository.
 
 ## Implementation record
 
