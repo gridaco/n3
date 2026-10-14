@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "title": "N3 guide",
+  "flow": {
+    "command": ["just", "docs", "flow"],
+    "watch": [
+      "src",
+      "docs/templates",
+      "assets",
+      "fixtures",
+      "Cargo.toml",
+      "Cargo.lock"
+    ]
+  },
+  "snapshots": ".cache/lgtmd-snapshots",
+  "cacheDir": ".cache/lgtmd",
+  "outDir": "build/docs-site",
+  "navigation": [
+    "overview",
+    "settings",
+    "edit-selection",
+    "numeric-transforms",
+    "snapping",
+    "workspace",
+    "terminal",
+    "fps-meter",
+    "toasts",
+    "length-units",
+    "2d",
+    "2d-ruler",
+    "axis-locks",
+    "editing",
+    "make-face",
+    "object-feedback",
+    "selection-keys",
+    "opening-models",
+    "scene-viewer",
+    "animation",
+    "navigation",
+    "local-view",
+    "view-keys",
+    "view-pie",
+    "xray",
+    "shading",
+    "hand-tool",
+    "orbit-tool",
+    "gizmo"
+  ]
+}

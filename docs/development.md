@@ -2,7 +2,7 @@
 
 The application is a single Rust package named `n3`, with private implementation
 modules. Its documentation adapter consumes the separately maintained
-[lgtmd SDK](https://github.com/lgtmd/lgtmd) at an exact Git revision.
+[lgtmd SDK](https://github.com/lgtmd/lgtmd) at the exact crates.io version `0.3.0`.
 SDK sources and portable examples live in that repository. Read [AGENTS.md](../AGENTS.md) for development principles and iteration
 guidance. [Testing](../TESTING.md) indexes verification workflows, reference suites,
 and benchmark resources. Start at [the architecture map](architecture/architecture.md) and
@@ -445,8 +445,57 @@ in another terminal after intentionally changing the scenario's narrative or
 its retained template, then refresh the browser. `just docs update` regenerates through the native renderer;
 `just docs check` verifies there without writing. Neither requires Docker.
 The small preview uses a vendored Docsify runtime, so it needs no network access,
-Node installation, or package-manager setup. It is a local reading surface, not
-a choice of framework for the eventual documentation website.
+Node installation, or package-manager setup. It remains useful for reading the
+existing guide baseline without replay.
+
+### Local lgtmd site
+
+The root `lgtmd.config.json` runs the same native documentation replay through
+`just docs flow`, then hands the completed documents and captured media to the
+lgtmd site compiler. It includes the overview and all 28 feature guides in the
+same order as the guide index. Rust-authored pages retain their contributor notes;
+retained templates use typed bindings and captured resources from their replay.
+
+The SDK dependency is pinned to crates.io version `0.3.0`. The native CLI is a
+separate installation; npm distributes it in `lgtmd@0.3.0`. Preparing the CLI
+from source requires the SDK's Node.js 24 frontend build; using its native
+executable with N3's Rust flow does not require Node. See [the native CLI setup](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd-cli/README.md)
+for the supported source preparation and installation commands. Keep a local
+installation under `.cache/tools/lgtmd` to avoid changing a global tool.
+
+The unmodified 0.3.0 CLI's encoded JSON size limits cannot
+carry N3's complete media collection. Full-site use requires the SDK CLI's
+large-media handoff and retained-candidate host fix. This local integration uses
+an isolated SDK build with that unreleased fix, verified separately from N3;
+the fix still needs to land upstream. N3 keeps its pinned application dependency
+and original media without vendoring the SDK host fix or downsampling captures.
+
+From the N3 repository root, run the installed executable:
+
+```sh
+.cache/tools/lgtmd/bin/lgtmd dev
+```
+
+If that executable is on `PATH`, the same command is `lgtmd dev`. It starts a
+loopback site on port 4177 and runs a fresh complete replay. The terminal reports
+the URL and progress; Ctrl-C stops the server and its owned flow. Add `--watch`
+to rerun when the configured source, template, asset, fixture, or Cargo input
+changes. Restart the server after editing configuration. Use
+`lgtmd dev --reuse` to read the last completed candidate without running replay,
+or `lgtmd dev --audience contributor` to include contributor notes.
+
+The site retains candidates in ignored `.cache/lgtmd`, uses ignored
+`.cache/lgtmd-snapshots` for local site snapshots, and writes static output to
+ignored `build/docs-site` when explicitly built. A first run has no recorded Git
+site baseline, so review reports that absence. Starting dev does not accept a
+snapshot, update `docs/guide`, commit, or publish. `just docs flow` requires the
+per-run environment supplied by lgtmd; use the site CLI to invoke it.
+
+`just docs` continues to preview the existing guide. `just docs check` and
+`just docs update` remain N3's strict native verification and intentional
+baseline-update commands; lgtmd's site snapshot commands do not replace them.
+
+### Guide candidates and verification
 
 To inspect both audiences before updating the canonical baseline, build a fresh
 candidate in ignored local storage:
@@ -508,13 +557,12 @@ instructions for SDK setup, independent package checks, and Node/Chromium gates.
 N3 does not install or run the SDK's web example during application verification.
 The N3 app's `web/` host remains a separate consumer boundary.
 
-N3 pins the SDK's full Git revision in `Cargo.toml` and retains its resolved
-source in `Cargo.lock`. Updating that revision requires `just verify`, including
+N3 pins `lgtmd = "=0.3.0"` in `Cargo.toml` and retains its registry source and
+checksum in `Cargo.lock`. Updating that version requires `just verify`, including
 native replay and exact guide checks; portable SDK checks alone cannot establish
-N3 compatibility. Cargo must fetch the pinned source and dependencies before an
+N3 compatibility. Cargo must fetch the pinned release and dependencies before an
 offline run. Keep the dependency reproducible without sibling checkout discovery
-or a developer-specific path. A registry dependency is deferred until an
-explicitly authorized SDK release is ready.
+or a developer-specific path.
 
 ## User settings
 

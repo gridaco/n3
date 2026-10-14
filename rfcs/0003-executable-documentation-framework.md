@@ -1,17 +1,17 @@
 # RFC 0003: A reusable executable documentation framework
 
-Status: **Implemented and extracted — experimental SDK and N3 bridge; independent adoption and release remain open**
+Status: **Implemented and extracted — experimental SDK and N3 bridge**
 
 Date: 2026-10-04
 
 The framework was incubated inside N3 and is now maintained in the dedicated
-[lgtmd repository](https://github.com/lgtmd/lgtmd). N3 consumes an exact
-Git revision and retains its application adapter, replay, renderer, and guide
+[lgtmd repository](https://github.com/lgtmd/lgtmd). N3 pins the crates.io
+release 0.3.0 and retains its application adapter, replay, renderer, and guide
 artifacts. [The architecture contract](../docs/architecture/executable-documents.md)
 records the current boundary. The findings and development commands below are a
 historical record of incubation; broader sketches remain proposals where they
-exceed the implemented contract. lgtmd remains unpublished, and its current
-repository owns SDK development and verification.
+exceed the implemented contract. The lgtmd repository owns SDK development and
+verification; N3 verifies compatibility when updating its dependency.
 
 Authoring requirements: concise, honest authoring and scenarios that write the
 document's text, resources, and explicit contributor notes themselves. The primary

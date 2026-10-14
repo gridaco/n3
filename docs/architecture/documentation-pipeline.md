@@ -67,7 +67,7 @@ must not link back to them. Link validation rejects those outbound references.
 browser. It uses Python 3's standard library and a vendored Docsify 5 runtime;
 all scripts and styles load locally. The generated guide index supplies the
 sidebar, and pages use their existing Markdown links and WebP assets, including
-animations. There is no second content tree or separate site build.
+animations. This preview needs no separate content tree or site build.
 
 This presentation layer does not execute scenarios, regenerate artifacts, or
 approve a baseline. After `just docs update`, refresh the browser to see the
@@ -75,10 +75,52 @@ changed output. `just docs check` still performs the strict replay described
 below. `just docs-preview-test`, included in `just verify`, checks the server
 routes and local browser assets independently of the GPU pipeline.
 
-Keep this preview disposable. The pipeline continues to produce ordinary
-Markdown and media that a future website can consume; the local viewer does not
-commit N3 to a production documentation framework. See
+Keep this preview disposable. The canonical pipeline continues to produce
+ordinary Markdown and media independently of the local lgtmd site export. See
 [development](../development.md#documentation-is-executable) for server options.
+
+## Local lgtmd site
+
+The native lgtmd CLI provides a second local reading and review surface. At the
+current SDK pin, full N3 media requires the unreleased SDK CLI large-media host
+fix described in [setup](../development.md#local-lgtmd-site); the unmodified
+pinned CLI cannot carry the complete collection.
+From the repository root, `lgtmd dev` reads
+[lgtmd.config.json](../../lgtmd.config.json), starts a loopback server, and invokes
+`just docs flow`. A repository-local installation can be invoked as
+`.cache/tools/lgtmd/bin/lgtmd dev`; see [setup](../development.md#local-lgtmd-site).
+The flow requires the CLI's unique `LGTMD_OUTPUT` and `LGTMD_RUN_ID` environment
+before starting capture.
+
+The [artifact pipeline](../../src/documentation/artifacts.rs) uses the same
+`generate_outputs` replay to build the canonical Reader tree and retain completed
+SDK documents. The [site bridge](../../src/documentation/site.rs) reuses
+Rust-authored documents and adapts retained templates through typed `Guide`
+bindings and captured-resource handles. Before exact Reader fragment comparison,
+`site::legacy_fragment` translates the SDK's known additional HTML entity
+spellings for Markdown punctuation inside generated `code` and `kbd` labels
+back to N3's existing label spelling. Text outside those labels stays untouched;
+narrative text, whitespace, resource paths, and media still compare exactly.
+Canonical guide baseline checks remain unchanged. All media comes from those
+same sessions with unchanged bytes; there is no site-specific capture or second
+source of prose.
+
+The site uses full SDK export titles and explicit section anchors, with the
+canonical `README.md` index represented by `overview.md`. Site preparation makes
+those presentation changes on copied documents, leaving the canonical fragments
+and guide manifest untouched. After replay resources are released,
+`handoff::complete_run` writes the completed documents for the CLI. The CLI
+requires a matching run receipt and successful process exit, compiles both
+audiences, and admits the completed candidate. Contributor notes remain outside
+the Reader projection.
+
+Configured candidates, local site snapshots, and static output live in ignored
+`.cache/lgtmd`, `.cache/lgtmd-snapshots`, and `build/docs-site`. A first dev session
+reports the absence of a recorded Git site baseline. Dev does not accept a
+snapshot, regenerate `docs/guide`, or publish. `--watch` reruns the configured
+flow on input changes; `--reuse` serves its last completed candidate without
+replay. N3's `just docs`, `just docs check`, and `just docs update` keep their
+existing preview, strict verification, and intentional baseline-update roles.
 
 ## One replay and rendering path
 

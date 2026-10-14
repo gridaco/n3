@@ -186,14 +186,14 @@ docs mode="serve" *args:
     set -euo pipefail
     case "$1" in
         serve) shift; exec python3 "$N3_ROOT/tools/docs_preview.py" "$@" ;;
-        check|update)
+        check|update|flow)
             if [[ $# -ne 1 ]]; then
-                echo 'check/update do not accept extra arguments' >&2
+                echo 'check/update/flow do not accept extra arguments' >&2
                 exit 2
             fi
             ;;
         build) ;;
-        *) echo 'Usage: just docs [serve [--no-open] [--port PORT] | check | update | build --out PATH]' >&2; exit 2 ;;
+        *) echo 'Usage: just docs [serve [--no-open] [--port PORT] | check | update | flow | build --out PATH]' >&2; exit 2 ;;
     esac
     exec cargo run --locked -- --docs "$@"
 

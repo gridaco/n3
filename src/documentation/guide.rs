@@ -71,6 +71,15 @@ impl Guide {
         )
     }
 
+    pub(super) fn key(&mut self, name: &str) -> Result<Binding> {
+        let key = egui::Key::from_name(name)
+            .ok_or_else(|| format!("Unknown literal documentation key: {name}"))?;
+        self.binding(
+            format!("key-{}", name.to_ascii_lowercase()),
+            BindingValue::Keys(vec![key.name().to_owned()]),
+        )
+    }
+
     pub(super) fn capture_tutorial(
         &mut self,
         session: &mut Session<'_>,

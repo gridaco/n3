@@ -2,16 +2,15 @@
 
 The [lgtmd SDK](https://github.com/lgtmd/lgtmd) separates document
 composition and artifact publication from the application being documented.
-N3 remains one application crate and consumes lgtmd from an exact Git revision.
-The SDK, its Node bridge, and portable Rust/React examples are maintained in the
+N3 remains one application crate and pins lgtmd 0.3.0 from crates.io.
+The SDK, its native CLI and Node bridge, and portable Rust/React examples are maintained in the
 lgtmd repository. N3 owns its application adapter, replay, renderer, scenarios,
 and guide artifacts here. Neither SDK use nor its examples requires N3's renderer,
 UI stack, website, or agent skill.
 
-The SDK remains experimental and unpublished. Moving its source establishes
-independent repository ownership; it does not establish a public release or a
-stable API. A future registry dependency can replace the Git pin after the
-package passes its release gates.
+The SDK remains experimental. N3 pins the exact crates.io release `0.3.0`.
+Publication does not establish a stable API or N3 compatibility; dependency
+updates still require native verification and exact guide checks.
 
 ## The shared contract
 
@@ -36,12 +35,13 @@ reference. N3's [documentation pipeline](documentation-pipeline.md) owns product
 replay, timing, captures, and renderer-specific evidence. This document records
 the boundary between them.
 
-The current public exporter targets Markdown. Artifact producers are generic,
-but there is no public structured document-view API for a different publisher
-yet. Prove that interface with an actual alternate exporter before exposing it;
-it must preserve audience filtering, typed references, observations, and resource
-ownership together. The private document model is the extension boundary, without
-a plugin registry or a promise of arbitrary presentation support today.
+N3's canonical guide and paired Markdown review trees use the SDK's fragment
+exporter and retain their existing format. Its local docs-site flow also uses
+`handoff::complete_run` to pass completed documents to the native lgtmd CLI. That
+CLI owns `site::compile` for structured, audience-filtered site content with exact
+resource sidecars, and `review::compare` for page and resource pairing between
+retained site bundles. Both presentations use the same N3 replay, narrative
+sources, and captured media.
 
 ## Internal Rust ownership
 
@@ -57,8 +57,9 @@ Markdown exporter.
 inventory. It preserves unknown-field compatibility and distinguishes explicit
 JSON null observations from omitted private payloads. `store` applies that receipt
 policy to `lifecycle` filesystem operations; `runner` coordinates project-owned
-generation and publication. These boundaries add no public serialized document
-model or host executor.
+generation and publication. The authored document model remains private. Public
+`site` projections serialize audience-filtered content; application execution
+remains consumer-owned.
 
 ## Project-owned configuration
 
@@ -96,13 +97,15 @@ does not add a configuration file format, plugin loader, or repository abstracti
 
 ## N3 ownership
 
-| Layer                                                        | Responsibility                                                                                                                               |
-| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Session` and the production application                     | Real input routing, fixture setup, witnessed controls, behavioral assertions, explicit time, rendering, and capture.                         |
-| [Guide adapter](../../src/documentation/guide.rs)            | Convert witnessed controls, canonical key labels, and captured N3 media into typed SDK bindings and resources.                               |
-| SDK `Doc` and `Document`                                     | Compose narrative, retain immutable evidence and contributor notes, validate handles, and render the selected audience.                      |
-| [N3 artifact pipeline](../../src/documentation/artifacts.rs) | Select the registered narrative, assemble the existing guide tree and text manifest, validate guide-only links, and enforce renderer policy. |
-| SDK `lifecycle`                                              | Validate output paths and inventories, compare complete trees, stage updates, publish, and retain recovery material on interruption.         |
+| Layer                                                        | Responsibility                                                                                                                                           |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Session` and the production application                     | Real input routing, fixture setup, witnessed controls, behavioral assertions, explicit time, rendering, and capture.                                     |
+| [Guide adapter](../../src/documentation/guide.rs)            | Convert witnessed controls, canonical key labels, and captured N3 media into typed SDK bindings and resources.                                           |
+| SDK `Doc` and `Document`                                     | Compose narrative, retain immutable evidence and contributor notes, validate handles, and render the selected audience.                                  |
+| [N3 artifact pipeline](../../src/documentation/artifacts.rs) | Select the registered narrative, assemble the existing guide tree and text manifest, validate guide-only links, and enforce renderer policy.             |
+| [N3 site bridge](../../src/documentation/site.rs)            | Adapt the same completed narratives to full SDK documents, check fragment parity, and prepare site page titles, index links, and section anchors.        |
+| Native lgtmd CLI                                             | Execute the configured N3 flow, validate its completed handoff and successful exit, compile site projections, retain candidates, and serve local review. |
+| SDK `lifecycle`                                              | Validate output paths and inventories, compare complete trees, stage updates, publish, and retain recovery material on interruption.                     |
 
 `Guide::control` requires that the same replay witnessed the control. Shortcut
 labels come from the production binding catalog; requesting a label does not
@@ -154,6 +157,53 @@ does not insert SDK page titles or block anchors. The N3 artifact pipeline still
 validates links across the complete guide. Normal SDK `render_many` exports keep
 their own complete-bundle validation. The existing N3 guide baseline, media, and
 `manifest.txt` format are retained rather than converted to SDK manifest JSON.
+
+## Local site handoff
+
+`lgtmd dev` uses the root [configuration](../../lgtmd.config.json) to invoke
+`just docs flow`. The guarded flow requires the per-run `LGTMD_OUTPUT` and
+`LGTMD_RUN_ID` environment supplied by the CLI before it starts capture. The
+ordinary `generate_outputs` path replays every feature once, validates the
+canonical Reader tree, and retains completed documents from those same sessions.
+After generation releases its renderer and session resources, N3 prepares the
+site documents and calls `handoff::complete_run`. The CLI also requires successful
+process exit before admitting a candidate; writing a receipt cannot conceal a
+later failure.
+
+Rust-authored guides reuse their completed SDK documents. Retained templates
+adapt their registered source through `Guide`'s typed control, shortcut, key,
+modifier, and captured-resource handles. The bridge compares each document's
+Reader fragment, including N3's generated preamble, with the ordinary guide
+page before site preparation. The SDK additionally HTML-escapes Markdown
+punctuation in typed labels, including backslashes. `site::legacy_fragment`
+translates only those known stronger entity spellings inside generated
+`code` and `kbd` labels back to N3's existing spelling, then compares the result
+exactly. Narrative text, whitespace, resource paths, and media retain exact
+comparison, and canonical guide baseline checks remain unchanged. The bridge
+does not ingest generated pages as a new narrative source or recapture media.
+
+Full SDK export supplies the site page title and explicit block anchors. N3's
+site preparation removes the duplicate authored title, creates explicit section
+anchors, and maps canonical `README.md` index links to the `overview.md` site
+page. These are site presentation changes to copies of the completed documents;
+the canonical fragments, media paths, media bytes, and text manifest remain
+unchanged. Site Markdown and structured bundles therefore have their own export
+format, while the explanation and evidence come from the same registered source.
+
+The native CLI is installed separately from N3's crates.io SDK dependency, under
+ignored `.cache/tools/lgtmd`. The unmodified 0.3.0 CLI's encoded JSON limits
+reject N3's complete media collection. Local integration therefore uses an isolated SDK build with an
+unreleased large-media handoff and retained-candidate host fix, verified
+separately from N3. That fix needs to land upstream; N3's pinned application
+dependency, canonical captures, and media resolution remain unchanged, and the
+SDK host fix stays outside N3's tracked source. The root
+configuration keeps retained candidates in `.cache/lgtmd`, local site snapshots
+in `.cache/lgtmd-snapshots`, and static site output in `build/docs-site`. These
+outputs remain ignored local review material. Starting dev does not accept a
+site snapshot or update the canonical guide; an unavailable recorded Git site
+baseline is reported explicitly. `just docs` retains its existing Docsify
+preview, and `just docs check/update` retain N3's verification and intentional
+guide-update roles. See [local setup](../development.md#local-lgtmd-site).
 
 ## Shared publication with explicit ownership
 
@@ -226,7 +276,7 @@ still need human review.
 ## Node and web integration
 
 [packages/lgtmd](https://github.com/lgtmd/lgtmd/blob/main/packages/lgtmd/README.md) authors documents in Node 24 ESM;
-[crates/lgtmd-node](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd-node/Cargo.toml) is its coarse native bridge.
+[crates/lgtmd-cli](https://github.com/lgtmd/lgtmd/blob/main/crates/lgtmd-cli/Cargo.toml) owns the shared native command and its internal coarse bridge.
 One serialized request per compile/publication carries schema-v1 frozen input to
 the same Rust validation, Markdown exporters, runner and owned store. The wire
 contains complete ordered content and resource snapshots, never process-local
@@ -254,7 +304,8 @@ filesystem store returned an unsupported-platform error. The selected native
 route retains the existing strict filesystem contract. It requires platform
 binaries in npm tarballs; installation performs no Rust build. Node 24 ESM on
 macOS arm64 is the executed local scope. Linux x64 has CI wiring, not a completed
-runtime claim. A full viewer and browser-hosted SDK are deferred.
+runtime claim. A browser-hosted SDK remains deferred; the native CLI embeds its
+local docs-site viewer.
 
 The SDK repository owns explicit browser setup and its Node/Chromium verification
 workflow. It checks the native bridge, authoring and failure semantics, real

@@ -109,19 +109,25 @@ pub(super) fn generate() -> Result<Artifacts> {
     Ok(generate_views(false)?.reader)
 }
 
-struct Views {
-    reader: Artifacts,
+pub(super) struct Views {
+    pub(super) reader: Artifacts,
     contributor: Option<Artifacts>,
+    pub(super) documents: Vec<lgtmd::Document>,
 }
 
 /// Both views are rendered from the same completed sessions and captured bytes.
 /// Ordinary checks only render the published reader view.
 fn generate_views(include_contributor: bool) -> Result<Views> {
+    generate_outputs(include_contributor, false)
+}
+
+pub(super) fn generate_outputs(include_contributor: bool, include_site: bool) -> Result<Views> {
     validate_feature_inventory()?;
     let mut capture = pollster::block_on(Capture::new(WIDTH, HEIGHT))?;
     let (media_width, media_height) = capture.framed_dimensions();
     let mut result = Artifacts::new();
     let mut contributor = include_contributor.then(Artifacts::new);
+    let mut documents = Vec::new();
     let mut manifest = format!(
         "n3 executable documentation v6\nrenderer: {}\nui-platform: macOS\napp-canvas: {WIDTH}x{HEIGHT}, 1 pixel/point, RGBA8Unorm\nmedia-canvas: {media_width}x{media_height}, lossless WebP\nframe-template: {}\nbaseline: Light theme; 240-point side panels\nclock: explicit scenario time; no wall clock\n",
         capture.renderer_profile,
@@ -175,6 +181,18 @@ fn generate_views(include_contributor: bool) -> Result<Views> {
                 page(Audience::Contributor)?.into_bytes(),
             )?;
         }
+        if include_site {
+            let document = site::document(feature, &mut session)?;
+            let expected = std::str::from_utf8(&result[&format!("{}.md", feature.slug)])
+                .map_err(|error| error.to_string())?;
+            if format!("{GENERATED}{}", site::legacy_fragment(&document)?) != expected {
+                return Err(format!(
+                    "{}: site narrative differs from the guide",
+                    feature.slug
+                ));
+            }
+            documents.push(document);
+        }
         index.push_str(&format!("- [{}]({}.md)\n", feature.title, feature.slug));
         manifest.push_str(&format!("\nfeature: {}\n", feature.slug));
         for (id, path) in session.bindings {
@@ -215,10 +233,33 @@ fn generate_views(include_contributor: bool) -> Result<Views> {
     insert(&mut result, "README.md".into(), index.into_bytes())?;
     insert(&mut result, "manifest.txt".into(), manifest.into_bytes())?;
     validate_links(&result)?;
+    if include_site {
+        documents.insert(0, site::overview(&result["README.md"])?);
+    }
     Ok(Views {
         reader: result,
         contributor,
+        documents,
     })
+}
+
+/// Replay once, release host resources, then hand frozen documents to lgtmd.
+pub fn flow() -> Result<()> {
+    for name in ["LGTMD_OUTPUT", "LGTMD_RUN_ID"] {
+        if std::env::var_os(name).is_none_or(|value| value.is_empty()) {
+            return Err(format!(
+                "{name} is required; run this flow through lgtmd dev"
+            ));
+        }
+    }
+    let views = generate_outputs(false, true)?;
+    let documents = site::prepare(views.documents)?;
+    lgtmd::handoff::complete_run(&documents)?;
+    println!(
+        "docs flow: {} verified features handed to lgtmd",
+        FEATURES.len()
+    );
+    Ok(())
 }
 
 pub(super) fn validate_feature_inventory() -> Result<()> {
